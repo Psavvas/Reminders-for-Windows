@@ -105,8 +105,8 @@
    </Grid>
   </NavigationView>
 
-  <Grid x:Name="AuthGate" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
+  <ContentControl x:Name="AuthGate" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+   <ScrollViewer Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="28" MaxWidth="480" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
     <Border.Transitions><TransitionCollection><EntranceThemeTransition FromVerticalOffset="24"/></TransitionCollection></Border.Transitions>
     <StackPanel Spacing="12">
@@ -130,7 +130,7 @@
     </StackPanel>
    </Border>
    </ScrollViewer>
-  </Grid>
+  </ContentControl>
 
   <Grid x:Name="SetupGuide" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
    <ScrollViewer x:Name="SetupGuideScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
