@@ -37,6 +37,7 @@ public sealed partial class MainWindow
 
     private void RenderSetupStep()
     {
+        UpdateSetupCardHeight();
         var step = ICloudSetupGuide.Steps[_setupStep];
         SetupStepCount.Text = $"Step {_setupStep + 1} of {ICloudSetupGuide.Steps.Count}";
         SetupProgress.Maximum = ICloudSetupGuide.Steps.Count;
@@ -51,6 +52,13 @@ public sealed partial class MainWindow
         SetupNext.Content = _setupStep < ICloudSetupGuide.Steps.Count - 1 ? "Next" : _setupFirstRun ? "Continue to sign-in" : "Done";
         SetupGuideScroll.ChangeView(null, 0, null, true);
         SetupStepTitle.Focus(FocusState.Programmatic);
+    }
+
+    private void Root_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSetupCardHeight();
+    private void UpdateSetupCardHeight()
+    {
+        if (SetupCard is not null && Root.ActualHeight > 0)
+            SetupCard.MaxHeight = Math.Max(160, Root.ActualHeight - 48);
     }
 
     private void CloseSetupGuide()

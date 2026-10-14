@@ -4,7 +4,7 @@
  xmlns:local="using:Reminders.Windows"
  xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives"
  Title="Reminders for Windows">
- <Grid x:Name="Root">
+ <Grid x:Name="Root" SizeChanged="Root_SizeChanged">
   <Grid.KeyboardAccelerators>
    <KeyboardAccelerator Key="N" Modifiers="Control" Invoked="NewAccelerator_Invoked"/>
    <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="SearchAccelerator_Invoked"/>
@@ -133,10 +133,11 @@
   </ContentControl>
 
   <Grid x:Name="SetupGuide" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-   <ScrollViewer x:Name="SetupGuideScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
-    <Border MaxWidth="640" Margin="24" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center"
+    <Border x:Name="SetupCard" MaxWidth="640" Margin="24" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
-     <StackPanel Spacing="18">
+     <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <ScrollViewer x:Name="SetupGuideScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
+     <StackPanel Spacing="12">
       <TextBlock x:Name="SetupGuideHeading" Text="Before you sign in" Style="{ThemeResource SubtitleTextBlockStyle}" TextWrapping="Wrap"/>
       <TextBlock Text="A few checks on your Apple Account will help Reminders feel at home on Windows." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
       <InfoBar x:Name="SetupFailure" IsOpen="False" Severity="Warning" IsClosable="False"/>
@@ -156,15 +157,18 @@
        <Button Content="Copy error details" Click="CopySignInError_Click" HorizontalAlignment="Stretch"/>
        <Button Content="Open diagnostic-log folder" Click="OpenAuthLogs_Click" HorizontalAlignment="Stretch"/>
       </StackPanel>
-      <Grid Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     </StackPanel>
+     </ScrollViewer>
+     <StackPanel Grid.Row="1" Spacing="8" Margin="0,18,0,0">
+      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <Button x:Name="SetupBack" Content="Back" Click="SetupBack_Click"/>
        <Button x:Name="SetupNext" Grid.Column="2" Content="Next" Style="{ThemeResource AccentButtonStyle}" Click="SetupNext_Click"/>
       </Grid>
       <HyperlinkButton x:Name="SetupReturn" Content="Return to sign-in" HorizontalAlignment="Center" Click="SetupReturn_Click" Visibility="Collapsed"/>
       <Button x:Name="SetupDemo" Content="Explore with sample data" HorizontalAlignment="Center" Click="SetupDemo_Click"/>
      </StackPanel>
+     </Grid>
     </Border>
-   </ScrollViewer>
   </Grid>
  </Grid>
 </Window>
