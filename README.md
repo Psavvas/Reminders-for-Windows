@@ -51,6 +51,24 @@ With the .NET 8 SDK or newer installed on Windows:
 Demo mode uses in-memory sample data, without opening the real cache or connecting
 to iCloud. For a normal unpackaged development launch, omit `-Demo`.
 
+## Before signing in
+
+On first launch, a five-screen guide explains this version's account setup:
+iCloud Reminders enabled, two-factor authentication with a trusted phone number
+for SMS codes, Advanced Data Protection off, web data access allowed, and account
+setup/updated terms completed on iCloud.com. Turning Advanced Data Protection off
+changes encryption protection for the whole iCloud account; the guide explains
+that choice and links to Apple's help. The app does not inspect or change these
+settings for you.
+
+Completion is remembered on this PC. Reopen the guide from the sign-in screen,
+an error's **Review iCloud setup** button, or **Settings → iCloud setup and
+troubleshooting**. Error guidance preserves Apple's message and offers next
+steps without guessing an unreported cause. Troubleshooting can copy the error
+and open the actual diagnostic-log folder, including in a Store installation.
+Opening or closing the guide does not send another verification code or restart
+the current sign-in session.
+
 ## Build and package
 
 ```powershell

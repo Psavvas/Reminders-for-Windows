@@ -109,16 +109,33 @@ public sealed partial class MainWindow : Window
         if (args.WindowActivationState == WindowActivationState.Deactivated) return;
         if (_bootStarted)
         {
+            if (SetupGuide.Visibility == Visibility.Visible) return;
             if (AuthGate.Visibility == Visibility.Collapsed && DateTimeOffset.UtcNow - _lastSyncRequest >= TimeSpan.FromSeconds(30))
                 await RequestAutoSyncAsync();
             return;
         }
         _bootStarted = true;
+#if DEBUG
+        // Offline UI verification of the failure/recovery flow, using an
+        // isolated REMINDERS_DATA_DIR. Never compiled into release builds.
+        if (Environment.GetCommandLineArgs().Contains("--preview-sign-in-error", StringComparer.OrdinalIgnoreCase))
+        {
+            ShowLogin();
+            ShowSignInError(new SyncException("NETWORK", "Apple accepted the verification code, but iCloud account sign-in failed (HTTP 500).", "HTTP 500: preview"), SignInStage.Verification);
+            return;
+        }
+#endif
         if (Environment.GetCommandLineArgs().Contains("--demo", StringComparer.OrdinalIgnoreCase) || Environment.GetEnvironmentVariable("REMINDERS_DEMO") == "1")
         {
             LoadDemo();
             return;
         }
+        if (!_uiPreferences.ICloudSetupCompleted) { ShowSetupGuide(firstRun: true); return; }
+        await StartAccountAsync();
+    }
+
+    private async Task StartAccountAsync()
+    {
         await BootAsync();
         _updateTimer.Start();
         await CheckForUpdatesAsync(false);
@@ -165,11 +182,13 @@ public sealed partial class MainWindow : Window
     {
         AuthGate.Visibility = Visibility.Visible; GateStatus.Text = status; GateProgress.Visibility = progress ? Visibility.Visible : Visibility.Collapsed;
         LoginFields.Visibility = Visibility.Collapsed; CodeFields.Visibility = Visibility.Collapsed; GateError.IsOpen = false;
+        SetupHelpLink.IsEnabled = !progress;
     }
     private void ShowLogin()
     {
         AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = "Sign in to iCloud"; LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
         AppleIdBox.Focus(FocusState.Programmatic);
+        SetupHelpLink.IsEnabled = true;
     }
 
     private async Task RefreshAllAsync()
@@ -331,10 +350,10 @@ public sealed partial class MainWindow : Window
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
         SetGateState("Signing in…");
-        try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password }); PasswordBox.Password = ""; await BootAsync(); }
+        try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password }); PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync(); }
         catch (SyncException error) when (error.Code == "2FA_REQUIRED") { await RequestCodeAsync(); }
         catch (SyncException error) when (error.Code == "TERMS_REQUIRED") { await AcceptTermsAsync(); }
-        catch (Exception error) { ShowLogin(); GateError.Message = error.Message; GateError.IsOpen = true; }
+        catch (Exception error) { ShowLogin(); ShowSignInError(error, SignInStage.Password); }
     }
     private async Task AcceptTermsAsync()
     {
@@ -342,8 +361,9 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
             SetGateState("Accepting terms…");
-            try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password, accept_terms = true }); PasswordBox.Password = ""; await BootAsync(); }
-            catch (Exception error) { ShowLogin(); GateError.Message = error.Message; GateError.IsOpen = true; }
+            try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password, accept_terms = true }); PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync(); }
+            catch (SyncException error) when (error.Code == "2FA_REQUIRED") { await RequestCodeAsync(); }
+            catch (Exception error) { ShowLogin(); ShowSignInError(error, SignInStage.Password); }
         }
         else ShowLogin();
     }
@@ -353,6 +373,8 @@ public sealed partial class MainWindow : Window
         VerifyCode.IsEnabled = enabled;
         ResendCode.IsEnabled = enabled;
         TextCode.IsEnabled = enabled;
+        SetupHelpLink.IsEnabled = enabled;
+        RestartSignIn.IsEnabled = enabled;
     }
 
     private async void Verify_Click(object sender, RoutedEventArgs e)
@@ -364,8 +386,8 @@ public sealed partial class MainWindow : Window
         // Digits only. Apple's own message and the Windows autofill both hand
         // over "123 456", and a stray space is not a wrong code.
         var code = new string(CodeBox.Text.Where(char.IsDigit).ToArray());
-        try { await _sync.CallAsync("submit_2fa", new { code }); CodeBox.Text = ""; await BootAsync(); }
-        catch (Exception error) { CodeBox.Text = ""; GateError.Message = error.Message; GateError.IsOpen = true; }
+        try { await _sync.CallAsync("submit_2fa", new { code }); CodeBox.Text = ""; _lastSignInFailure = null; await BootAsync(); }
+        catch (Exception error) { CodeBox.Text = ""; ShowSignInError(error, SignInStage.Verification); }
         finally { _verificationBusy = false; SetVerificationControlsEnabled(true); }
     }
 
@@ -401,8 +423,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             GateStatus.Text = "Verification code";
-            GateError.Message = error.Message;
-            GateError.IsOpen = true;
+            ShowSignInError(error, SignInStage.Delivery);
         }
         finally { _verificationBusy = false; SetVerificationControlsEnabled(true); }
     }
@@ -661,7 +682,7 @@ public sealed partial class MainWindow : Window
 
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
     private async void NewAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowNewReminderAsync(); }
-    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; SearchBox.Focus(FocusState.Programmatic); }
+    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed) SearchBox.Focus(FocusState.Programmatic); }
     private async void SettingsAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowSettingsAsync(); }
     private async Task ResolveConflictsAsync()
     {

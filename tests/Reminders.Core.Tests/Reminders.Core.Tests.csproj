@@ -9,4 +9,9 @@
   <ItemGroup><ProjectReference Include="..\..\src\Reminders.Core\Reminders.Core.csproj" /></ItemGroup>
   <ItemGroup><Compile Include="..\..\src\Reminders.WinUI\Services\ReminderGrouping.cs" Link="ReminderGrouping.cs" /></ItemGroup>
   <ItemGroup><Compile Include="..\..\src\Reminders.WinUI\Services\PaneSizing.cs" Link="PaneSizing.cs" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Reminders.WinUI\Services\SignInTroubleshooting.cs" Link="SignInTroubleshooting.cs" />
+    <Compile Include="..\..\src\Reminders.WinUI\Services\UiPreferences.cs" Link="UiPreferences.cs" />
+    <Compile Include="..\..\src\Reminders.WinUI\Services\AppLog.cs" Link="AppLog.cs" />
+  </ItemGroup>
 </Project>

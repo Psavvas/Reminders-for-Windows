@@ -234,6 +234,7 @@ try
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(shutdownRoot, true); }
 await AuthVerificationChecks.RunAsync(Check);
+SignInTroubleshootingChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);
 PaneSizingChecks.Run(Check);
 Console.WriteLine($"Passed {passed} backend and scheduling checks.");

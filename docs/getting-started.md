@@ -35,8 +35,16 @@ For unpackaged debugging, set `Reminders.WinUI` as the startup project. The
 
 Demo mode displays sample data without opening the real cache, reading credentials,
 or contacting iCloud. Debug builds accept `REMINDERS_DATA_DIR` for a separate test
-cache directory. Release builds use the normal LocalAppData location. There is no
+cache and UI-preferences directory. Release builds use the normal LocalAppData location. There is no
 executable override or sidecar process.
+
+To verify the first-run guide without using your normal preferences, launch a
+Debug build with `REMINDERS_DATA_DIR` set to an empty test directory. Complete
+the guide and reopen the app with the same directory to verify it stays completed.
+The Debug-only `--preview-sign-in-error` argument displays an offline sample of
+an account-login failure after an accepted code; no Apple request is made.
+Use its **Review iCloud setup** button to inspect the troubleshooting, error-copy,
+and log-folder actions. This preview is not included in Release builds.
 
 ## MSIX distribution
 
