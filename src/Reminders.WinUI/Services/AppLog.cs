@@ -6,6 +6,7 @@ internal static class AppLog
     private static readonly string DirectoryPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemindersSync", "logs");
     private static readonly string FilePath = Path.Combine(DirectoryPath, "app.log");
+    internal static string FolderPath => DirectoryPath;
 
     public static void Info(string message) => Write("INFO", message);
     public static void Error(string message, Exception exception) => Write("ERROR", $"{message}: {exception}");

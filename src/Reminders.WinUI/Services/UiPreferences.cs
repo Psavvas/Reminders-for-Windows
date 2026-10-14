@@ -7,7 +7,14 @@ internal static class UiPreferences
     private static readonly object Gate = new();
     private static readonly string DirectoryPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemindersForWindows");
-    private static readonly string FilePath = Path.Combine(DirectoryPath, "ui-settings.json");
+#if DEBUG
+    static UiPreferences()
+    {
+        if (Environment.GetEnvironmentVariable("REMINDERS_DATA_DIR") is { Length: > 0 } developmentData)
+            DirectoryPath = Path.Combine(Path.GetFullPath(developmentData), "ui");
+    }
+#endif
+    private static string FilePath => Path.Combine(DirectoryPath, "ui-settings.json");
 
     public static bool LoadNavigationPaneOpen()
     {
@@ -78,6 +85,7 @@ internal sealed class UiPreferenceData
     public Dictionary<string, ListAppearance> Lists { get; set; } = [];
     public double? DetailPaneFraction { get; set; }
     public bool CompletionAnimation { get; set; } = true;
+    public bool ICloudSetupCompleted { get; set; }
 }
 
 internal sealed class ListAppearance

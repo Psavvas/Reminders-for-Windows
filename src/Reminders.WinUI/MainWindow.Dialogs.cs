@@ -145,7 +145,7 @@ public sealed partial class MainWindow
 
     private async Task ShowNewReminderAsync()
     {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed) return;
+        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         try
         {
@@ -193,7 +193,7 @@ public sealed partial class MainWindow
 
     private async Task ShowSettingsAsync()
     {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed) return;
+        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         try
         {
@@ -223,8 +223,12 @@ public sealed partial class MainWindow
             panel.Children.Add(new TextBlock { Text = $"Version {AppUpdater.CurrentVersion.ToString(3)}" });
             var checkUpdates = new Button { Content = "Check for updates", IsEnabled = !_demo && !_updateBusy };
             var requestedUpdateCheck = false;
+            var requestedSetupGuide = false;
             checkUpdates.Click += (_, _) => { requestedUpdateCheck = true; dialog.Hide(); };
             panel.Children.Add(checkUpdates);
+            var setupGuide = new Button { Content = "iCloud setup and troubleshooting" };
+            setupGuide.Click += (_, _) => { requestedSetupGuide = true; dialog.Hide(); };
+            panel.Children.Add(setupGuide);
             Heading("About Reminders for Windows");
             panel.Children.Add(new TextBlock
             {
@@ -266,6 +270,7 @@ public sealed partial class MainWindow
             panel.Children.Add(privacy);
             sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 5 && sync.Value <= 60;
             var settingsResult = await dialog.ShowAsync();
+            if (requestedSetupGuide) { _dialogOpen = false; ShowSetupGuide(); return; }
             if (requestedUpdateCheck) { await CheckForUpdatesAsync(true); return; }
             if (settingsResult != ContentDialogResult.Primary) return;
             if (!double.IsFinite(sync.Value)) { ShowInfo("Settings weren't saved", "Enter a sync interval from 5 to 60 minutes.", InfoBarSeverity.Warning); return; }
