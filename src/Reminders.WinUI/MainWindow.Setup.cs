@@ -112,6 +112,14 @@ public sealed partial class MainWindow
 
     private void ShowSignInError(Exception error, SignInStage stage)
     {
+        if (stage == SignInStage.Password && Reminders.Core.DemoAccount.IsDemoUsername(AppleIdBox.Text))
+        {
+            _lastSignInFailure = null;
+            GateError.Title = "Couldn't sign in";
+            GateError.Message = error.Message;
+            GateError.IsOpen = true;
+            return;
+        }
         var syncError = error as SyncException;
         var code = error is OperationCanceledException ? "NETWORK" : syncError?.Code;
         var message = error is OperationCanceledException ? "The iCloud request timed out. Please try again." : error.Message;

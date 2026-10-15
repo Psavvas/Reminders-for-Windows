@@ -42,6 +42,11 @@ The retired Rust backend has been removed; its source remains in Git history.
 
 ## Quick start: demo mode
 
+To test the installed app without an iCloud account, use the
+[local test account](docs/demo-account.md) through the normal sign-in form.
+Its sample reminders and edits are stored separately on this PC and never sync
+to iCloud. The credentials are documented on GitHub only.
+
 With the .NET 8 SDK or newer installed on Windows:
 
 ```powershell

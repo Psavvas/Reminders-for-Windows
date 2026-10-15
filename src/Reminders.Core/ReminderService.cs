@@ -8,8 +8,10 @@ namespace Reminders.Core;
 public sealed class ReminderService : IAsyncDisposable
 {
     private readonly Cache cache;
-    private readonly ICloudClient client;
-    private readonly SyncEngine sync;
+    private readonly ICloudClient? cloudClient;
+    private readonly SyncEngine? sync;
+    private ICloudClient client => cloudClient ?? throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.");
+    public bool IsLocalDemo => cloudClient is null;
     private readonly SemaphoreSlim clientGate = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
     private readonly ConcurrentDictionary<long, Task> background = new();
@@ -23,9 +25,26 @@ public sealed class ReminderService : IAsyncDisposable
     internal ReminderService(string dataDirectory, ISecrets secrets, Func<HttpMessageHandler>? handlerFactory = null)
     {
         cache = new Cache(Path.Combine(dataDirectory, "cache.db"));
-        client = new ICloudClient((cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(), new SecretStore(secrets), handlerFactory);
+        cloudClient = new ICloudClient((cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(), new SecretStore(secrets), handlerFactory);
         client.Diagnostic += message => Diagnostic?.Invoke(message);
         authSnapshot = client.Status; sync = new(cache, client, clientGate, Emit);
+    }
+    private ReminderService(Cache localCache)
+    {
+        // This constructor never opens the iCloud cache, credential vault or HTTP client.
+        cache = localCache;
+        try { DemoAccount.Seed(cache); }
+        catch { cache.Dispose(); throw; }
+        authSnapshot = (JsonObject)J.Node(new { authenticated = true, apple_id = "demo", needs_2fa = false, restoring = false, local_only = true });
+    }
+    public static ReminderService OpenDemo(string dataDirectory, string? password)
+    {
+        DemoAccount.ValidatePassword(password);
+        return new ReminderService(new Cache(Path.Combine(dataDirectory, "demo", "cache.db")));
+    }
+    private void QueueSync(bool full = false)
+    {
+        if (sync is not null) Queue(ct => sync.Sync(full, ct));
     }
     private void Emit(string name, JsonNode data)
     {
@@ -54,6 +73,7 @@ public sealed class ReminderService : IAsyncDisposable
     public Task StartAsync(CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested(); ObjectDisposedException.ThrowIf(disposed, this);
+        if (IsLocalDemo) { Emit("ready", J.Node(new { apple_id = "demo", local_only = true })); return Task.CompletedTask; }
         if (client.Account.Length > 0)
         {
             client.Restoring = true; authSnapshot = client.Status;
@@ -68,13 +88,14 @@ public sealed class ReminderService : IAsyncDisposable
                     client.Restoring = true; Volatile.Write(ref authSnapshot, client.Status);
                 }
                 client.Restoring = false; Emit("auth_changed", client.Status);
-                if (restored) await sync.Sync(cache.Lists.Count == 0, ct);
+                if (restored) await sync!.Sync(cache.Lists.Count == 0, ct);
             });
         }
         Emit("ready", J.Node(new { apple_id = client.Account })); return Task.CompletedTask;
     }
     private async Task<T> WithClient<T>(Func<Task<T>> action, CancellationToken token)
     {
+        if (IsLocalDemo) throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.");
         await clientGate.WaitAsync(token);
         try { return await action(); }
         finally { try { Volatile.Write(ref authSnapshot, client.Status); } finally { clientGate.Release(); } }
@@ -107,7 +128,9 @@ public sealed class ReminderService : IAsyncDisposable
             case "auth_status":
                 var status = (JsonObject)Volatile.Read(ref authSnapshot).DeepClone(); status["has_cache"] = cache.Lists.Count > 0; status["last_sync"] = cache.Meta("last_sync"); return status;
             case "login":
+                if (IsLocalDemo) throw CoreException.Bad("Leave the local account before signing in again.");
                 var account = (p.Optional("apple_id", 320) ?? cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(); if (account.Length == 0) throw new CoreException("AUTH_REQUIRED", "No Apple ID provided");
+                if (DemoAccount.IsDemoUsername(account)) throw new CoreException("AUTH_REQUIRED", "Use the local sign-in flow for this account.");
                 var password = p.Optional("password", 4096);
                 var login = await WithClient(async () =>
                 {
@@ -118,11 +141,12 @@ public sealed class ReminderService : IAsyncDisposable
                     client.SetAccount(account); cache.SetMeta("apple_id", account);
                     return await client.Connect(password, cache.Settings.Flag("remember_password"), p.Flag("accept_terms"), token);
                 }, token);
-                Queue(ct => sync.Sync(cache.Lists.Count == 0, ct)); return login;
+                QueueSync(cache.Lists.Count == 0); return login;
             case "request_2fa": return await WithClient(() => client.RequestCode(p.Text("method") == "sms", token), token);
             case "submit_2fa":
-                var code = p.Required("code"); var verified = await WithClient(() => client.SubmitCode(code, token), token); Queue(ct => sync.Sync(cache.Lists.Count == 0, ct)); return verified;
+                var code = p.Required("code"); var verified = await WithClient(() => client.SubmitCode(code, token), token); QueueSync(cache.Lists.Count == 0); return verified;
             case "sign_out":
+                if (IsLocalDemo) { authSnapshot["authenticated"] = false; return J.Node(new { signed_out = true }); }
                 await WithClient(() => { client.SignOut(); return Task.FromResult(true); }, token);
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
             case "lists": return cache.Lists;
@@ -134,12 +158,12 @@ public sealed class ReminderService : IAsyncDisposable
             case "set_settings": return cache.SetSettings(p);
             case "create_reminder":
                 var r = new JsonObject { ["id"] = "local/" + Guid.NewGuid(), ["list_id"] = p.Required("list_id"), ["title"] = p.Optional("title", 4096) ?? "", ["description"] = p.Optional("description", 100000) ?? "", ["due_date"] = TimeUtil.Normalize(p["due_date"], p.Flag("all_day")), ["priority"] = p.Number("priority"), ["completed"] = false, ["flagged"] = p.Flag("flagged"), ["all_day"] = p.Flag("all_day"), ["created"] = TimeUtil.Now, ["modified"] = TimeUtil.Now };
-                cache.Transaction(() => { cache.Upsert(r, true); cache.Enqueue(r.Required("id"), "create", r, null); return true; }); Queue(ct => sync.Sync(false, ct)); return cache.Reminder(r.Required("id"));
+                cache.Transaction(() => { cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true; }); QueueSync(); return cache.Reminder(r.Required("id"));
             case "update_reminder": return LocalChange(p, "update");
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
-            case "sync": Queue(ct => sync.Sync(p.Flag("full"), ct)); return J.Node(new { queued = true });
-            case "sync_status": return J.Node(new { running = sync.Running, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 10) });
+            case "sync": QueueSync(p.Flag("full")); return J.Node(new { queued = !IsLocalDemo, local_only = IsLocalDemo });
+            case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 10) });
             case "conflicts": return cache.Conflicts;
             case "resolve_conflict":
                 var conflictId = p.Number("id", -1); if (conflictId < 0) throw CoreException.Bad("missing conflict id");
@@ -169,9 +193,11 @@ public sealed class ReminderService : IAsyncDisposable
                 if (p.ContainsKey("due_date")) fields["due_date"] = TimeUtil.Normalize(p["due_date"], allDay);
                 else if (p.ContainsKey("all_day") && allDay && current.Text("due_date") is { } raw) fields["due_date"] = TimeUtil.Normalize(JsonValue.Create(raw), true);
             }
-            cache.Edit(id, fields); cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag")); result = cache.Reminder(id); return true;
+            cache.Edit(id, fields, dirty: !IsLocalDemo);
+            if (IsLocalDemo && fields.ContainsKey("completed")) cache.Execute("UPDATE reminders SET completed_date=@p0 WHERE id=@p1", fields.Flag("completed") ? TimeUtil.Now : null, id);
+            if (!IsLocalDemo) cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag")); result = cache.Reminder(id); return true;
         });
-        Queue(ct => sync.Sync(false, ct)); return operation == "delete" ? J.Node(new { deleted = id }) : result!;
+        QueueSync(); return operation == "delete" ? J.Node(new { deleted = id }) : result!;
     }
     private JsonNode Notifications(JsonObject p)
     {
@@ -196,7 +222,7 @@ public sealed class ReminderService : IAsyncDisposable
         // Failed direct calls have already reached their callers. Their failure
         // must not prevent disposal of the cache or HTTP client.
         try { await Task.WhenAll(work); } catch (Exception) { }
-        await clientGate.WaitAsync(); try { client.Dispose(); cache.Dispose(); } finally { clientGate.Release(); }
+        await clientGate.WaitAsync(); try { cloudClient?.Dispose(); cache.Dispose(); } finally { clientGate.Release(); }
         lifetime.Dispose(); clientGate.Dispose();
     }
 }

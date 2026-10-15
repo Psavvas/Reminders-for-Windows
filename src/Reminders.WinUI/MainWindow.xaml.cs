@@ -350,7 +350,19 @@ public sealed partial class MainWindow : Window
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
         SetGateState("Signing in…");
-        try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password }); PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync(); }
+        try
+        {
+            if (Reminders.Core.DemoAccount.IsDemoUsername(AppleIdBox.Text))
+            {
+                await _sync.SignInDemoAsync(PasswordBox.Password);
+                _uiPreferences = UiPreferences.Load(localDemo: true);
+                SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
+                UpdatePaneLayout();
+            }
+            else await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password });
+            PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync();
+            if (_sync.IsLocalDemo) ShowInfo("Local account", "Reminders are saved on this PC. iCloud sync is off.", InfoBarSeverity.Informational);
+        }
         catch (SyncException error) when (error.Code == "2FA_REQUIRED") { await RequestCodeAsync(); }
         catch (SyncException error) when (error.Code == "TERMS_REQUIRED") { await AcceptTermsAsync(); }
         catch (Exception error) { ShowLogin(); ShowSignInError(error, SignInStage.Password); }
@@ -493,7 +505,13 @@ public sealed partial class MainWindow : Window
         if (_restoringNavigation) return;
         if (args.IsSettingsSelected) { RestoreNavigationSelection(); return; }
         if (args.SelectedItemContainer?.Tag?.ToString() is not string tag) return;
-        if (tag == "sync") { if (!_demo) await _sync.CallAsync("sync", new { }); ShowInfo("Syncing", "Checking iCloud for changes…", InfoBarSeverity.Informational); return; }
+        if (tag == "sync")
+        {
+            if (!_demo) await _sync.CallAsync("sync", new { });
+            if (_sync.IsLocalDemo) ShowInfo("Saved locally", "Your changes are stored on this PC.", InfoBarSeverity.Informational);
+            else if (!_demo) ShowInfo("Syncing", "Checking iCloud for changes…", InfoBarSeverity.Informational);
+            return;
+        }
         if (tag == "conflicts") { await ResolveConflictsAsync(); return; }
         var split = tag.Split(':', 2); if (split.Length != 2) return;
         _view = new(args.SelectedItemContainer.Content?.ToString() ?? "Reminders", "", split[0] switch { "list" => NavKind.List, "tag" => NavKind.Tag, _ => NavKind.Smart }, split[1]);
@@ -535,7 +553,7 @@ public sealed partial class MainWindow : Window
             Navigation.IsPaneOpen = pinned;
         }
         finally { _initializingPane = wasInitializing; }
-        if (persist && !_demo) UiPreferences.SaveNavigationPaneOpen(pinned);
+        if (persist && !_demo) UiPreferences.SaveNavigationPaneOpen(pinned, localDemo: _sync.IsLocalDemo);
     }
 
     private void Navigation_Loaded(object sender, RoutedEventArgs e)
@@ -775,7 +793,7 @@ public sealed partial class MainWindow : Window
 
     private void Sync_EventReceived(object? sender, SyncEventArgs e) => DispatcherQueue.TryEnqueue(async () =>
     {
-        if (_syncDisposedForUpdate || _updateLifetime.IsCancellationRequested) return;
+        if (_syncDisposedForUpdate || _updateLifetime.IsCancellationRequested || !_sync.IsCurrentEvent(e)) return;
         switch (e.Name)
         {
             case "ready": await BootAsync(); break;
