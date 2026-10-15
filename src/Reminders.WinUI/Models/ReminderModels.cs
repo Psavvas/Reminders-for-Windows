@@ -87,12 +87,6 @@ public sealed class ReminderTag
     [JsonPropertyName("n")] public long Count { get; set; }
 }
 
-public sealed class SyncException(string code, string message, string detail = "") : Exception(message)
-{
-    public string Code { get; } = code;
-    public string Detail { get; } = detail;
-}
-
 public sealed record NavEntry(string Label, string Glyph, NavKind Kind, string Key, long Count = 0, string? Color = null);
 public enum NavKind { Smart, List, Tag }
 

@@ -87,7 +87,7 @@ public sealed partial class MainWindow
     {
         if (_demo) return;
         _uiPreferences.NavigationPaneOpen = _panePinnedOpen;
-        UiPreferences.Save(_uiPreferences);
+        UiPreferences.Save(_uiPreferences, localDemo: _sync.IsLocalDemo);
     }
 
     private void MoveList(string id, int direction)
@@ -214,8 +214,9 @@ public sealed partial class MainWindow
             Heading("Appearance"); panel.Children.Add(theme); panel.Children.Add(animation); panel.Children.Add(paneSizing); panel.Children.Add(detailWidth);
             panel.Children.Add(new TextBlock { Text = "Hover between the panes to reveal the divider. Drag it all the way to either edge to close a pane, and drag from that edge to reopen it. Double-click to restore automatic sizing. Automatic sizing shows one pane at a time in smaller windows.", TextWrapping = TextWrapping.Wrap });
             Heading("Reminders"); panel.Children.Add(defaultList); panel.Children.Add(notifications);
-            Heading("iCloud sync"); panel.Children.Add(sync);
-            panel.Children.Add(new TextBlock { Text = "Changes save locally and upload automatically. Use Sync now to check for changes immediately.", TextWrapping = TextWrapping.Wrap });
+            Heading(_sync.IsLocalDemo ? "Local storage" : "iCloud sync");
+            if (!_sync.IsLocalDemo) panel.Children.Add(sync);
+            panel.Children.Add(new TextBlock { Text = _sync.IsLocalDemo ? "Changes are saved on this PC and are never uploaded to iCloud." : "Changes save locally and upload automatically. Use Sync now to check for changes immediately.", TextWrapping = TextWrapping.Wrap });
             Heading("My lists");
             panel.Children.Add(new TextBlock { Text = "Right-click a list in the sidebar to change its icon and color or move it up and down. These preferences stay on this PC.", TextWrapping = TextWrapping.Wrap });
             var dialog = MakeDialog("Settings", panel, "Save");
@@ -224,6 +225,13 @@ public sealed partial class MainWindow
             var checkUpdates = new Button { Content = "Check for updates", IsEnabled = !_demo && !_updateBusy };
             var requestedUpdateCheck = false;
             var requestedSetupGuide = false;
+            var requestedLeaveLocal = false;
+            if (_sync.IsLocalDemo)
+            {
+                var leaveLocal = new Button { Content = "Leave local account" };
+                leaveLocal.Click += (_, _) => { requestedLeaveLocal = true; dialog.Hide(); };
+                panel.Children.Add(leaveLocal);
+            }
             checkUpdates.Click += (_, _) => { requestedUpdateCheck = true; dialog.Hide(); };
             panel.Children.Add(checkUpdates);
             var setupGuide = new Button { Content = "iCloud setup and troubleshooting" };
@@ -270,6 +278,21 @@ public sealed partial class MainWindow
             panel.Children.Add(privacy);
             sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 5 && sync.Value <= 60;
             var settingsResult = await dialog.ShowAsync();
+            if (requestedLeaveLocal)
+            {
+                _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop();
+                ShowDetail(null); _reminders.Clear(); _lists.Clear(); _tags.Clear();
+                _view = new("Today", "", NavKind.Smart, "today");
+                ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = "";
+                AppleIdBox.Text = ""; PasswordBox.Password = ""; AppInfoBar.IsOpen = false;
+                _uiPreferences = UiPreferences.Load();
+                SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
+                UpdatePaneLayout();
+                RebuildListNavigation();
+                await _sync.DisposeAsync();
+                await BootAsync();
+                return;
+            }
             if (requestedSetupGuide) { _dialogOpen = false; ShowSetupGuide(); return; }
             if (requestedUpdateCheck) { await CheckForUpdatesAsync(true); return; }
             if (settingsResult != ContentDialogResult.Primary) return;

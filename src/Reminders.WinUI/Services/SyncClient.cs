@@ -7,25 +7,61 @@ public sealed class SyncClient : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
     private readonly SemaphoreSlim lifecycle = new(1, 1);
+    private readonly string dataDirectory;
     private ReminderService? service;
+    public SyncClient() : this(DataDirectory) { }
+    internal SyncClient(string dataDirectory) { this.dataDirectory = dataDirectory; }
     public event EventHandler<SyncEventArgs>? EventReceived;
     public bool IsRunning => service is not null;
+    public bool IsLocalDemo => service?.IsLocalDemo == true;
+    public bool IsCurrentEvent(SyncEventArgs args) => ReferenceEquals(service, args.Source);
+    private static string DataDirectory
+    {
+        get
+        {
+            var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemindersSync");
+#if DEBUG
+            if (Environment.GetEnvironmentVariable("REMINDERS_DATA_DIR") is { Length: > 0 } developmentData) directory = Path.GetFullPath(developmentData);
+#endif
+            return directory;
+        }
+    }
+    private void Attach(ReminderService engine)
+    {
+        engine.EventReceived += (name, data) => { if (ReferenceEquals(service, engine)) EventReceived?.Invoke(this, new(name, data, engine)); };
+        engine.Diagnostic += AppLog.Info;
+    }
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await lifecycle.WaitAsync(cancellationToken);
         try
         {
             if (service is not null) return;
-            var dataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemindersSync");
-#if DEBUG
-            if (Environment.GetEnvironmentVariable("REMINDERS_DATA_DIR") is { Length: > 0 } developmentData) dataDirectory = Path.GetFullPath(developmentData);
-#endif
             var engine = await Task.Run(() => new ReminderService(dataDirectory), cancellationToken);
-            engine.EventReceived += (name, data) => EventReceived?.Invoke(this, new(name, data));
-            engine.Diagnostic += AppLog.Info;
-            try { await engine.StartAsync(cancellationToken); service = engine; }
-            catch { await engine.DisposeAsync(); throw; }
+            Attach(engine);
+            try { service = engine; await engine.StartAsync(cancellationToken); }
+            catch { service = null; await engine.DisposeAsync(); throw; }
         }
+        finally { lifecycle.Release(); }
+    }
+    public async Task SignInDemoAsync(string password, CancellationToken cancellationToken = default)
+    {
+        await lifecycle.WaitAsync(cancellationToken);
+        try
+        {
+            // Validate before replacing a real session; failed demo logins leave it intact.
+            var engine = await Task.Run(() => ReminderService.OpenDemo(dataDirectory, password), cancellationToken);
+            try
+            {
+                var previous = service; service = null;
+                if (previous is not null) await previous.DisposeAsync();
+                Attach(engine);
+                service = engine;
+                await engine.StartAsync(cancellationToken);
+            }
+            catch { service = null; await engine.DisposeAsync(); throw; }
+        }
+        catch (CoreException error) { throw new SyncException(error.Code, error.Message, error.Detail); }
         finally { lifecycle.Release(); }
     }
     public async Task<T> CallAsync<T>(string method, object? parameters = null, CancellationToken cancellationToken = default) =>
@@ -54,7 +90,7 @@ public sealed class SyncClient : IAsyncDisposable
     }
 }
 
-public sealed record SyncEventArgs(string Name, JsonElement Data);
+public sealed record SyncEventArgs(string Name, JsonElement Data, ReminderService Source);
 internal static class JsonHelpers
 {
     public static string Text(this JsonElement value, string name, string fallback = "") => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out var node) && node.ValueKind == JsonValueKind.String ? node.GetString() ?? fallback : fallback;

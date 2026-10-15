@@ -13,5 +13,7 @@
     <Compile Include="..\..\src\Reminders.WinUI\Services\SignInTroubleshooting.cs" Link="SignInTroubleshooting.cs" />
     <Compile Include="..\..\src\Reminders.WinUI\Services\UiPreferences.cs" Link="UiPreferences.cs" />
     <Compile Include="..\..\src\Reminders.WinUI\Services\AppLog.cs" Link="AppLog.cs" />
+    <Compile Include="..\..\src\Reminders.WinUI\Services\SyncClient.cs" Link="SyncClient.cs" />
+    <Compile Include="..\..\src\Reminders.WinUI\Services\SyncException.cs" Link="SyncException.cs" />
   </ItemGroup>
 </Project>
