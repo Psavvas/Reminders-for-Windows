@@ -136,40 +136,56 @@
   </ContentControl>
 
   <Grid x:Name="SetupGuide" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-    <Border x:Name="SetupCard" MaxWidth="640" Margin="24" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
-     <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <ScrollViewer x:Name="SetupGuideScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
-     <StackPanel Spacing="12">
-      <TextBlock x:Name="SetupGuideHeading" Text="Before you sign in" Style="{ThemeResource SubtitleTextBlockStyle}" TextWrapping="Wrap"/>
-      <TextBlock Text="A few checks on your Apple Account will help Reminders feel at home on Windows." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+    <Border x:Name="SetupCard" MaxWidth="560" Margin="24" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16">
+     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Spacing="12" Margin="0,0,0,24">
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <TextBlock x:Name="SetupGuideHeading" Text="iCloud setup" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+       <TextBlock x:Name="SetupStepCount" Grid.Column="1" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite"/>
+       <Button x:Name="SetupReturn" Grid.Column="2" Width="32" Height="32" Padding="0" Visibility="Collapsed" Click="SetupReturn_Click" AutomationProperties.Name="Close setup"><FontIcon Glyph="&#xE8BB;" FontSize="12"/></Button>
+      </Grid>
+      <ProgressBar x:Name="SetupProgress" Height="4" Minimum="0" Maximum="5" IsTabStop="False"/>
+     </StackPanel>
+     <ScrollViewer x:Name="SetupGuideScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
+     <StackPanel Spacing="16">
       <InfoBar x:Name="SetupFailure" IsOpen="False" Severity="Warning" IsClosable="False"/>
-      <TextBlock x:Name="SetupStepCount" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite"/>
-      <ProgressBar x:Name="SetupProgress" Minimum="0" Maximum="5" IsTabStop="False"/>
-      <FontIcon x:Name="SetupStepIcon" FontSize="30" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-      <TextBlock x:Name="SetupStepTitle" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" IsTabStop="True" AutomationProperties.HeadingLevel="Level1"/>
-      <TextBlock x:Name="SetupStepSummary" TextWrapping="Wrap" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-      <TextBlock x:Name="SetupStepInstructions" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-      <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="14">
-       <TextBlock x:Name="SetupStepNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <Border Width="42" Height="42" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Top">
+        <FontIcon x:Name="SetupStepIcon" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+       </Border>
+       <TextBlock x:Name="SetupStepTitle" Grid.Column="1" FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" IsTabStop="True" AutomationProperties.HeadingLevel="Level1"/>
+      </Grid>
+      <TextBlock x:Name="SetupStepSummary" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <Border Background="{ThemeResource ControlFillColorSecondaryBrush}" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+       <TextBlock x:Name="SetupStepInstructions" TextWrapping="Wrap" LineHeight="22" IsTextSelectionEnabled="True"/>
       </Border>
+      <InfoBar x:Name="SetupImportantNote" Title="Before you change this" IsOpen="False" IsClosable="False" Severity="Warning"/>
       <HyperlinkButton x:Name="SetupStepLink" HorizontalAlignment="Left" Padding="0" Click="SetupStepLink_Click"/>
-      <InfoBar x:Name="SetupGuideNotice" IsOpen="False" Severity="Informational" IsClosable="True"/>
-      <StackPanel x:Name="SetupSupportActions" Spacing="8" Visibility="Collapsed">
-       <TextBlock Text="Still stuck? Copy the error and share it with support along with app.log. Do not send passwords or verification codes." TextWrapping="Wrap"/>
-       <Button Content="Copy error details" Click="CopySignInError_Click" HorizontalAlignment="Stretch"/>
-       <Button Content="Open diagnostic-log folder" Click="OpenAuthLogs_Click" HorizontalAlignment="Stretch"/>
-      </StackPanel>
+      <Expander x:Name="SetupDetails" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+       <Expander.Header><TextBlock x:Name="SetupDetailsHeading" TextWrapping="Wrap"/></Expander.Header>
+       <StackPanel Spacing="12">
+        <TextBlock x:Name="SetupStepDetails" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+        <TextBlock x:Name="SetupStepNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+       </StackPanel>
+      </Expander>
+      <InfoBar x:Name="SetupGuideNotice" IsOpen="False" Severity="Informational" IsClosable="True" Closed="SetupGuideNotice_Closed"/>
+      <Expander x:Name="SetupSupportActions" Header="Get help with this error" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="Collapsed">
+       <StackPanel Spacing="12">
+        <TextBlock Text="Share the error and app.log with support. Do not send passwords or verification codes." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <Button Content="Copy error details" Click="CopySignInError_Click" HorizontalAlignment="Stretch"/>
+        <Button Content="Open diagnostic-log folder" Click="OpenAuthLogs_Click" HorizontalAlignment="Stretch"/>
+       </StackPanel>
+      </Expander>
      </StackPanel>
      </ScrollViewer>
-     <StackPanel Grid.Row="1" Spacing="8" Margin="0,18,0,0">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <Button x:Name="SetupBack" Content="Back" Click="SetupBack_Click"/>
-       <Button x:Name="SetupNext" Grid.Column="2" Content="Next" Style="{ThemeResource AccentButtonStyle}" Click="SetupNext_Click"/>
+     <Border Grid.Row="2" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,20,0,0">
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Button x:Name="SetupBack" Content="Back" Click="SetupBack_Click" HorizontalAlignment="Left"/>
+       <HyperlinkButton x:Name="SetupDemo" Content="Try sample data" Padding="0" HorizontalAlignment="Left" VerticalAlignment="Center" Click="SetupDemo_Click"/>
+       <Button x:Name="SetupNext" Grid.Column="1" MinWidth="96" Content="Next" Style="{ThemeResource AccentButtonStyle}" Click="SetupNext_Click"/>
       </Grid>
-      <HyperlinkButton x:Name="SetupReturn" Content="Return to sign-in" HorizontalAlignment="Center" Click="SetupReturn_Click" Visibility="Collapsed"/>
-      <Button x:Name="SetupDemo" Content="Explore with sample data" HorizontalAlignment="Center" Click="SetupDemo_Click"/>
-     </StackPanel>
+     </Border>
      </Grid>
     </Border>
   </Grid>

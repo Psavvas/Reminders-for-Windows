@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Automation;
 using Reminders.Windows.Services;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -23,15 +24,19 @@ public sealed partial class MainWindow
         Navigation.IsEnabled = false;
         AuthGate.IsEnabled = false;
         SetupGuide.Visibility = Visibility.Visible;
-        SetupGuideHeading.Text = firstRun ? "Before you sign in" : "iCloud setup and troubleshooting";
+        SetupGuideHeading.Text = firstRun ? "iCloud setup" : "Setup and help";
         SetupReturn.Visibility = firstRun ? Visibility.Collapsed : Visibility.Visible;
-        SetupReturn.Content = AuthGate.Visibility == Visibility.Visible ? "Return to sign-in" : "Return to reminders";
-        SetupDemo.Visibility = firstRun ? Visibility.Visible : Visibility.Collapsed;
+        var returnLabel = AuthGate.Visibility == Visibility.Visible ? "Return to sign-in" : "Return to reminders";
+        AutomationProperties.SetName(SetupReturn, returnLabel);
+        ToolTipService.SetToolTip(SetupReturn, returnLabel);
         SetupFailure.IsOpen = _lastSignInFailure is not null;
+        SetupFailure.Visibility = _lastSignInFailure is null ? Visibility.Collapsed : Visibility.Visible;
         SetupFailure.Title = _lastSignInFailure?.Title ?? "";
         SetupFailure.Message = _lastSignInFailure is { } failure ? failure.Reason + "\n\n" + failure.NextStep : "";
         SetupSupportActions.Visibility = _lastSignInFailure is null ? Visibility.Collapsed : Visibility.Visible;
+        SetupSupportActions.IsExpanded = false;
         SetupGuideNotice.IsOpen = false;
+        SetupGuideNotice.Visibility = Visibility.Collapsed;
         RenderSetupStep();
     }
 
@@ -45,11 +50,21 @@ public sealed partial class MainWindow
         SetupStepIcon.Glyph = step.Glyph;
         SetupStepTitle.Text = step.Title;
         SetupStepSummary.Text = step.Summary;
-        SetupStepInstructions.Text = step.Instructions;
+        SetupStepInstructions.Text = step.QuickInstructions;
+        SetupStepDetails.Text = step.Instructions;
         SetupStepNote.Text = step.Note;
+        SetupStepNote.Visibility = step.ImportantNote ? Visibility.Collapsed : Visibility.Visible;
+        SetupImportantNote.Message = step.Note;
+        SetupImportantNote.IsOpen = step.ImportantNote;
+        SetupImportantNote.Visibility = step.ImportantNote ? Visibility.Visible : Visibility.Collapsed;
+        SetupDetailsHeading.Text = step.DetailsTitle;
+        AutomationProperties.SetName(SetupDetails, step.DetailsTitle);
+        SetupDetails.IsExpanded = false;
         SetupStepLink.Content = step.LinkLabel;
         SetupBack.IsEnabled = _setupStep > 0;
-        SetupNext.Content = _setupStep < ICloudSetupGuide.Steps.Count - 1 ? "Next" : _setupFirstRun ? "Continue to sign-in" : "Done";
+        SetupBack.Visibility = _setupStep > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetupDemo.Visibility = _setupFirstRun && _setupStep == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetupNext.Content = _setupStep < ICloudSetupGuide.Steps.Count - 1 ? "Next" : _setupFirstRun ? "Sign in" : "Done";
         SetupGuideScroll.ChangeView(null, 0, null, true);
         SetupStepTitle.Focus(FocusState.Programmatic);
     }
@@ -57,8 +72,14 @@ public sealed partial class MainWindow
     private void Root_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSetupCardHeight();
     private void UpdateSetupCardHeight()
     {
-        if (SetupCard is not null && Root.ActualHeight > 0)
-            SetupCard.MaxHeight = Math.Max(160, Root.ActualHeight - 48);
+        if (SetupCard is null || Root.ActualHeight <= 0) return;
+        var narrow = Root.ActualWidth < 600;
+        var margin = Root.ActualWidth < 480 ? 12 : 24;
+        SetupCard.Margin = new Thickness(margin);
+        SetupCard.Padding = new Thickness(narrow ? 20 : 28);
+        SetupCard.Width = Math.Max(0, Math.Min(560, Root.ActualWidth - 2 * margin));
+        SetupCard.MaxHeight = Math.Max(160, Root.ActualHeight - 2 * margin);
+        if (SetupStepTitle is not null) SetupStepTitle.FontSize = narrow ? 22 : 26;
     }
 
     private void CloseSetupGuide()
@@ -158,5 +179,8 @@ public sealed partial class MainWindow
         SetupGuideNotice.Title = title;
         SetupGuideNotice.Message = message;
         SetupGuideNotice.IsOpen = true;
+        SetupGuideNotice.Visibility = Visibility.Visible;
     }
+
+    private void SetupGuideNotice_Closed(InfoBar sender, InfoBarClosedEventArgs args) => SetupGuideNotice.Visibility = Visibility.Collapsed;
 }
