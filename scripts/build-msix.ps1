@@ -67,6 +67,11 @@ try {
     Get-ChildItem $staging -Filter '*.pdb' -File -ErrorAction SilentlyContinue | Remove-Item -Force
     $packageProject = Join-Path $repository 'src\Reminders.Package'
     Copy-Item -Path (Join-Path $packageProject 'Assets\*.png') -Destination (Join-Path $staging 'Assets') -Force
+    # Explicit paths preserve the Assets subtree without re-indexing compiled
+    # XAML or the portable artwork already imported from Reminders.pri.
+    $shellAssetList = Join-Path $staging 'shell-assets.resfiles'
+    Get-ChildItem (Join-Path $packageProject 'Assets') -Filter '*.png' -File |
+        ForEach-Object { 'Assets\' + $_.Name } | Set-Content -LiteralPath $shellAssetList -Encoding utf8
     [xml]$manifestXml = Get-Content -LiteralPath (Join-Path $packageProject 'Package.appxmanifest') -Raw
     $manifestXml.Package.Identity.SetAttribute('Name', $IdentityName)
     $manifestXml.Package.Identity.SetAttribute('Publisher', $Publisher)
@@ -100,10 +105,19 @@ try {
                 throw "The package resource index is missing $resource."
             }
         }
+        $shellLogo = $primaryMap.SelectSingleNode("ResourceMapSubtree[@name='Files']/ResourceMapSubtree[@name='Assets']/NamedResource[@name='Square44x44Logo.png']")
+        foreach ($size in @(16,20,24,30,32,36,40,48,60,64,72,80,96,256)) {
+            foreach ($form in @('UNPLATED', 'LIGHTUNPLATED')) {
+                if (-not $shellLogo -or -not $shellLogo.SelectSingleNode("Candidate[QualifierSet/Qualifier[@name='TargetSize' and @value='$size'] and QualifierSet/Qualifier[@name='AlternateForm' and @value='$form']]/Value")) {
+                    throw "The package resource index is missing the $size px $form shell icon."
+                }
+            }
+        }
     }
     finally {
         if (Test-Path -LiteralPath $priDump) { Remove-Item -LiteralPath $priDump -Force }
     }
+    Remove-Item -LiteralPath $shellAssetList -Force
     $package = Join-Path $packageOutput "Reminders-for-Windows-$Architecture.msix"
     $packOutput = @(& $makeAppx.FullName pack /o /h SHA256 /d $staging /p $package 2>&1)
     if ($LASTEXITCODE -ne 0) { $packOutput | Write-Host; throw 'MakeAppx failed to create the MSIX package.' }

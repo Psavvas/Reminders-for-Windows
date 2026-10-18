@@ -1,6 +1,6 @@
 # Privacy Policy for Reminders for Windows
 
-Effective date: October 5, 2026. Last updated: October 5, 2026.
+Effective date: October 5, 2026. Last updated: October 18, 2026.
 
 Paul Savvas maintains Reminders for Windows, an independent Windows app that works with Apple iCloud Reminders. This policy describes the app's handling of personal information. The app is not affiliated with Apple or Microsoft. For privacy questions, contact hello@paulsavvas.com.
 
@@ -9,6 +9,8 @@ Paul Savvas maintains Reminders for Windows, an independent Windows app that wor
 Account and sign-in information: the app accesses the Apple Account identifier you enter, your password during sign-in, verification codes, authentication cookies and session tokens, and account information returned by Apple. This can include masked trusted phone numbers and verification identifiers. The app also generates a client identifier used in requests to Apple. Authentication exchanges are sent directly to Apple over HTTPS, using Apple's password proof protocol. Saved passwords and sessions are stored in Windows Credential Manager to support later sign-ins.
 
 Reminder information: the app accesses and syncs your lists, reminders, titles, notes, tags, due dates, priorities, completion and deletion status, and associated identifiers and sync metadata. Reminder text may contain personal or sensitive information that you or someone sharing a list entered. A local cache also stores pending edits and versions needed to resolve sync conflicts.
+
+Apple-device sign-in: an optional Microsoft Edge WebView2 window displays Apple's own iCloud sign-in page in an InPrivate profile. Apple handles password entry and device verification there. After you establish trust, the app reads the successful Apple account-login exchange and Apple cookies to save a verified session in Windows Credential Manager. It does not record browser passwords, verification codes, or sign-in page contents. The browser profile is separate from your normal browser.
 
 Preferences and diagnostics: the app stores settings such as theme, list order, list appearance, pane sizes, sync interval, and notification preferences. Local logs record technical events, request status, and errors. Error messages may include account-related details or local file paths. Logs are not automatically uploaded to the developer.
 

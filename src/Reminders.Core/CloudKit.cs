@@ -18,15 +18,18 @@ internal sealed class CloudKit(AppleAuth auth)
     internal static JsonNode Number(long value) => J.Node(new { type = "INT64", value });
     internal static JsonNode Timestamp(long? value) => J.Node(new { type = "TIMESTAMP", value });
     internal static JsonNode Reference(string name) => J.Node(new { type = "REFERENCE", value = new { recordName = name, action = "VALIDATE" } });
-    internal static JsonNode Operation(string kind, string name, string? tag, JsonObject fields)
+    internal static JsonNode Operation(string kind, string name, string? tag, JsonObject fields, string type = "Reminder", string? parent = null)
     {
-        var record = new JsonObject { ["recordName"] = name, ["recordType"] = "Reminder", ["fields"] = fields };
+        var record = new JsonObject { ["recordName"] = name, ["recordType"] = type, ["fields"] = fields };
+        if (parent is not null) record["parent"] = J.Node(new { recordName = parent });
         if (tag is not null) record["recordChangeTag"] = tag;
         return new JsonObject { ["operationType"] = kind, ["record"] = record };
     }
-    internal static JsonNode ResolutionTokens(IEnumerable<string> names)
+    internal static JsonNode ResolutionTokens(IEnumerable<string> names, JsonNode? record = null)
     {
-        var map = new JsonObject(); foreach (var name in names.Distinct()) map[name] = J.Node(new { counter = 1, modificationTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 - 978307200, replicaID = Guid.NewGuid().ToString().ToUpperInvariant() }); return String(new JsonObject { ["map"] = map }.ToJsonString());
+        var map = J.Parse(record is null ? null : Text(record, "ResolutionTokenMap"))?["map"]?.DeepClone() as JsonObject ?? new();
+        foreach (var name in names.Distinct()) map[name] = J.Node(new { counter = map[name].Number("counter") + 1, modificationTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 - 978307200, replicaID = Guid.NewGuid().ToString().ToUpperInvariant() });
+        return String(new JsonObject { ["map"] = map }.ToJsonString());
     }
     internal static void Reject(IEnumerable<JsonNode?> items)
     {
@@ -93,8 +96,19 @@ internal sealed class CloudKit(AppleAuth auth)
     {
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(J.Node(new { recordName = id })), ["zoneID"] = Zone }, token); var rows = response.Array("records"); Reject(rows); return rows;
     }
+    public async Task<JsonArray> LookupMany(IEnumerable<string> ids, CancellationToken token, bool allowMissing = false)
+    {
+        var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(ids.Distinct().Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
+        var rows = response.Array("records");
+        var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") != "UNKNOWN_ITEM").Select(r => r?.DeepClone()).ToArray());
+        Reject(found); return found;
+    }
     public async Task<JsonArray> Modify(JsonNode operation, CancellationToken token)
     {
-        var response = await Post("records/modify", new JsonObject { ["operations"] = new JsonArray(operation), ["zoneID"] = Zone, ["atomic"] = true }, token); var rows = response.Array("records"); Reject(rows); return rows;
+        var operations = operation as JsonArray ?? new JsonArray(operation);
+        var response = await Post("records/modify", new JsonObject { ["operations"] = operations, ["zoneID"] = Zone, ["atomic"] = true }, token); var rows = response.Array("records"); Reject(rows);
+        if (operations.Any(op => !rows.Any(r => r.Text("recordName") == op?["record"].Text("recordName"))))
+            throw new CoreException("NETWORK", "iCloud did not acknowledge every changed record. The operation will be retried.");
+        return rows;
     }
 }

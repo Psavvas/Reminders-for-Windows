@@ -43,8 +43,13 @@ public sealed partial class MainWindow
         catch (Exception error) { ShowInfo("Couldn't complete action", error.Message, InfoBarSeverity.Error); }
     }
 
-    private List<ReminderList> OrderedLists() => _lists.Where(list => !list.IsGroup)
-        .OrderBy(list => { var index = _uiPreferences.ListOrder.IndexOf(list.Id); return index < 0 ? int.MaxValue : index; }).ToList();
+    private List<ReminderList> OrderedLists()
+    {
+        var saved = _settings.Property("list_order");
+        var order = saved.ValueKind == JsonValueKind.Array && saved.GetArrayLength() > 0
+            ? saved.EnumerateArray().Select(v => v.GetString() ?? "").ToList() : _uiPreferences.ListOrder;
+        return _lists.Where(list => !list.IsGroup).OrderBy(list => { var index = order.IndexOf(list.Id); return index < 0 ? int.MaxValue : index; }).ToList();
+    }
 
     private static Brush ColorBrush(string? hex)
     {
@@ -68,9 +73,9 @@ public sealed partial class MainWindow
             customize.Click += async (_, _) => await CustomizeListAsync(list);
             menu.Items.Add(customize);
             var up = new MenuFlyoutItem { Text = "Move up", IsEnabled = ordered.IndexOf(list) > 0 };
-            up.Click += (_, _) => MoveList(list.Id, -1);
+            up.Click += async (_, _) => await MoveListAsync(list.Id, -1);
             var down = new MenuFlyoutItem { Text = "Move down", IsEnabled = ordered.IndexOf(list) < ordered.Count - 1 };
-            down.Click += (_, _) => MoveList(list.Id, 1);
+            down.Click += async (_, _) => await MoveListAsync(list.Id, 1);
             menu.Items.Add(up); menu.Items.Add(down); item.ContextFlyout = menu;
             Navigation.MenuItems.Add(item);
         }
@@ -90,13 +95,18 @@ public sealed partial class MainWindow
         UiPreferences.Save(_uiPreferences, localDemo: _sync.IsLocalDemo);
     }
 
-    private void MoveList(string id, int direction)
+    private async Task MoveListAsync(string id, int direction)
     {
         var order = OrderedLists().Select(list => list.Id).ToList();
         var index = order.IndexOf(id); var target = index + direction;
         if (index < 0 || target < 0 || target >= order.Count) return;
         (order[index], order[target]) = (order[target], order[index]);
-        _uiPreferences.ListOrder = order; SaveUiPreferences(); RebuildListNavigation();
+        try
+        {
+            if (!_demo) _settings = await _sync.CallAsync("set_settings", new { list_order = order });
+            _uiPreferences.ListOrder = order; SaveUiPreferences(); RebuildListNavigation();
+        }
+        catch (Exception error) { ShowInfo("Couldn't save list order", error.Message, InfoBarSeverity.Error); }
     }
 
     private async Task CustomizeListAsync(ReminderList list)
@@ -169,18 +179,25 @@ public sealed partial class MainWindow
             allDay.Toggled += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
             date.DateChanged += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
             var priority = new ComboBox { Header = "Priority", ItemsSource = new[] { "None", "Low", "Medium", "High" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var repeat = new ComboBox { Header = "Repeat", ItemsSource = new[] { "Never", "Daily", "Weekly", "Monthly", "Yearly" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var interval = new NumberBox { Header = "Repeat every", Minimum = 1, Maximum = 999, Value = 1, IsEnabled = false, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+            repeat.SelectionChanged += (_, _) => { interval.IsEnabled = repeat.SelectedIndex > 0; if (repeat.SelectedIndex > 0) scheduled.IsOn = true; };
+            scheduled.Toggled += (_, _) => { if (!scheduled.IsOn) repeat.SelectedIndex = 0; };
             var flagged = new ToggleSwitch { Header = "Flagged" };
             var panel = new StackPanel { Spacing = 12, MinWidth = 360 };
-            foreach (var control in new UIElement[] { title, notes, list, scheduled, date, allDay, time, priority, flagged }) panel.Children.Add(control);
+            foreach (var control in new UIElement[] { title, notes, list, scheduled, date, allDay, time, repeat, interval, priority, flagged }) panel.Children.Add(control);
             var dialog = MakeDialog("New reminder", panel, "Add");
             dialog.IsPrimaryButtonEnabled = false;
-            void Validate() => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string;
+            void Validate() => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string
+                && (!scheduled.IsOn || date.Date is not null) && (repeat.SelectedIndex == 0 || double.IsFinite(interval.Value) && interval.Value is >= 1 and <= 999 && interval.Value == Math.Truncate(interval.Value));
             title.TextChanged += (_, _) => Validate(); list.SelectionChanged += (_, _) => Validate();
+            repeat.SelectionChanged += (_, _) => Validate(); interval.ValueChanged += (_, _) => Validate(); date.DateChanged += (_, _) => Validate(); scheduled.Toggled += (_, _) => Validate();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedValue is not string listId) return;
             var due = FormatDueDate(scheduled.IsOn ? date.Date : null, allDay.IsOn, time.Time);
             var priorityValue = priority.SelectedIndex switch { 1 => 9, 2 => 5, 3 => 1, _ => 0 };
-            if (_demo) _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text, DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn });
-            else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text, due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn });
+            var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
+            if (_demo) _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text, DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence });
+            else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text, due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn, recurrence });
             await RefreshAllAsync();
         }
         catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }
@@ -203,7 +220,7 @@ public sealed partial class MainWindow
             var detailWidth = new Slider { Header = "Detail pane share (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? 0.5, 0, 1) * 100, IsEnabled = paneSizing.SelectedIndex == 1 };
             paneSizing.SelectionChanged += (_, _) => detailWidth.IsEnabled = paneSizing.SelectedIndex == 1;
             var animation = new ToggleSwitch { Header = "Animate completed reminders", IsOn = _uiPreferences.CompletionAnimation };
-            var sync = new NumberBox { Header = "Sync interval (minutes)", Minimum = 5, Maximum = 60, Value = _settings.Number("sync_minutes") is 0 ? 10 : _settings.Number("sync_minutes"), SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+            var sync = new NumberBox { Header = "Sync interval (minutes)", Minimum = 1, Maximum = 60, Value = _settings.Number("sync_minutes") is 0 ? 1 : _settings.Number("sync_minutes"), SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
             var notifications = new ToggleSwitch { Header = "Due-date notifications", IsOn = _settings.Flag("notifications_enabled") };
             var defaultList = new ComboBox { Header = "Default list for new reminders", DisplayMemberPath = "Title", SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
             defaultList.ItemsSource = new[] { new ReminderList { Id = "", Title = "First list in sidebar" } }.Concat(OrderedLists()).ToList();
@@ -276,7 +293,7 @@ public sealed partial class MainWindow
                 showingPrivacy = false;
             };
             panel.Children.Add(privacy);
-            sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 5 && sync.Value <= 60;
+            sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 1 && sync.Value <= 60;
             var settingsResult = await dialog.ShowAsync();
             if (requestedLeaveLocal)
             {
@@ -296,9 +313,9 @@ public sealed partial class MainWindow
             if (requestedSetupGuide) { _dialogOpen = false; ShowSetupGuide(); return; }
             if (requestedUpdateCheck) { await CheckForUpdatesAsync(true); return; }
             if (settingsResult != ContentDialogResult.Primary) return;
-            if (!double.IsFinite(sync.Value)) { ShowInfo("Settings weren't saved", "Enter a sync interval from 5 to 60 minutes.", InfoBarSeverity.Warning); return; }
+            if (!double.IsFinite(sync.Value)) { ShowInfo("Settings weren't saved", "Enter a sync interval from 1 to 60 minutes.", InfoBarSeverity.Warning); return; }
             themeValue = theme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
-            var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 5, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
+            var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 1, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
             _settings = _demo ? JsonSerializer.SerializeToElement(values) : await _sync.CallAsync("set_settings", values);
             _uiPreferences.CompletionAnimation = animation.IsOn;
             _uiPreferences.DetailPaneFraction = paneSizing.SelectedIndex == 0 ? null : detailWidth.Value / 100;

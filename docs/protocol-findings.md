@@ -10,11 +10,15 @@ define the behavior the native C# connector must preserve.
   the device's current zone. Creation, modification, and completion dates are
   ordinary instants.
 - Deletion is a soft `Deleted = 1` field update.
-- List changes do not appear in the reminder delta stream, so every delta pass
-  also refreshes lists.
+- Sync requests the combined `Reminder`, `List`, `Hashtag` and `RecurrenceRule`
+  zone stream. Full reads and delta reads apply those records together in a
+  SQLite transaction; tag changes do not trigger another full history read.
 - List colors are JSON blobs; `daHexString` is the preferred display value.
-- Tags are readable but writes accepted by CloudKit were not rendered by Apple
-  clients. This app therefore keeps tags read-only.
+- Early standalone tag writes were accepted without rendering on Apple clients.
+  Tag creation now atomically updates the parent's `HashtagIDs` (raw UUIDs) and
+  creates a `Hashtag/<UUID>` child with a CloudKit parent, validated `Reminder`
+  reference, and base64 UTF-8 `ENCRYPTED_BYTES` name. Live rendering must still
+  be verified on an Apple account.
 - List creates, renames, and deletes accepted by CloudKit did not propagate to
   Apple devices. This app does not expose those operations.
 - A phone may replace linked field collections wholesale. Local writes carry a
@@ -22,6 +26,18 @@ define the behavior the native C# connector must preserve.
   last-write-wins overwrites.
 
 ## Two-factor sign-in
+
+The optional Apple-device sign-in window lets Apple's own website implement the
+current HSA2 bridge. It uses a separate InPrivate WebView2 profile, observes only
+the successful `setup.icloud.com/setup/ws/1/accountLogin` exchange and Apple auth
+headers, and imports the token, trust token, stable client ID and Apple cookies.
+The backend verifies the session and returned account before switching accounts
+or saving it. No JavaScript bridge or password interception is installed. The
+native SMS path remains available. Cookies and rotated tokens are saved in the
+existing chunked Windows Credential Manager entries, including after sync and
+normal shutdown; startup resumes before attempting a password handshake.
+
+The following findings describe the native verification endpoints:
 
 - **Apple has three verifiers; this connector implements two.** Trusted-device
   verification has moved to Apple's HSA2 **bridge**: the client opens a
@@ -41,8 +57,8 @@ define the behavior the native C# connector must preserve.
 
   `POST verify/phone/securitycode` is a different endpoint, plain HTTP, and
   needs no bridge -- so a texted code is the only route this connector can
-  currently complete, and `request_2fa` prefers it whenever Apple lists a
-  trusted number. Restoring the device prompt means porting the bridge.
+  currently complete directly, and `request_2fa` prefers it whenever Apple lists a
+  trusted number. The Apple-hosted sign-in option handles the newer bridge.
 - The `phoneNumber` payload is `{"id": <id>}` plus `"nonFTEU"` only when Apple
   included it. Both `PUT verify/phone` and `POST verify/phone/securitycode`
   take the same shape.

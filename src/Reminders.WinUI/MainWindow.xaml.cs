@@ -25,7 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _searchTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _statusTimer = new() { Interval = TimeSpan.FromSeconds(15) };
     private readonly DispatcherTimer _notificationTimer = new() { Interval = TimeSpan.FromSeconds(30) };
-    private readonly DispatcherTimer _syncTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private readonly DispatcherTimer _syncTimer = new() { Interval = TimeSpan.FromSeconds(15) };
     private readonly DispatcherTimer _paneHoverOpenTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
     private readonly DispatcherTimer _paneHoverCloseTimer = new() { Interval = TimeSpan.FromMilliseconds(420) };
     private List<ReminderList> _lists = [];
@@ -334,7 +334,7 @@ public sealed partial class MainWindow : Window
     }
     private async Task BackgroundSyncAsync()
     {
-        var minutes = _settings.TryGetProperty("sync_minutes", out var setting) && setting.TryGetInt32(out var value) ? Math.Clamp(value, 5, 60) : 10;
+        var minutes = _settings.TryGetProperty("sync_minutes", out var setting) && setting.TryGetInt32(out var value) ? Math.Clamp(value, 1, 60) : 1;
         if (DateTimeOffset.UtcNow - _lastSyncRequest < TimeSpan.FromMinutes(minutes)) return;
         await RequestAutoSyncAsync();
     }
@@ -490,7 +490,7 @@ public sealed partial class MainWindow : Window
     private void LoadDemo()
     {
         _demo = true; AuthGate.Visibility = Visibility.Collapsed;
-        _settings = JsonDocument.Parse("""{"theme":"system","sync_minutes":10,"notifications_enabled":true}""").RootElement.Clone(); ApplyTheme("system");
+        _settings = JsonDocument.Parse("""{"theme":"system","sync_minutes":1,"notifications_enabled":true}""").RootElement.Clone(); ApplyTheme("system");
         _lists = DemoData.CreateLists(); DetailList.ItemsSource = _lists;
         _tags = ["errands"];
         RebuildListNavigation();
@@ -654,6 +654,8 @@ public sealed partial class MainWindow : Window
             DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description; DetailList.SelectedValue = reminder.ListId; DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
+            DetailRepeat.Text = reminder.Recurrence?.Label ?? "Does not repeat";
+            DetailTags.Text = string.Join("  ", reminder.Tags.Select(t => "#" + t)); NewTagName.Text = "";
         }
         SaveButton.IsEnabled = false; _loadingDetail = false;
         UpdatePaneLayout();
@@ -696,6 +698,24 @@ public sealed partial class MainWindow : Window
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Delete reminder?", Content = _selected.DisplayTitle, PrimaryButtonText = "Delete", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         if (_demo) _selected.Deleted = true; else await _sync.CallAsync("delete_reminder", new { id = _selected.Id }); ShowDetail(null); await LoadRemindersAsync();
+    }
+    private async void AddTag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null || string.IsNullOrWhiteSpace(NewTagName.Text)) return;
+        AddTagButton.IsEnabled = false;
+        try
+        {
+            if (_demo)
+            {
+                var name = NewTagName.Text.Trim().TrimStart('#');
+                if (!_selected.Tags.Contains(name, StringComparer.OrdinalIgnoreCase)) _selected.Tags.Add(name);
+                _tags = _demoRows.SelectMany(r => r.Tags).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
+                RebuildListNavigation(); ShowDetail(_selected); UpdateRows();
+            }
+            else { await _sync.CallAsync("create_tag", new { id = _selected.Id, name = NewTagName.Text }); await RefreshAllAsync(); }
+        }
+        catch (Exception error) { ShowInfo("Couldn't add tag", error.Message, InfoBarSeverity.Error); }
+        finally { AddTagButton.IsEnabled = true; }
     }
 
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();

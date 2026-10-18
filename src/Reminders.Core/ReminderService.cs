@@ -143,6 +143,18 @@ public sealed class ReminderService : IAsyncDisposable
                 }, token);
                 QueueSync(cache.Lists.Count == 0); return login;
             case "request_2fa": return await WithClient(() => client.RequestCode(p.Text("method") == "sms", token), token);
+            case "browser_login":
+                var browserAccount = p.Required("apple_id", 320).Trim().ToLowerInvariant();
+                var browserState = p["state"] as JsonObject ?? throw CoreException.Bad("Missing Apple session.");
+                var browserLogin = await WithClient(async () =>
+                {
+                    var switching = client.Account.Length > 0 && client.Account != browserAccount;
+                    if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out before switching accounts.");
+                    var authenticated = await client.ImportBrowserSession(browserAccount, browserState, token);
+                    if (switching) cache.Purge();
+                    cache.SetMeta("apple_id", browserAccount); return authenticated;
+                }, token);
+                QueueSync(cache.Lists.Count == 0); return browserLogin;
             case "submit_2fa":
                 var code = p.Required("code"); var verified = await WithClient(() => client.SubmitCode(code, token), token); QueueSync(cache.Lists.Count == 0); return verified;
             case "sign_out":
@@ -151,19 +163,25 @@ public sealed class ReminderService : IAsyncDisposable
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
             case "lists": return cache.Lists;
             case "reminders": return cache.Reminders(p);
-            case "reminder": return cache.Reminder(p.Required("id"));
+            case "reminder": return cache.Reminder(cache.ResolveId(p.Required("id")));
             case "tags": return cache.Tags;
+            case "create_tag":
+                var tagResult = cache.Transaction(() => AddTag(p.Required("id"), p.Required("name", 256)));
+                QueueSync(); return tagResult;
             case "smart_counts": return cache.Counts;
             case "settings": return cache.Settings;
             case "set_settings": return cache.SetSettings(p);
             case "create_reminder":
                 var r = new JsonObject { ["id"] = "local/" + Guid.NewGuid(), ["list_id"] = p.Required("list_id"), ["title"] = p.Optional("title", 4096) ?? "", ["description"] = p.Optional("description", 100000) ?? "", ["due_date"] = TimeUtil.Normalize(p["due_date"], p.Flag("all_day")), ["priority"] = p.Number("priority"), ["completed"] = false, ["flagged"] = p.Flag("flagged"), ["all_day"] = p.Flag("all_day"), ["created"] = TimeUtil.Now, ["modified"] = TimeUtil.Now };
+                r["recurrence"] = Recurrence.Validate(p["recurrence"], r.Text("due_date"));
+                r["cloud_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
+                r["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
                 cache.Transaction(() => { cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true; }); QueueSync(); return cache.Reminder(r.Required("id"));
             case "update_reminder": return LocalChange(p, "update");
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
             case "sync": QueueSync(p.Flag("full")); return J.Node(new { queued = !IsLocalDemo, local_only = IsLocalDemo });
-            case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 10) });
+            case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 1) });
             case "conflicts": return cache.Conflicts;
             case "resolve_conflict":
                 var conflictId = p.Number("id", -1); if (conflictId < 0) throw CoreException.Bad("missing conflict id");
@@ -180,7 +198,7 @@ public sealed class ReminderService : IAsyncDisposable
     }
     private JsonNode LocalChange(JsonObject p, string operation)
     {
-        var id = p.Required("id"); JsonObject? result = null;
+        var id = cache.ResolveId(p.Required("id")); JsonObject? result = null;
         cache.Transaction(() =>
         {
             var current = cache.Reminder(id) ?? throw CoreException.Bad($"No such reminder: {id}"); var fields = new JsonObject();
@@ -192,12 +210,50 @@ public sealed class ReminderService : IAsyncDisposable
                 var allDay = fields.ContainsKey("all_day") ? fields.Flag("all_day") : current.Flag("all_day");
                 if (p.ContainsKey("due_date")) fields["due_date"] = TimeUtil.Normalize(p["due_date"], allDay);
                 else if (p.ContainsKey("all_day") && allDay && current.Text("due_date") is { } raw) fields["due_date"] = TimeUtil.Normalize(JsonValue.Create(raw), true);
+                if (current["recurrence"] is not null)
+                {
+                    if (fields.ContainsKey("due_date") && fields["due_date"] is null) throw CoreException.Bad("A repeating reminder needs a due date.");
+                    if (fields.Flag("completed") && current["recurrence"]!.Property("supported")?.ToString() == "false")
+                        throw CoreException.Bad("Complete this custom repeat on an Apple device to preserve its schedule.");
+                }
+                if (fields.Flag("completed"))
+                {
+                    if (current.Flag("completed")) { result = current; return true; }
+                    fields["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
+                }
+            }
+            if (IsLocalDemo && fields.Flag("completed") && current["recurrence"] is JsonObject localRepeat && current.Text("due_date") is { } localDue)
+            {
+                var next = Recurrence.Next(new JsonObject { ["fields"] = Recurrence.Fields(id, localRepeat) }, localDue, current.Text("time_zone"), DateTimeOffset.UtcNow);
+                if (next is not null)
+                {
+                    var occurrence = (JsonObject)current.DeepClone(); occurrence["id"] = fields.Required("completion_id");
+                    occurrence["completed"] = true; occurrence["completed_date"] = TimeUtil.Now; occurrence["recurrence"] = null; occurrence["recurrence_ids"] = new JsonArray();
+                    cache.Upsert(occurrence); fields["completed"] = false; fields["due_date"] = next;
+                }
             }
             cache.Edit(id, fields, dirty: !IsLocalDemo);
             if (IsLocalDemo && fields.ContainsKey("completed")) cache.Execute("UPDATE reminders SET completed_date=@p0 WHERE id=@p1", fields.Flag("completed") ? TimeUtil.Now : null, id);
             if (!IsLocalDemo) cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag")); result = cache.Reminder(id); return true;
         });
         QueueSync(); return operation == "delete" ? J.Node(new { deleted = id }) : result!;
+    }
+    private JsonObject AddTag(string id, string rawName)
+    {
+        id = cache.ResolveId(id);
+        var current = cache.Reminder(id) ?? throw CoreException.Bad("Select a reminder before adding a tag.");
+        var name = rawName.Trim().TrimStart('#');
+        if (name.Length is 0 or > 128 || name.Any(c => !char.IsLetterOrDigit(c) && c is not '_' and not '-'))
+            throw CoreException.Bad("Use letters, numbers, hyphens or underscores for a tag (up to 128 characters).");
+        if (current.Array("tags").Any(t => string.Equals(t?.ToString(), name, StringComparison.OrdinalIgnoreCase))) return current;
+        var identity = Guid.NewGuid().ToString().ToUpperInvariant();
+        cache.Execute("INSERT INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", "Hashtag/" + identity, name, id);
+        if (!IsLocalDemo)
+        {
+            cache.Execute("UPDATE reminders SET dirty=1 WHERE id=@p0", id);
+            cache.Enqueue(id, "tag", J.Node(new { name, tag_id = identity }), current.Text("change_tag"));
+        }
+        return cache.Reminder(id)!;
     }
     private JsonNode Notifications(JsonObject p)
     {
@@ -222,7 +278,13 @@ public sealed class ReminderService : IAsyncDisposable
         // Failed direct calls have already reached their callers. Their failure
         // must not prevent disposal of the cache or HTTP client.
         try { await Task.WhenAll(work); } catch (Exception) { }
-        await clientGate.WaitAsync(); try { cloudClient?.Dispose(); cache.Dispose(); } finally { clientGate.Release(); }
+        await clientGate.WaitAsync();
+        try
+        {
+            try { if (cloudClient?.Connected == true) cloudClient.Persist(); }
+            finally { cloudClient?.Dispose(); cache.Dispose(); }
+        }
+        finally { clientGate.Release(); }
         lifetime.Dispose(); clientGate.Dispose();
     }
 }

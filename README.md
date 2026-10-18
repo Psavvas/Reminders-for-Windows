@@ -59,8 +59,8 @@ to iCloud. For a normal unpackaged development launch, omit `-Demo`.
 ## Before signing in
 
 On first launch, a five-screen guide explains this version's account setup:
-iCloud Reminders enabled, two-factor authentication with a trusted phone number
-for SMS codes, Advanced Data Protection off, web data access allowed, and account
+iCloud Reminders enabled, two-factor authentication using an Apple device or a
+trusted phone number for SMS codes, Advanced Data Protection off, web data access allowed, and account
 setup/updated terms completed on iCloud.com. Turning Advanced Data Protection off
 changes encryption protection for the whole iCloud account; the guide explains
 that choice and links to Apple's help. The app does not inspect or change these
@@ -128,16 +128,23 @@ the updater. Committing code alone does not distribute an update.
 | Titles, notes, due dates, priorities, completion and flags | Read and write |
 | Smart lists | Today, Upcoming, All, Completed and Deleted |
 | Search and sorting | Local SQLite queries |
-| Tags | Read and filter |
+| Tags | Read, filter, and add tags to reminders |
+| Repeated reminders | Create daily/weekly/monthly/yearly schedules; preserve supported repeats when completing |
+| Sidebar list order | Saved on this PC across refreshes and restarts |
 | Offline use | Cached reads; edits queue for upload |
-| Automatic sync | Launch/return, after edits, and every 10 minutes by default |
-| Authentication | Apple ID, SMS 2FA, terms acceptance and session restoration |
+| Automatic sync | Launch/return, after edits, and every minute by default; incremental list/tag/rule updates |
+| Authentication | Apple-hosted device verification or native SMS, terms acceptance, saved trust tokens and cookies |
 | Conflicts | Preserve local/remote versions for explicit resolution |
 | Windows integration | Native controls, theme, badges and due notifications |
 
 Creating or changing lists is unsupported: CloudKit Web Services list records do
-not propagate to Apple devices. Two-factor sign-in requires a trusted phone number
-and a texted code. Apple's HSA2 device-prompt bridge is not implemented. See
+not propagate to Apple devices. **Sign in with an Apple device** opens Apple's
+own sign-in page in an isolated WebView2 window, allowing Apple to handle its
+current device-verification flow. Choose **Trust** when Apple offers it. The
+trusted session is saved in Windows Credential Manager; Apple can still expire
+or revoke it. App-specific passwords do not authenticate this Reminders service.
+Custom repeat rules the app cannot safely advance must be completed on an Apple
+device. Live Apple interoperability still requires account validation. See
 [protocol findings](docs/protocol-findings.md).
 
 ## Architecture

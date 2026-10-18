@@ -28,7 +28,7 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 try
                 {
                     Progress("Uploading queued changes..."); var push = await Recover(() => Push(deadline.Token), deadline.Token);
-                    var needsFull = force || cache.Meta("sync_cursor") is null || cache.Meta("cloudkit_read_protocol") != "3";
+                    var needsFull = force || cache.Meta("sync_cursor") is null || cache.Meta("cloudkit_read_protocol") != "4";
                     var pull = await Recover(() => needsFull ? Full(deadline.Token) : Delta(deadline.Token), deadline.Token);
                     Interlocked.Exchange(ref completed, generation);
                     if (Interlocked.Read(ref requested) == generation && cache.Pending(1).Count == 0) return new JsonObject { ["push"] = push, ["pull"] = pull };
@@ -56,46 +56,24 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
     }
     private async Task<JsonNode> Full(CancellationToken token)
     {
-        emit("sync_started", J.Node(new { mode = "full", determinate = true })); Progress("Getting the current iCloud sync position...");
-        var cursor = await WithClient(() => client.Cursor(token), token); Progress("Downloading reminder lists...");
-        var lists = await WithClient(() => client.Lists(token), token); cache.ReplaceLists(lists);
-        var work = lists.OfType<JsonObject>().Where(l => !l.Flag("is_group")).ToArray(); var budget = Math.Max(1, work.Sum(l => Math.Max(1, l.Number("count")))); long spent = 0; var total = 0; var ids = new List<string>();
-        emit("sync_progress", J.Node(new { stage = "lists", count = lists.Count, expected = work.Sum(l => l.Number("count")), percent = 0, done = 0, of = work.Length }));
-        for (var i = 0; i < work.Length; i++)
-        {
-            Progress($"Downloading list {i + 1} of {work.Length}..."); var reminders = await WithClient(() => client.RemindersFor(work[i].Required("id"), token), token);
-            foreach (var r in reminders.OfType<JsonObject>()) { cache.Upsert(r); ids.Add(r.Required("id")); } total += reminders.Count; spent += Math.Max(1, work[i].Number("count"));
-            emit("sync_progress", J.Node(new { stage = "reminders", message = $"Downloaded list {i + 1} of {work.Length} ({total} reminders)", index = i + 1, done = i + 1, of = work.Length, total, percent = 100.0 * spent / budget }));
-        }
-        await RefreshTags(ids, token);
-        if (cursor is not null) cache.SetMeta("sync_cursor", cursor); cache.SetMeta("last_full_sync", TimeUtil.Now); cache.SetMeta("last_sync", TimeUtil.Now); cache.SetMeta("cloudkit_read_protocol", "3");
-        var result = J.Node(new { mode = "full", lists = lists.Count, reminders = total }); emit("sync_finished", result.DeepClone()); return result;
-    }
-    private async Task RefreshTags(IEnumerable<string> ids, CancellationToken token)
-    {
-        Progress("Downloading reminder tags..."); var idArray = ids.ToArray(); var tags = await WithClient(() => client.Tags(idArray, token), token);
-        foreach (var id in idArray) cache.ReplaceTags(id, tags.GetValueOrDefault(id) ?? new());
+        emit("sync_started", J.Node(new { mode = "full", determinate = false })); Progress("Downloading reminders, lists, tags and repeat schedules...");
+        // One paginated zone stream replaces N list queries and separate tag
+        // history reads. Its cursor describes exactly the snapshot we apply.
+        var (records, cursor) = await WithClient(() => client.Changes(null, token), token);
+        cache.ApplyRecords(records, full: true);
+        if (cursor is not null) cache.SetMeta("sync_cursor", cursor);
+        cache.SetMeta("last_full_sync", TimeUtil.Now); cache.SetMeta("last_sync", TimeUtil.Now); cache.SetMeta("cloudkit_read_protocol", "4");
+        await WithClient(() => { client.Persist(); return Task.FromResult(true); }, token);
+        var result = J.Node(new { mode = "full", records = records.Count }); emit("sync_finished", result.DeepClone()); return result;
     }
     private async Task<JsonNode> Delta(CancellationToken token)
     {
         emit("sync_started", J.Node(new { mode = "delta", determinate = false })); Progress("Downloading changed reminders...");
-        var (records, cursor) = await WithClient(() => client.Changes(cache.Meta("sync_cursor"), token), token); var updated = 0; var deleted = 0; var listsChanged = false; var tagsChanged = false;
-        foreach (var r in records.OfType<JsonObject>())
-        {
-            var id = r.Text("recordName") ?? ""; var kind = r.Text("recordType") ?? id.Split('/')[0];
-            if (kind == "List") listsChanged = true; if (kind == "Hashtag") tagsChanged = true;
-            if (kind != "Reminder") continue;
-            if (r.Flag("deleted") || r.Text("reason") == "deleted")
-            {
-                // A remote deletion must not erase an edit still in the outbox.
-                if (cache.Reminder(id).Number("dirty") == 0) cache.Edit(id, new() { ["deleted"] = true }, false); deleted++;
-            }
-            else if (ICloudClient.ToReminder(r) is { } reminder) { cache.Upsert(reminder); updated++; }
-        }
-        if (listsChanged) cache.ReplaceLists(await WithClient(() => client.Lists(token), token));
-        if (tagsChanged) await RefreshTags(cache.Query("SELECT id FROM reminders WHERE deleted=0").OfType<JsonObject>().Select(r => r.Required("id")), token);
+        var (records, cursor) = await WithClient(() => client.Changes(cache.Meta("sync_cursor"), token), token);
+        cache.ApplyRecords(records);
         if (cursor is not null) cache.SetMeta("sync_cursor", cursor); cache.SetMeta("last_sync", TimeUtil.Now);
-        var result = J.Node(new { mode = "delta", updated, deleted }); emit("sync_finished", result.DeepClone()); return result;
+        await WithClient(() => { client.Persist(); return Task.FromResult(true); }, token);
+        var result = J.Node(new { mode = "delta", updated = records.Count }); emit("sync_finished", result.DeepClone()); return result;
     }
     private async Task<JsonNode> Push(CancellationToken token)
     {
@@ -104,14 +82,24 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
         {
             var item = cache.Pending(1).FirstOrDefault(); if (item is null) break;
             var seq = item.Number("seq"); var id = item.Required("reminder_id"); var payload = J.Parse(item.Text("payload")) as JsonObject ?? new();
+            // Upgrade already-queued completions before touching the network.
+            // Their history identity must survive retries just like new edits.
+            if (payload.Flag("completed") && payload.Text("completion_id") is null)
+            {
+                payload["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
+                cache.Execute("UPDATE outbox SET payload=@p0 WHERE seq=@p1", payload.ToJsonString(), seq);
+            }
             try
             {
                 JsonObject remote;
                 if (item.Text("op") == "create") remote = await WithClient(() => client.Create(payload, token), token);
+                else if (item.Text("op") == "tag") remote = await WithClient(() => client.AddTag(id, payload, item.Text("base_tag"), token), token);
                 else if (item.Text("op") is "update" or "delete") remote = await WithClient(() => client.Update(id, item.Text("op") == "delete" ? new() { ["deleted"] = true } : payload, item.Text("base_tag"), token), token);
                 else { cache.Execute("DELETE FROM outbox WHERE seq=@p0", seq); continue; }
                 if (item.Text("op") == "create") cache.ReplaceId(id, remote.Required("id"));
                 cache.Acknowledge(seq, remote.Required("id"), remote.Text("change_tag")); cache.Upsert(remote); pushed++;
+                if (remote["cloud_record"] is JsonObject savedRecord) cache.ApplyRecords(new JsonArray(savedRecord.DeepClone()));
+                if (remote["completed_occurrence"] is JsonObject occurrence) cache.Upsert(occurrence);
             }
             catch (CoreException ex) when (ex.Code == "CONFLICT")
             {

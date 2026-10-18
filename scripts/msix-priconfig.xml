@@ -6,4 +6,10 @@
     <default><qualifier name="Language" value="en-US" /></default>
     <indexer-config type="PRI" />
   </index>
+  <!-- Index package-only shell artwork so Windows can select the unplated
+       target-size variants, instead of adding an accent-colored backplate. -->
+  <index root="\" startIndexAt="shell-assets.resfiles">
+    <default><qualifier name="Language" value="en-US" /></default>
+    <indexer-config type="RESFILES" qualifierDelimiter="." />
+  </index>
 </resources>

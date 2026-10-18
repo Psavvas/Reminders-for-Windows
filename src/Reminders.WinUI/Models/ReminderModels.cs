@@ -29,6 +29,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     [JsonPropertyName("deleted")] public bool Deleted { get; set; }
     [JsonPropertyName("tags")] public List<string> Tags { get; set; } = [];
     [JsonPropertyName("dirty")] public long Dirty { get; set; }
+    [JsonPropertyName("recurrence")] public RepeatSchedule? Recurrence { get; set; }
 
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
     [JsonIgnore] public bool IsOverdue => !Completed && !Deleted && DateTimeOffset.TryParse(DueDate, out var due)
@@ -55,6 +56,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
             var parts = new List<string>();
             if (IsOverdue) parts.Add("Overdue");
             if (DueText.Length > 0) parts.Add(DueText);
+            if (Recurrence is not null) parts.Add(Recurrence.Label);
             if (Priority is 1 or 5 or 9) parts.Add(Priority switch { 1 => "High priority", 5 => "Medium priority", _ => "Low priority" });
             if (Tags.Count > 0) parts.Add(string.Join("  ", Tags.Select(t => "#" + t)));
             if (Dirty != 0) parts.Add("Waiting to sync");
@@ -73,6 +75,16 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
         PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
     }
+}
+
+public sealed class RepeatSchedule
+{
+    public long Frequency { get; set; }
+    public long Interval { get; set; } = 1;
+    public bool Supported { get; set; } = true;
+    [JsonIgnore] public string Label => !Supported ? "Custom repeat" : Interval == 1
+        ? Frequency switch { 1 => "Daily", 2 => "Weekly", 3 => "Monthly", 4 => "Yearly", _ => "Repeats" }
+        : $"Every {Interval} " + (Frequency switch { 1 => "days", 2 => "weeks", 3 => "months", 4 => "years", _ => "intervals" });
 }
 
 public sealed class ConflictItem

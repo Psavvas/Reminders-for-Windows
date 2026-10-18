@@ -6,6 +6,38 @@ internal static class AuthVerificationChecks
 {
     public static async Task RunAsync(Action<bool, string> check)
     {
+        var saved = J.Node(new { session_token = "saved", trust_token = "trusted", client_id = "stable-client", cookies = new[]
+        {
+            new { name = "X-APPLE-WEBAUTH-TRUST", value = "cookie", domain = ".icloud.com", path = "/", expires = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds() },
+            new { name = "ignored", value = "foreign", domain = ".example.com", path = "/", expires = 0L }
+        } }).AsObject();
+        using (var cookieAuth = new AppleAuth((JsonObject)saved.DeepClone()))
+        {
+            cookieAuth.SaveCookies();
+            check(cookieAuth.State.Array("cookies").Count == 1, "only Apple authentication cookies persist");
+            check(cookieAuth.State.Array("cookies")[0].Text("value") == "cookie", "trust cookie survives client reconstruction");
+        }
+        var vault = new MemorySecrets(); var secrets = new SecretStore(vault); secrets.Session("test@example.com", saved.ToJsonString());
+        var restores = 0;
+        HttpMessageHandler Handler() => new ScriptHandler(async request =>
+        {
+            check(request.RequestUri!.AbsolutePath.EndsWith("/accountLogin"), "restored session avoids a fresh password or 2FA request");
+            var body = J.Parse(await request.Content!.ReadAsStringAsync());
+            check(body.Text("trustToken") == "trusted" && body.Flag("extended_login"), "restoration supplies remembered trust and extended login");
+            restores++;
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(J.Node(new { dsInfo = new { dsid = "1", appleId = "test@example.com", hsaVersion = 2 }, hsaTrustedBrowser = true }).ToJsonString()) };
+            response.Headers.Add("X-Apple-Session-Token", "rotated"); return response;
+        });
+        using (var firstLaunch = new ICloudClient("test@example.com", secrets, Handler)) check(await firstLaunch.Restore(default), "first launch restores trusted session");
+        using (var secondLaunch = new ICloudClient("test@example.com", secrets, Handler))
+        {
+            check(await secondLaunch.Restore(default), "second launch restores without asking for 2FA");
+            check(J.Parse(secrets.Session("test@example.com")).Text("session_token") == "rotated", "rotated session token is saved for the next launch");
+            check(await secondLaunch.ImportBrowserSession("test@example.com", saved, default) is not null, "Apple-hosted sign-in imports a verified trusted session");
+            try { await secondLaunch.ImportBrowserSession("wrong@example.com", saved, default); check(false, "wrong browser account is rejected"); }
+            catch (CoreException e) { check(e.Code == "AUTH_REQUIRED" && secondLaunch.Account == "test@example.com", "account mismatch retains the previous authenticated account"); }
+        }
+        check(restores == 4, "each imported or resumed session is verified with Apple");
         foreach (var accountStatus in new[] { 200, 500 })
         {
             var verified = false;

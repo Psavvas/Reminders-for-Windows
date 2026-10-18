@@ -8,7 +8,7 @@ internal sealed class Cache : IDisposable
     private readonly SqliteConnection connection;
     private readonly object gate = new();
     private static readonly string[] Flags = ["completed", "flagged", "all_day", "deleted", "is_group", "resolved"];
-    internal static readonly string[] EditFields = ["title", "description", "due_date", "priority", "completed", "flagged", "list_id", "deleted", "all_day"];
+    internal static readonly string[] EditFields = ["title", "description", "due_date", "priority", "completed", "flagged", "list_id", "deleted", "all_day", "recurrence", "recurrence_ids", "time_zone"];
     public Cache(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
@@ -20,7 +20,12 @@ internal sealed class Cache : IDisposable
         using var stream = typeof(Cache).Assembly.GetManifestResourceStream("Reminders.Core.Schema.sql")!;
         using var reader = new StreamReader(stream);
         Execute(reader.ReadToEnd());
-        SetMeta("schema_version", "2");
+        var columns = Query("PRAGMA table_info(reminders)").Select(r => r.Text("name")).ToHashSet();
+        foreach (var column in new[] { "recurrence", "recurrence_ids", "time_zone" })
+            if (!columns.Contains(column)) Execute($"ALTER TABLE reminders ADD COLUMN {column} TEXT");
+        if (Meta("schema_version") != "3" && Settings.Number("sync_minutes") == 10)
+            SetSettings(new() { ["sync_minutes"] = 1 });
+        SetMeta("schema_version", "3");
     }
     private SqliteCommand Command(string sql, object?[] args)
     {
@@ -64,7 +69,15 @@ internal sealed class Cache : IDisposable
         if (value is null) Execute("DELETE FROM meta WHERE key=@p0", key);
         else Execute("INSERT INTO meta(key,value) VALUES(@p0,@p1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", key, value);
     }
-    public JsonArray Lists => Query("SELECT l.*, (SELECT COUNT(*) FROM reminders r WHERE r.list_id=l.id AND r.completed=0 AND r.deleted=0) AS open_count FROM lists l ORDER BY l.position");
+    public JsonArray Lists
+    {
+        get
+        {
+            var order = Settings.Array("list_order").Select(v => v?.ToString()).ToList();
+            var rows = Query("SELECT l.*, (SELECT COUNT(*) FROM reminders r WHERE r.list_id=l.id AND r.completed=0 AND r.deleted=0) AS open_count FROM lists l ORDER BY l.position");
+            return new JsonArray(rows.OrderBy(l => { var index = order.IndexOf(l.Text("id")); return index < 0 ? int.MaxValue : index; }).Select(l => l?.DeepClone()).ToArray());
+        }
+    }
     public void ReplaceLists(JsonArray lists) => Transaction(() =>
     {
         Execute("DELETE FROM lists");
@@ -78,7 +91,15 @@ internal sealed class Cache : IDisposable
     private void AttachTags(JsonObject row)
     {
         row["tags"] = new JsonArray(Query("SELECT name FROM tags WHERE reminder_id=@p0 ORDER BY name", row.Text("id")).Select(t => JsonValue.Create(t.Text("name"))).ToArray());
-        row["hashtag_ids"] = new JsonArray(); row["time_zone"] = null;
+        row["hashtag_ids"] = new JsonArray(Query("SELECT id FROM tags WHERE reminder_id=@p0 ORDER BY name", row.Text("id")).Select(t => JsonValue.Create(t.Text("id"))).ToArray());
+        row["recurrence_ids"] = J.Parse(row.Text("recurrence_ids")) ?? new JsonArray();
+        row["recurrence"] = J.Parse(row.Text("recurrence"));
+        if (row["recurrence"] is null && row.Array("recurrence_ids").FirstOrDefault()?.ToString() is { } ruleId)
+        {
+            var rule = J.Parse(Query("SELECT json FROM related_records WHERE id=@p0", ruleId.StartsWith("RecurrenceRule/") ? ruleId : "RecurrenceRule/" + ruleId).FirstOrDefault().Text("json"));
+            row["recurrence"] = rule is null ? J.Node(new { supported = false }) : Recurrence.Describe(rule);
+        }
+        if (row.Array("recurrence_ids").Count > 1 && row["recurrence"] is JsonObject repeat) repeat["supported"] = false;
     }
     public JsonArray Reminders(JsonNode p)
     {
@@ -114,14 +135,56 @@ internal sealed class Cache : IDisposable
         {
             var id = r.Required("id"); var old = Reminder(id);
             if (!local && old.Number("dirty") != 0) return;
-            string[] columns = ["id", "list_id", "title", "description", "due_date", "priority", "completed", "completed_date", "flagged", "all_day", "deleted", "created", "modified", "change_tag", "notified", "dirty"];
-            var copy = (JsonObject)r.DeepClone(); copy["dirty"] = local ? 1 : 0; copy["notified"] = old.Number("notified");
+            string[] columns = ["id", "list_id", "title", "description", "due_date", "priority", "completed", "completed_date", "flagged", "all_day", "deleted", "created", "modified", "change_tag", "notified", "dirty", "recurrence", "recurrence_ids", "time_zone"];
+            var copy = (JsonObject)r.DeepClone(); copy["dirty"] = local ? 1 : 0; copy["notified"] = old.Text("due_date") == r.Text("due_date") ? old.Number("notified") : 0;
             foreach (var key in new[] { "title", "description", "list_id" }) copy[key] ??= "";
             foreach (var key in new[] { "priority", "completed", "flagged", "all_day", "deleted" }) copy[key] ??= 0;
             Execute("INSERT INTO reminders(" + string.Join(",", columns) + ") VALUES(" + string.Join(",", columns.Select((_, i) => "@p" + i)) + ") ON CONFLICT(id) DO UPDATE SET " + string.Join(",", columns.Where(c => c != "id" && c != "created").Select(c => c + "=excluded." + c)), columns.Select(c => Sql(copy[c])).ToArray());
         }
     }
     public JsonArray Tags => Query("SELECT name,COUNT(*) AS n FROM tags t JOIN reminders r ON r.id=t.reminder_id WHERE r.deleted=0 AND r.completed=0 GROUP BY name ORDER BY name");
+    public void ApplyRecords(JsonArray records, bool full = false) => Transaction(() =>
+    {
+        if (full)
+        {
+            Execute("DELETE FROM lists");
+            Execute("DELETE FROM related_records");
+            Execute("DELETE FROM tags WHERE reminder_id IN (SELECT id FROM reminders WHERE dirty=0)");
+            Execute("UPDATE reminders SET deleted=1 WHERE dirty=0");
+        }
+        foreach (var record in records.OfType<JsonObject>())
+        {
+            if (record.Text("recordName") is not { Length: > 0 } id) continue;
+            var type = record.Text("recordType") ?? id.Split('/')[0];
+            var deleted = record.Flag("deleted") || record.Text("reason") == "deleted" || CloudKit.Int(record, "Deleted") != 0;
+            if (deleted)
+            {
+                Execute("DELETE FROM related_records WHERE id=@p0", id);
+                if (type == "List") Execute("DELETE FROM lists WHERE id=@p0", id);
+                else if (type == "Hashtag") Execute("DELETE FROM tags WHERE id=@p0", id);
+                else if (type == "Reminder" && Reminder(id).Number("dirty") == 0) Edit(id, new() { ["deleted"] = true }, false);
+                continue;
+            }
+            var combined = J.Parse(Query("SELECT json FROM related_records WHERE id=@p0", id).FirstOrDefault().Text("json")) as JsonObject ?? new();
+            foreach (var pair in record)
+            {
+                if (pair.Key == "fields" && combined["fields"] is JsonObject oldFields && pair.Value is JsonObject changed)
+                { foreach (var field in changed) oldFields[field.Key] = field.Value?.DeepClone(); }
+                else combined[pair.Key] = pair.Value?.DeepClone();
+            }
+            Execute("INSERT INTO related_records(id,record_type,json) VALUES(@p0,@p1,@p2) ON CONFLICT(id) DO UPDATE SET json=excluded.json", id, type, combined.ToJsonString());
+            if (type == "Reminder" && ICloudClient.ToReminder(combined) is { } reminder) Upsert(reminder);
+            else if (type == "Hashtag" && CloudKit.Text(combined, "Name") is { } name && CloudKit.Field(combined, "Reminder").Text("recordName") is { } parent)
+                Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", id, name, parent);
+            else if (type == "List")
+            {
+                var rawColor = CloudKit.Text(combined, "Color");
+                Execute("INSERT INTO lists(id,title,color_hex,count,is_group,position) VALUES(@p0,@p1,@p2,@p3,@p4,(SELECT COUNT(*) FROM lists)) ON CONFLICT(id) DO UPDATE SET title=excluded.title,color_hex=excluded.color_hex,count=excluded.count,is_group=excluded.is_group",
+                    id, CloudKit.Text(combined, "Name") ?? "Untitled", rawColor?.StartsWith('#') == true ? rawColor : J.Parse(rawColor).Text("daHexString"), CloudKit.Int(combined, "Count"), CloudKit.Int(combined, "IsGroup") != 0);
+            }
+        }
+        return true;
+    });
     public void ReplaceTags(string id, JsonArray tags) => Transaction(() => { Execute("DELETE FROM tags WHERE reminder_id=@p0", id); foreach (var t in tags) Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", t.Text("id"), t.Text("name"), id); return true; });
     public JsonNode Counts
     {
@@ -131,20 +194,26 @@ internal sealed class Cache : IDisposable
     {
         get
         {
-            var defaults = (JsonObject)J.Node(new { theme = "system", sync_minutes = 10, notifications_enabled = true, stale_after_minutes = 60, max_individual_toasts = 3, default_list_id = (string?)null, search_scope = "list", onboarded = false, print_group_by = "due", print_include_notes = true, print_include_completed = false, remember_password = true, sort_by = new { } });
+            var defaults = (JsonObject)J.Node(new { theme = "system", sync_minutes = 1, notifications_enabled = true, stale_after_minutes = 60, max_individual_toasts = 3, default_list_id = (string?)null, search_scope = "list", onboarded = false, print_group_by = "due", print_include_notes = true, print_include_completed = false, remember_password = true, sort_by = new { }, list_order = Array.Empty<string>() });
             if (J.Parse(Meta("settings")) is JsonObject stored) foreach (var pair in stored) if (defaults.ContainsKey(pair.Key)) defaults[pair.Key] = pair.Value?.DeepClone();
             return defaults;
         }
     }
-    public JsonNode SetSettings(JsonObject patch) { lock (gate) { var s = Settings; foreach (var p in patch) if (s.ContainsKey(p.Key)) s[p.Key] = p.Value?.DeepClone(); SetMeta("settings", s.ToJsonString()); return s; } }
+    public JsonNode SetSettings(JsonObject patch)
+    {
+        if (patch.ContainsKey("list_order") && (patch["list_order"] is not JsonArray order || order.Count > 10000 || order.Any(v => v is not JsonValue text || !text.TryGetValue<string>(out var id) || id.Length is 0 or > 2048)))
+            throw CoreException.Bad("List order must contain list identifiers.");
+        lock (gate) { var s = Settings; foreach (var p in patch) if (s.ContainsKey(p.Key)) s[p.Key] = p.Value?.DeepClone(); SetMeta("settings", s.ToJsonString()); return s; }
+    }
     public void Enqueue(string id, string op, JsonNode payload, string? tag) => Execute("INSERT INTO outbox(reminder_id,op,payload,base_tag,created_at) VALUES(@p0,@p1,@p2,@p3,@p4)", id, op, payload.ToJsonString(), tag, TimeUtil.Now);
     public JsonArray Pending(int limit = 100) => Query("SELECT * FROM outbox ORDER BY seq LIMIT @p0", limit);
     public void Acknowledge(long seq, string id, string? tag) => Transaction(() => { Execute("DELETE FROM outbox WHERE seq=@p0", seq); Execute("UPDATE outbox SET base_tag=@p0 WHERE reminder_id=@p1 AND seq>@p2", tag, id, seq); Execute("UPDATE reminders SET change_tag=@p0,dirty=EXISTS(SELECT 1 FROM outbox WHERE reminder_id=@p1) WHERE id=@p1", tag, id); return true; });
-    public void ReplaceId(string oldId, string newId) => Transaction(() => { Execute("UPDATE reminders SET id=@p0 WHERE id=@p1", newId, oldId); foreach (var table in new[] { "tags", "outbox" }) Execute($"UPDATE {table} SET reminder_id=@p0 WHERE reminder_id=@p1", newId, oldId); return true; });
+    public string ResolveId(string id) => Meta("id_alias:" + id) ?? id;
+    public void ReplaceId(string oldId, string newId) => Transaction(() => { Execute("UPDATE reminders SET id=@p0 WHERE id=@p1", newId, oldId); foreach (var table in new[] { "tags", "outbox" }) Execute($"UPDATE {table} SET reminder_id=@p0 WHERE reminder_id=@p1", newId, oldId); SetMeta("id_alias:" + oldId, newId); return true; });
     public JsonArray Conflicts
     {
         get { var rows = Query("SELECT * FROM conflicts WHERE resolved=0 ORDER BY detected_at DESC"); foreach (var row in rows.OfType<JsonObject>()) { row["local"] = J.Parse(row.Text("local_json")); row["remote"] = J.Parse(row.Text("remote_json")); row.Remove("local_json"); row.Remove("remote_json"); } return rows; }
     }
-    public void Purge() => Transaction(() => { foreach (var table in new[] { "lists", "reminders", "tags", "outbox", "conflicts" }) Execute($"DELETE FROM {table}"); SetMeta("sync_cursor", null); SetMeta("last_sync", null); return true; });
+    public void Purge() => Transaction(() => { foreach (var table in new[] { "lists", "reminders", "tags", "outbox", "conflicts", "related_records" }) Execute($"DELETE FROM {table}"); SetMeta("sync_cursor", null); SetMeta("last_sync", null); return true; });
     public void Dispose() { lock (gate) connection.Dispose(); }
 }

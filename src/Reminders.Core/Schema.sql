@@ -22,6 +22,9 @@ CREATE INDEX IF NOT EXISTS idx_reminders_completed ON reminders(completed_date D
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY, name TEXT NOT NULL, reminder_id TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS related_records (
+  id TEXT PRIMARY KEY, record_type TEXT NOT NULL, json TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_tags_reminder ON tags(reminder_id);
 CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
 CREATE TABLE IF NOT EXISTS outbox (

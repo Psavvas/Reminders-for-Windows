@@ -192,6 +192,12 @@ try
                 tagReads++; records = new JsonArray(Tag("Hashtag/1", "old"), Tag("Hashtag/1", changedTags ? "engineering" : "school"), Tag("Hashtag/removed", "removed"), new JsonObject { ["recordName"] = "Hashtag/removed", ["deleted"] = true }, new JsonObject { ["recordName"] = "Hashtag/tombstone", ["recordType"] = "Hashtag", ["reason"] = "deleted" });
             }
             else if (types.Count == 1) records = new JsonArray(new JsonObject { ["recordName"] = "List/1", ["recordType"] = "List", ["fields"] = new JsonObject { ["Name"] = CloudKit.String("School"), ["Count"] = CloudKit.Number(1) } });
+            else if (body.Array("zones")[0]!.Text("syncToken") is null)
+            {
+                tagReads++;
+                records = new JsonArray(serverRecord!.DeepClone(), new JsonObject { ["recordName"] = "List/1", ["recordType"] = "List", ["fields"] = new JsonObject { ["Name"] = CloudKit.String("School"), ["Count"] = CloudKit.Number(1) } },
+                    Tag("Hashtag/1", "old"), Tag("Hashtag/1", "school"), Tag("Hashtag/removed", "removed"), new JsonObject { ["recordName"] = "Hashtag/removed", ["deleted"] = true });
+            }
             else records = changedTags ? new JsonArray(Tag("Hashtag/1", "engineering")) : new JsonArray();
             response = new JsonObject { ["zones"] = new JsonArray(new JsonObject { ["syncToken"] = "cursor", ["moreComing"] = false, ["records"] = records }) };
         }
@@ -212,7 +218,7 @@ try
     cache.Edit(id, new() { ["completed"] = true }); cache.Enqueue(id, "update", J.Node(new { completed = true }), cache.Reminder(id).Text("change_tag"));
     await sync.Sync(false, default); Check(cache.Reminder(id).Flag("completed"), "completion uploads"); Check(cache.Reminder(id).Text("completed_date") is not null, "completion date round trip");
     changedTags = true; await sync.Sync(false, default);
-    Equal("engineering", cache.Reminder(id)!.Array("tags")[0]!.GetValue<string>(), "delta refresh uses zone changes for tags"); Equal(2, tagReads, "delta tags fetched once");
+    Equal("engineering", cache.Reminder(id)!.Array("tags")[0]!.GetValue<string>(), "delta applies changed tags directly"); Equal(1, tagReads, "delta does not download tag history again");
     Equal("cursor", cache.Meta("sync_cursor"), "delta cursor committed after tag refresh"); changedTags = false;
     cache.Edit(id, new() { ["title"] = "My local version" }); cache.Enqueue(id, "update", J.Node(new { title = "My local version" }), cache.Reminder(id).Text("change_tag"));
     serverRecord!["recordChangeTag"] = "externally-changed"; serverRecord["fields"]!["TitleDocument"] = CloudKit.String(AppleDocument.Encode("Remote version"));
@@ -234,6 +240,7 @@ try
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(shutdownRoot, true); }
 await AuthVerificationChecks.RunAsync(Check);
+await RecurrenceAndSyncChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);
 SignInTroubleshootingChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);
