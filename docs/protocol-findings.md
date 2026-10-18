@@ -29,13 +29,25 @@ define the behavior the native C# connector must preserve.
 
 The optional Apple-device sign-in window lets Apple's own website implement the
 current HSA2 bridge. It uses a separate InPrivate WebView2 profile, observes only
-the successful `setup.icloud.com/setup/ws/1/accountLogin` exchange and Apple auth
-headers, and imports the token, trust token, stable client ID and Apple cookies.
-The backend verifies the session and returned account before switching accounts
-or saving it. No JavaScript bridge or password interception is installed. The
+successful account-login/validation responses from `setup.icloud.com` and Apple
+auth headers, and imports tokens when exposed, the stable client ID, browser user
+agent and Apple cookies. The backend independently validates browser cookies with
+`/validate`, checks trust and the returned account, then saves and switches the
+session. A browser sign-in does not require a token-bearing `accountLogin` POST
+body to be exposed. Responses are processed in order so a trusted validation is
+not dropped while a previous response is being read. No JavaScript bridge or
+password interception is installed. The
 native SMS path remains available. Cookies and rotated tokens are saved in the
 existing chunked Windows Credential Manager entries, including after sync and
 normal shutdown; startup resumes before attempting a password handshake.
+
+Apple popups use separate WebViews in the same environment/profile. The host
+assigns `NewWindow` while holding a deferral and preserves the original page and
+its `window.opener` relationship. Simply setting `Handled = true` and navigating
+the original view creates a closed dummy popup; see
+[Microsoft's NewWindowRequested contract](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/winrt/microsoft_web_webview2_core/corewebview2newwindowrequestedeventargs).
+The popup host has an account-free integration fixture. This verifies the
+cross-window handoff, not Apple's delivery of an actual device prompt.
 
 The following findings describe the native verification endpoints:
 

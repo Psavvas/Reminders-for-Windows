@@ -38,6 +38,54 @@ internal static class AuthVerificationChecks
             catch (CoreException e) { check(e.Code == "AUTH_REQUIRED" && secondLaunch.Account == "test@example.com", "account mismatch retains the previous authenticated account"); }
         }
         check(restores == 4, "each imported or resumed session is verified with Apple");
+        var browserState = (JsonObject)saved.DeepClone(); browserState.Remove("session_token");
+        browserState["browser_cookie_session"] = true;
+        browserState["user_agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0";
+        var cookieRestores = 0;
+        HttpMessageHandler CookieHandler() => new ScriptHandler(async request =>
+        {
+            check(request.RequestUri!.AbsolutePath.EndsWith("/validate") && await request.Content!.ReadAsStringAsync() == "null", "browser cookies validate without requiring an accountLogin POST body");
+            check(request.Headers.UserAgent.ToString() == browserState.Text("user_agent"), "browser session preserves its user agent during transfer and restore");
+            cookieRestores++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(J.Node(new { dsInfo = new { dsid = "1", appleId = "cookie@example.com", hsaVersion = 2 }, hsaTrustedBrowser = true }).ToJsonString()) };
+        });
+        using (var browserImport = new ICloudClient("", secrets, CookieHandler))
+        {
+            check((await browserImport.ImportBrowserSession("cookie@example.com", browserState, default)).Flag("authenticated"), "completed browser sign-in can import a cookie session with no exposed web token");
+            check(J.Parse(secrets.Session("cookie@example.com")).Flag("browser_cookie_session"), "browser-cookie restoration mode is persisted");
+        }
+        using (var browserRestart = new ICloudClient("cookie@example.com", secrets, CookieHandler))
+            check(await browserRestart.Restore(default), "browser cookies restore after restarting without password or another verification handshake");
+        check(cookieRestores == 2, "cookie session is checked with Apple during both import and restart");
+        using (var offlineBrowser = new ICloudClient("cookie@example.com", secrets, () => new ResponseHandler(() => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") })))
+            check(!await offlineBrowser.Restore(default) && offlineBrowser.RestoreRetryable, "temporary network failure retries a browser-cookie session without asking for a new sign-in");
+        var challenged = (JsonObject)browserState.DeepClone();
+        using (var challengeImport = new ICloudClient("existing@example.com", secrets, () => new ResponseHandler(() => new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(J.Node(new { dsInfo = new { dsid = "1", appleId = "cookie@example.com", hsaVersion = 2 }, hsaTrustedBrowser = true, hsaChallengeRequired = true }).ToJsonString()) })))
+        {
+            try { await challengeImport.ImportBrowserSession("cookie@example.com", challenged, default); check(false, "challenged cookie session is rejected"); }
+            catch (CoreException error) { check(error.Code == "2FA_REQUIRED" && challengeImport.Account == "existing@example.com", "cookie import cannot bypass unfinished verification"); }
+        }
+        var importDiagnostics = new List<string>();
+        using (var failedImport = new ICloudClient("existing@example.com", secrets, () => new ResponseHandler(() =>
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") })))
+        {
+            failedImport.Diagnostic += importDiagnostics.Add;
+            try { await failedImport.ImportBrowserSession("test@example.com", saved, default); check(false, "failed import is rejected"); }
+            catch (CoreException error) { check(error.Code == "NETWORK" && failedImport.Account == "existing@example.com", "failed import preserves the previous account"); }
+            check(importDiagnostics.Any(line => line.Contains("HTTP 503")), "failed browser-session verification is included in diagnostics");
+            check(!importDiagnostics.Any(line => line.Contains("saved") || line.Contains("test@example.com")), "failed import diagnostics omit tokens and account identifiers");
+        }
+        using (var cancelled = new CancellationTokenSource())
+        using (var cancelledImport = new ICloudClient("existing@example.com", secrets, () => new ScriptHandler(_ =>
+        {
+            cancelled.Cancel();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(J.Node(new { dsInfo = new { dsid = "1", appleId = "new@example.com", hsaVersion = 2 }, hsaTrustedBrowser = true }).ToJsonString()) });
+        })))
+        {
+            try { await cancelledImport.ImportBrowserSession("new@example.com", saved, cancelled.Token); check(false, "cancelled import is rejected"); }
+            catch (OperationCanceledException) { check(cancelledImport.Account == "existing@example.com" && secrets.Session("new@example.com") is null, "cancelling browser sign-in does not save or switch accounts"); }
+        }
         foreach (var accountStatus in new[] { 200, 500 })
         {
             var verified = false;

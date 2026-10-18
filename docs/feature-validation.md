@@ -59,3 +59,33 @@ that Apple's other clients render a write or accept a trusted session.
 The Apple-hosted sign-in window needs Microsoft Edge WebView2 Runtime. Apple may
 expire/revoke trusted sessions or require additional account approval. Advanced
 Data Protection and web-data-access limitations remain as described in setup.
+
+## Apple sign-in popup and failure checks
+
+The host supplies a separate WebView2 for an Apple popup in the same environment
+and InPrivate profile. It preserves `window.opener` and cross-window messages;
+navigating the original view in response to `window.open()` broke that relationship.
+The Back button closes the child and restores its parent. Reload starts a fresh
+page without automatically submitting a password or requesting another code.
+
+For account-free integration testing, launch an x64 Debug build with
+`--preview-apple-popup` and an isolated `REMINDERS_DATA_DIR`. Choose **Open test
+popup**, then **Return test result**. The original page must show **PASS**.
+Also check **Back**, **Reload**, and **Cancel**. This fixture contains local HTML
+only and is excluded from Release builds.
+
+Page/frame navigation failures, authentication/account HTTP statuses, and session
+import failures are recorded with their stage. The log omits URLs, query strings,
+headers, response bodies, credentials, and account identifiers from these events.
+Normal Apple challenge statuses such as 401 and 409 remain under Apple's page's
+control. Cancelling an import keeps the previous account and does not save a new
+session. The account-free popup check does not confirm delivery of a real Apple
+device prompt; that remains part of the live-account check above.
+
+Browser sign-in may finish via `/validate` rather than another token-bearing
+`accountLogin` request. Both responses can trigger the native handoff. The native
+client independently checks the browser's cookies against `/validate` using the
+same user agent, checks the account and session trust, and saves rotated cookies
+for restart. A token is optional for this browser-cookie route. Pending server
+challenges are still rejected. The tests cover cookie-only import and restart,
+network retry, and refusing an unfinished challenge.

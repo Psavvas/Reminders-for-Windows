@@ -122,7 +122,15 @@
           card width. Unwrapped, the text is clipped on both sides and widens
           the panel enough to clip the fields below it too. -->
      <TextBlock x:Name="GateStatus" Text="Starting the sync service…" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Stretch" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-     <StackPanel x:Name="LoginFields" Spacing="12" Visibility="Collapsed"><TextBox x:Name="AppleIdBox" Header="Apple ID" PlaceholderText="you@icloud.com"/><PasswordBox x:Name="PasswordBox" Header="Password"/><Button Content="Sign in with text verification" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="SignIn_Click"/><Button Content="Sign in with an Apple device" HorizontalAlignment="Stretch" Click="BrowserSignIn_Click"/><TextBlock Text="This PC remembers your trusted session. Apple may occasionally require verification again." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
+     <StackPanel x:Name="LoginFields" Spacing="12" Visibility="Collapsed">
+      <Button x:Name="AppleDeviceSignIn" Content="Sign in with an Apple device" HorizontalAlignment="Stretch" Click="BrowserSignIn_Click"/>
+      <TextBlock Text="Continue on Apple's sign-in page." TextWrapping="Wrap" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <TextBlock Text="Or enter your account for text verification" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <TextBox x:Name="AppleIdBox" Header="Apple ID" PlaceholderText="you@icloud.com"/>
+      <PasswordBox x:Name="PasswordBox" Header="Password"/>
+      <Button Content="Sign in with text verification" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="SignIn_Click"/>
+      <TextBlock Text="This PC remembers your trusted session. Apple may occasionally require verification again." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+     </StackPanel>
      <StackPanel x:Name="CodeFields" Spacing="12" Visibility="Collapsed"><TextBox x:Name="CodeBox" Header="Verification code" MaxLength="16"/><Button x:Name="VerifyCode" Content="Verify" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="Verify_Click"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4"><HyperlinkButton x:Name="ResendCode" Content="Send a new code" Click="ResendCode_Click"/><HyperlinkButton x:Name="TextCode" Content="Text me a code" Visibility="Collapsed" Click="TextCode_Click"/></StackPanel><HyperlinkButton Content="Use Apple-device verification" HorizontalAlignment="Center" Click="BrowserSignIn_Click"/><HyperlinkButton x:Name="RestartSignIn" Content="Start a new sign-in" HorizontalAlignment="Center" Click="RestartSignIn_Click"/></StackPanel>
      <InfoBar x:Name="GateError" IsOpen="False" Severity="Error" IsClosable="False">
       <InfoBar.ActionButton><Button Content="Review iCloud setup" Click="ReviewICloudSetup_Click"/></InfoBar.ActionButton>

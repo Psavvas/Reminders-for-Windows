@@ -49,7 +49,7 @@ internal sealed partial class ICloudClient : IDisposable
             else await Connect(null, true, false, token);
             RestoreRetryable = false; RestoreDetail = ""; return true;
         }
-        catch (CoreException ex) { RestoreRetryable = ex.Code == "NETWORK" && (auth.State.Text("session_token") is not null || secrets.Password(Account) is not null); RestoreDetail = ex.Detail; return false; }
+        catch (CoreException ex) { RestoreRetryable = ex.Code == "NETWORK" && (auth.State.Text("session_token") is not null || auth.State.Flag("browser_cookie_session") && auth.State.Array("cookies").Count > 0 || secrets.Password(Account) is not null); RestoreDetail = ex.Detail; return false; }
         finally { Restoring = false; }
     }
     public Task<JsonNode> RequestCode(bool sms, CancellationToken token) => auth.RequestCode(sms, token);
@@ -60,17 +60,18 @@ internal sealed partial class ICloudClient : IDisposable
     }
     public async Task<JsonNode> ImportBrowserSession(string account, JsonObject state, CancellationToken token)
     {
-        state.Required("session_token", 16384);
+        if (!state.Flag("browser_cookie_session") || state.Array("cookies").Count == 0) state.Required("session_token", 16384);
         var candidate = new AppleAuth((JsonObject)state.DeepClone(), handlerFactory);
+        candidate.Diagnostic += message => Diagnostic?.Invoke(message);
         try
         {
             if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification and choose Trust in Apple's sign-in window.");
             if (!string.Equals(account, candidate.State.Text("apple_id"), StringComparison.OrdinalIgnoreCase))
                 throw new CoreException("AUTH_REQUIRED", "Apple returned a different account. Please sign in again.");
+            token.ThrowIfCancellationRequested();
             candidate.SaveCookies();
             secrets.Session(account, candidate.State.ToJsonString());
             auth.Dispose(); auth = candidate; Account = account; PendingTwoFactor = false; Connected = true;
-            auth.Diagnostic += message => Diagnostic?.Invoke(message);
             return Status;
         }
         catch { candidate.Dispose(); throw; }

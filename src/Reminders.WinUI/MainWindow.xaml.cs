@@ -116,6 +116,12 @@ public sealed partial class MainWindow : Window
         }
         _bootStarted = true;
 #if DEBUG
+        if (AppleSignInPreview.Enabled)
+        {
+            ShowLogin();
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => BrowserSignIn_Click(this, new RoutedEventArgs()));
+            return;
+        }
         // Offline UI verification of the failure/recovery flow, using an
         // isolated REMINDERS_DATA_DIR. Never compiled into release builds.
         if (Environment.GetCommandLineArgs().Contains("--preview-sign-in-error", StringComparer.OrdinalIgnoreCase))
@@ -187,7 +193,8 @@ public sealed partial class MainWindow : Window
     private void ShowLogin()
     {
         AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = "Sign in to iCloud"; LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
-        AppleIdBox.Focus(FocusState.Programmatic);
+        if (string.IsNullOrWhiteSpace(AppleIdBox.Text)) AppleDeviceSignIn.Focus(FocusState.Programmatic);
+        else AppleIdBox.Focus(FocusState.Programmatic);
         SetupHelpLink.IsEnabled = true;
     }
 
