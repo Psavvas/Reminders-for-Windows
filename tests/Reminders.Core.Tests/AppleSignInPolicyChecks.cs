@@ -1,10 +1,22 @@
 using Reminders.Windows.Services;
 using Reminders.Windows;
+using System.Text.Json.Nodes;
 
 internal static class AppleSignInPolicyChecks
 {
     public static void Run(Action<bool, string> check)
     {
+        var account = JsonNode.Parse("""{"hsaTrustedBrowser":false,"hsaChallengeRequired":false,"dsInfo":{"appleId":"test@example.com"},"webservices":{"ckdatabasews":{"url":"https://p01-ckdatabasews.icloud.com"}}}""")!;
+        check(AppleSignInPolicy.CanImportAccount(account), "observed completed web sign-in is eligible even when remembered browser trust is false");
+        account["hsaTrustedBrowser"] = true;
+        check(AppleSignInPolicy.CanImportAccount(account), "remembered browser sign-in remains eligible");
+        account["hsaChallengeRequired"] = true;
+        check(!AppleSignInPolicy.CanImportAccount(account), "unfinished challenge is not eligible for native handoff");
+        account["hsaChallengeRequired"] = "false";
+        check(!AppleSignInPolicy.CanImportAccount(account), "malformed challenge metadata is not treated as verified");
+        account["hsaChallengeRequired"] = false; account["webservices"] = new JsonObject();
+        check(!AppleSignInPolicy.CanImportAccount(account), "incomplete account response is not treated as a completed sign-in");
+        check(!AppleSignInPolicy.CanImportAccount(new JsonObject()), "missing account identity cannot trigger handoff");
         check(AppleSignInPolicy.IsPopupUri("about:blank"), "blank popup preserves the opener while Apple prepares navigation");
         check(AppleSignInPolicy.IsPopupUri("https://idmsa.apple.com/appleauth/auth/authorize/signin"), "Apple authentication popups are permitted");
         foreach (var address in new[] { "http://www.icloud.com/", "https://apple.com.example.com/", "https://user@www.icloud.com/", "file:///C:/test", "javascript:alert(1)", "about:config" })

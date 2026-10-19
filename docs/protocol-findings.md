@@ -32,12 +32,11 @@ current HSA2 bridge. It uses a separate InPrivate WebView2 profile, observes onl
 successful account-login/validation responses from `setup.icloud.com` and Apple
 auth headers, and imports tokens when exposed, the stable client ID, browser user
 agent and Apple cookies. The backend independently validates browser cookies with
-`/validate`, checks trust and the returned account, then saves and switches the
+`/validate`, checks pending verification and the returned account, then saves and switches the
 session. A browser sign-in does not require a token-bearing `accountLogin` POST
 body to be exposed. Responses are processed in order so a trusted validation is
 not dropped while a previous response is being read. No JavaScript bridge or
-password interception is installed. The
-native SMS path remains available. Cookies and rotated tokens are saved in the
+password interception is installed. The native SMS path remains available. Cookies and rotated tokens are saved in the
 existing chunked Windows Credential Manager entries, including after sync and
 normal shutdown; startup resumes before attempting a password handshake.
 
@@ -48,6 +47,13 @@ the original view creates a closed dummy popup; see
 [Microsoft's NewWindowRequested contract](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/winrt/microsoft_web_webview2_core/corewebview2newwindowrequestedeventargs).
 The popup host has an account-free integration fixture. This verifies the
 cross-window handoff, not Apple's delivery of an actual device prompt.
+
+A completed web sign-in can expose Reminders while `hsaTrustedBrowser` is false
+and `hsaChallengeRequired` is false. Requiring remembered browser trust here left
+the authenticated website open indefinitely. The native handoff accepts this
+combination only after server-side cookie validation, account matching, and a
+read-only Reminders access check. The saved trust value is preserved, not changed
+to true. An unfinished challenge or rejected data access still prevents import.
 
 The following findings describe the native verification endpoints:
 

@@ -143,7 +143,7 @@ public sealed partial class MainWindow
             {
                 var response = JsonNode.Parse(await ReadSignInStream(await e.Response.GetContentAsync()));
                 AppLog.Info($"apple sign-in: stage=account_response trusted={response?["hsaTrustedBrowser"]?.ToString() == "true"} challenge={response?["hsaChallengeRequired"]?.ToString() == "true"} account_present={response?["dsInfo"] is JsonObject} services_present={response?["webservices"] is JsonObject}");
-                if (response is null || response["hsaTrustedBrowser"]?.ToString() != "true" || response["hsaChallengeRequired"]?.ToString() == "true") return;
+                if (!AppleSignInPolicy.CanImportAccount(response)) return;
                 var request = e.Request.Content is { } content ? JsonNode.Parse(await ReadSignInStream(content)) : null;
                 var account = response["dsInfo"]?["appleId"]?.GetValue<string>() ?? response["dsInfo"]?["primaryEmail"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(account)) throw new InvalidDataException();
@@ -159,7 +159,7 @@ public sealed partial class MainWindow
                 };
                 if (closed) return;
                 importing = true;
-                message.Text = "Saving your trusted Apple session…";
+                message.Text = "Connecting your Apple session to the app…";
                 dialog.IsSecondaryButtonEnabled = false;
                 await _sync.CallAsync("browser_login", new { apple_id = account, state }, lifetime.Token);
                 finished = true;

@@ -1,3 +1,6 @@
+using System.Text.Json.Nodes;
+using System.Diagnostics.CodeAnalysis;
+
 namespace Reminders.Windows.Services;
 
 internal sealed record AppleSignInFailure(string Message, string Diagnostic);
@@ -6,6 +9,16 @@ internal static class AppleSignInPolicy
 {
     public const string StartUrl = "https://www.icloud.com/reminders/";
     public const string Instructions = "Sign in on Apple's page below. Apple will offer the verification methods available for your account. Choose Trust when offered to remember this PC.";
+
+    public static bool CanImportAccount([NotNullWhen(true)] JsonNode? response)
+    {
+        if (response is not JsonObject account || account["dsInfo"] is not JsonObject identity || account["webservices"] is not JsonObject { Count: > 0 }) return false;
+        if (account["hsaChallengeRequired"] is { } challenge && (challenge is not JsonValue flag || !flag.TryGetValue<bool>(out var required) || required)) return false;
+        static bool HasText(JsonNode? value) => value is JsonValue text && text.TryGetValue<string>(out var result) && !string.IsNullOrWhiteSpace(result);
+        // hsaTrustedBrowser controls remembered trust. A verified session can
+        // legitimately be usable without that optional browser preference.
+        return HasText(identity["appleId"]) || HasText(identity["primaryEmail"]);
+    }
 
     public static bool IsAppleUri(Uri uri) => uri.Scheme == "https" && uri.UserInfo.Length == 0 &&
         (uri.Host == "icloud.com" || uri.Host.EndsWith(".icloud.com", StringComparison.OrdinalIgnoreCase) ||

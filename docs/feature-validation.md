@@ -85,7 +85,17 @@ device prompt; that remains part of the live-account check above.
 Browser sign-in may finish via `/validate` rather than another token-bearing
 `accountLogin` request. Both responses can trigger the native handoff. The native
 client independently checks the browser's cookies against `/validate` using the
-same user agent, checks the account and session trust, and saves rotated cookies
+same user agent, checks the account and pending challenge, and saves rotated cookies
 for restart. A token is optional for this browser-cookie route. Pending server
 challenges are still rejected. The tests cover cookie-only import and restart,
 network retry, and refusing an unfinished challenge.
+
+`hsaTrustedBrowser` is remembered browser trust, not the completion status of a
+sign-in. A completed browser session can report `hsaTrustedBrowser: false` and
+`hsaChallengeRequired: false` while displaying Reminders. That combination must
+not silently block the native handoff. When remembered trust is false, the native
+client additionally performs a read-only Reminders query limited to one result
+before accepting or restoring the session. It rejects a pending challenge, wrong
+account, denied Reminders access, and record-level authentication errors. The
+stored trust flag remains false; the app does not claim Apple granted trust or
+change Apple's rules for when verification will be required again.

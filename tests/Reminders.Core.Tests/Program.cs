@@ -240,6 +240,7 @@ try
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(shutdownRoot, true); }
 await AuthVerificationChecks.RunAsync(Check);
+await BrowserSessionTrustChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 await RecurrenceAndSyncChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);

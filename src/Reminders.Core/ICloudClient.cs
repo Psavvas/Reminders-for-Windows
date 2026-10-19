@@ -45,7 +45,7 @@ internal sealed partial class ICloudClient : IDisposable
         Restoring = true;
         try
         {
-            if (await auth.Resume(token)) { Connected = true; Persist(); }
+            if (await auth.Resume(token)) { await CheckBrowserAccess(auth, token); Connected = true; Persist(); }
             else await Connect(null, true, false, token);
             RestoreRetryable = false; RestoreDetail = ""; return true;
         }
@@ -68,6 +68,7 @@ internal sealed partial class ICloudClient : IDisposable
             if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification and choose Trust in Apple's sign-in window.");
             if (!string.Equals(account, candidate.State.Text("apple_id"), StringComparison.OrdinalIgnoreCase))
                 throw new CoreException("AUTH_REQUIRED", "Apple returned a different account. Please sign in again.");
+            await CheckBrowserAccess(candidate, token);
             token.ThrowIfCancellationRequested();
             candidate.SaveCookies();
             secrets.Session(account, candidate.State.ToJsonString());
@@ -76,6 +77,9 @@ internal sealed partial class ICloudClient : IDisposable
         }
         catch { candidate.Dispose(); throw; }
     }
+    private static Task CheckBrowserAccess(AppleAuth session, CancellationToken token) =>
+        session.State.Flag("browser_cookie_session") && !session.State.Flag("trusted_session")
+            ? new CloudKit(session).CheckAccess(token) : Task.CompletedTask;
     internal void Persist() { auth.SaveCookies(); secrets.Session(Account, auth.State.ToJsonString()); }
     public void Invalidate() { Connected = false; PendingTwoFactor = false; }
     public void SignOut() { secrets.Delete(Account); Invalidate(); auth.Dispose(); auth = new AppleAuth(null, handlerFactory); auth.Diagnostic += message => Diagnostic?.Invoke(message); }

@@ -92,6 +92,12 @@ internal sealed class CloudKit(AppleAuth auth)
         var response = await Post("records/query", new JsonObject { ["query"] = J.Node(new { recordType = "reminderList" }), ["zoneID"] = Zone, ["resultsLimit"] = 1 }, token); Reject([response]);
         return response.Text("syncToken") is { Length: > 0 } cursor ? cursor : (await Changes(null, [], token)).Cursor;
     }
+    public async Task CheckAccess(CancellationToken token)
+    {
+        // Validate access without writes or downloading the full change history.
+        var response = await Post("records/query", new JsonObject { ["query"] = J.Node(new { recordType = "reminderList" }), ["zoneID"] = Zone, ["resultsLimit"] = 1 }, token);
+        Reject([response]); Reject(response.Array("records"));
+    }
     public async Task<JsonArray> Lookup(string id, CancellationToken token)
     {
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(J.Node(new { recordName = id })), ["zoneID"] = Zone }, token); var rows = response.Array("records"); Reject(rows); return rows;

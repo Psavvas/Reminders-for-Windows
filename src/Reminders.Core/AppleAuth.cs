@@ -20,6 +20,7 @@ internal sealed class AppleAuth : IDisposable
     private readonly List<(string Method, long Id, string Mode)> sent = [];
     private (string Method, long Id, string Mode) route = ("unknown", 0, "sms");
     private bool optionsLoaded;
+    private bool browserSessionVerified;
     private string? notice;
     public AppleAuth(JsonObject? state = null, Func<HttpMessageHandler>? handlerFactory = null)
     {
@@ -50,7 +51,7 @@ internal sealed class AppleAuth : IDisposable
             c.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         return c;
     }
-    public bool RequiresTwoFactor => State.Number("hsa_version") >= 2 && (State.Flag("challenge_required") || !State.Flag("trusted_session"));
+    public bool RequiresTwoFactor => State.Number("hsa_version") >= 2 && (State.Flag("challenge_required") || !State.Flag("trusted_session") && !browserSessionVerified);
     public JsonNode TwoFactorStatus => J.Node(new { method = route.Method, number = phones.FirstOrDefault(p => p.Number("id") == route.Id).Text("numberWithDialCode") ?? phones.FirstOrDefault(p => p.Number("id") == route.Id).Text("obfuscatedNumber"), notice, can_sms = phones.Count > 0, sent = sent.Count > 0 });
     internal string Query => string.Join("&", new Dictionary<string, string?> { ["clientBuildNumber"] = "2534Project66", ["clientMasteringNumber"] = "2534B22", ["ckjsBuildVersion"] = "17DProjectDev77", ["clientId"] = State.Text("client_id"), ["dsid"] = State.Text("dsid") }.Where(p => p.Value is not null).Select(p => Uri.EscapeDataString(p.Key) + "=" + Uri.EscapeDataString(p.Value!)));
     internal HttpRequestMessage Request(HttpMethod method, string url, JsonNode? body, bool auth, string accept = "application/json, text/javascript")
@@ -106,6 +107,7 @@ internal sealed class AppleAuth : IDisposable
     }
     public async Task SignIn(string account, string password, bool acceptTerms, CancellationToken token)
     {
+        browserSessionVerified = false;
         Http.Dispose(); Http = CreateHttp(); State["session_id"] = null; State["scnt"] = null; State["auth_attributes"] = null;
         var id = Uri.EscapeDataString(State.Required("client_id"));
         var bootstrap = await Auth(HttpMethod.Get, $"/authorize/signin?frame_id={id}&skVersion=7&iframeid={id}&client_id={Widget}&response_type=code&redirect_uri=https%3A%2F%2Fwww.icloud.com&response_mode=web_message&state={id}&authVersion=latest", null, token);
@@ -141,6 +143,7 @@ internal sealed class AppleAuth : IDisposable
     {
         if (State.Flag("browser_cookie_session") && State.Array("cookies").Count > 0)
         {
+            browserSessionVerified = false;
             try
             {
                 var request = Request(HttpMethod.Post, SetupEndpoint + "/validate?" + Query, null, false);
@@ -148,7 +151,9 @@ internal sealed class AppleAuth : IDisposable
                 var response = await SendAsync(request, 2 * 1024 * 1024, token);
                 if (response.Status is < 200 or >= 300) throw Classify(response.Status, response.Text);
                 NoteAccount(JsonNode.Parse(response.Text)!);
-                return State.Flag("trusted_session") && !State.Flag("challenge_required");
+                browserSessionVerified = !State.Flag("challenge_required") &&
+                    !string.IsNullOrWhiteSpace(State.Text("apple_id")) && !string.IsNullOrWhiteSpace(State.Text("dsid"));
+                return browserSessionVerified;
             }
             catch (CoreException ex) when (ex.Code is "AUTH_REQUIRED" or "2FA_REQUIRED") { }
         }
