@@ -108,8 +108,15 @@ page. The native client learns the identity from iCloud's validation and refuses
 to switch accounts with queued edits before saving credentials or clearing cache.
 Check that automatic handoff closes the web dialog. If it stays open after the
 web reminders load, check **Continue in app**, including error and cancellation
-behavior. This follow-up still needs a real-account result; the previous live
-attempt remained in the web window.
+behavior.
+
+Live check on 2026-10-19: the user confirmed that Apple-device sign-in returned
+automatically to the native app without using **Continue in app**. The matching
+trace shows the unfinished account response was ignored, a later eligible
+response started import, native `/validate` returned HTTP 200, import completed,
+and native sync began. This confirms automatic handoff for that session. The
+manual fallback, closing/reopening after browser sign-in, and Windows reboot
+restoration still need live checks.
 
 Debug builds accept `--test-apple-sign-in` to label the window **Sign-in test**.
 Startup logs include assembly build identity, and `stage=page opening handoff=2`
