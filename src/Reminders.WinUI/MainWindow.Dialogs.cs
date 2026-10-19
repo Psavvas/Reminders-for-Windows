@@ -228,6 +228,9 @@ public sealed partial class MainWindow
             if (defaultList.SelectedIndex < 0) defaultList.SelectedIndex = 0;
             var panel = new StackPanel { Spacing = 14, MinWidth = 360 };
             void Heading(string text) => panel.Children.Add(new TextBlock { Text = text, FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+            Heading("Account");
+            var signOut = new Button { Content = _demo ? "Leave sample data" : _sync.IsLocalDemo ? "Leave local account" : "Sign out" };
+            panel.Children.Add(signOut);
             Heading("Appearance"); panel.Children.Add(theme); panel.Children.Add(animation); panel.Children.Add(paneSizing); panel.Children.Add(detailWidth);
             panel.Children.Add(new TextBlock { Text = "Hover between the panes to reveal the divider. Drag it all the way to either edge to close a pane, and drag from that edge to reopen it. Double-click to restore automatic sizing. Automatic sizing shows one pane at a time in smaller windows.", TextWrapping = TextWrapping.Wrap });
             Heading("Reminders"); panel.Children.Add(defaultList); panel.Children.Add(notifications);
@@ -242,13 +245,8 @@ public sealed partial class MainWindow
             var checkUpdates = new Button { Content = "Check for updates", IsEnabled = !_demo && !_updateBusy };
             var requestedUpdateCheck = false;
             var requestedSetupGuide = false;
-            var requestedLeaveLocal = false;
-            if (_sync.IsLocalDemo)
-            {
-                var leaveLocal = new Button { Content = "Leave local account" };
-                leaveLocal.Click += (_, _) => { requestedLeaveLocal = true; dialog.Hide(); };
-                panel.Children.Add(leaveLocal);
-            }
+            var requestedSignOut = false;
+            signOut.Click += (_, _) => { requestedSignOut = true; dialog.Hide(); };
             checkUpdates.Click += (_, _) => { requestedUpdateCheck = true; dialog.Hide(); };
             panel.Children.Add(checkUpdates);
             var setupGuide = new Button { Content = "iCloud setup and troubleshooting" };
@@ -295,19 +293,10 @@ public sealed partial class MainWindow
             panel.Children.Add(privacy);
             sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 1 && sync.Value <= 60;
             var settingsResult = await dialog.ShowAsync();
-            if (requestedLeaveLocal)
+            if (requestedSignOut)
             {
-                _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop();
-                ShowDetail(null); _reminders.Clear(); _lists.Clear(); _tags.Clear();
-                _view = new("Today", "", NavKind.Smart, "today");
-                ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = "";
-                AppleIdBox.Text = ""; PasswordBox.Password = ""; AppInfoBar.IsOpen = false;
-                _uiPreferences = UiPreferences.Load();
-                SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
-                UpdatePaneLayout();
-                RebuildListNavigation();
-                await _sync.DisposeAsync();
-                await BootAsync();
+                _dialogOpen = false;
+                await SignOutAsync();
                 return;
             }
             if (requestedSetupGuide) { _dialogOpen = false; ShowSetupGuide(); return; }

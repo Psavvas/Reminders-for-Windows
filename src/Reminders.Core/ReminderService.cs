@@ -14,6 +14,7 @@ public sealed class ReminderService : IAsyncDisposable
     public bool IsLocalDemo => cloudClient is null;
     private readonly SemaphoreSlim clientGate = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
+    private CancellationTokenSource backgroundLifetime = new();
     private readonly ConcurrentDictionary<long, Task> background = new();
     private readonly object workGate = new();
     private long nextTask;
@@ -44,7 +45,7 @@ public sealed class ReminderService : IAsyncDisposable
     }
     private void QueueSync(bool full = false)
     {
-        if (sync is not null) Queue(ct => sync.Sync(full, ct));
+        if (sync is not null && cache.Meta("signed_out") != "1") Queue(ct => sync.Sync(full, ct));
     }
     private void Emit(string name, JsonNode data)
     {
@@ -58,11 +59,13 @@ public sealed class ReminderService : IAsyncDisposable
         lock (workGate)
         {
             if (disposed) return;
+            var backgroundToken = backgroundLifetime.Token;
             var id = Interlocked.Increment(ref nextTask);
             var task = Task.Run(async () =>
             {
-                try { await action(lifetime.Token); }
-                catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+                using var workLifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, backgroundToken);
+                try { await action(workLifetime.Token); }
+                catch (OperationCanceledException) when (workLifetime.IsCancellationRequested) { }
                 catch (CoreException ex) { Emit("sync_error", ex.Body); Diagnostic?.Invoke($"sync: {ex.Code}: {ex.Message}"); }
                 catch (Exception ex) { Emit("sync_error", new CoreException("ERROR", "The sync operation failed", ex.GetType().Name).Body); Diagnostic?.Invoke($"sync failed: {ex.GetType().Name}"); }
             });
@@ -70,11 +73,19 @@ public sealed class ReminderService : IAsyncDisposable
             _ = task.ContinueWith(_ => background.TryRemove(id, out var ignored), TaskScheduler.Default);
         }
     }
+    private void ResumeBackgroundWork()
+    {
+        lock (workGate)
+        {
+            if (!backgroundLifetime.IsCancellationRequested) return;
+            backgroundLifetime.Dispose(); backgroundLifetime = new();
+        }
+    }
     public Task StartAsync(CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested(); ObjectDisposedException.ThrowIf(disposed, this);
         if (IsLocalDemo) { Emit("ready", J.Node(new { apple_id = "demo", local_only = true })); return Task.CompletedTask; }
-        if (client.Account.Length > 0)
+        if (client.Account.Length > 0 && cache.Meta("signed_out") != "1")
         {
             client.Restoring = true; authSnapshot = client.Status;
             Queue(async ct =>
@@ -126,7 +137,7 @@ public sealed class ReminderService : IAsyncDisposable
         {
             case "ping": return J.Node(new { pong = true });
             case "auth_status":
-                var status = (JsonObject)Volatile.Read(ref authSnapshot).DeepClone(); status["has_cache"] = cache.Lists.Count > 0; status["last_sync"] = cache.Meta("last_sync"); return status;
+                var status = (JsonObject)Volatile.Read(ref authSnapshot).DeepClone(); status["signed_out"] = cache.Meta("signed_out") == "1"; status["has_cache"] = !status.Flag("signed_out") && cache.Lists.Count > 0; status["last_sync"] = cache.Meta("last_sync"); return status;
             case "login":
                 if (IsLocalDemo) throw CoreException.Bad("Leave the local account before signing in again.");
                 var account = (p.Optional("apple_id", 320) ?? cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(); if (account.Length == 0) throw new CoreException("AUTH_REQUIRED", "No Apple ID provided");
@@ -141,6 +152,8 @@ public sealed class ReminderService : IAsyncDisposable
                     client.SetAccount(account); cache.SetMeta("apple_id", account);
                     return await client.Connect(password, cache.Settings.Flag("remember_password"), p.Flag("accept_terms"), token);
                 }, token);
+                cache.SetMeta("signed_out", null);
+                ResumeBackgroundWork();
                 QueueSync(cache.Lists.Count == 0); return login;
             case "request_2fa": return await WithClient(() => client.RequestCode(p.Text("method") == "sms", token), token);
             case "browser_login":
@@ -152,17 +165,21 @@ public sealed class ReminderService : IAsyncDisposable
                     var authenticated = await client.ImportBrowserSession(browserAccount, browserState, token, account =>
                     {
                         switching = client.Account.Length > 0 && client.Account != account;
-                        if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out before switching accounts.");
+                        if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes with this account before switching accounts.");
                     });
                     if (switching) cache.Purge();
-                    cache.SetMeta("apple_id", authenticated.Required("apple_id")); return authenticated;
+                    cache.SetMeta("apple_id", authenticated.Required("apple_id")); cache.SetMeta("signed_out", null); return authenticated;
                 }, token);
+                ResumeBackgroundWork();
                 QueueSync(cache.Lists.Count == 0); return browserLogin;
             case "submit_2fa":
-                var code = p.Required("code"); var verified = await WithClient(() => client.SubmitCode(code, token), token); QueueSync(cache.Lists.Count == 0); return verified;
+                var code = p.Required("code"); var verified = await WithClient(() => client.SubmitCode(code, token), token); cache.SetMeta("signed_out", null); ResumeBackgroundWork(); QueueSync(cache.Lists.Count == 0); return verified;
             case "sign_out":
                 if (IsLocalDemo) { authSnapshot["authenticated"] = false; return J.Node(new { signed_out = true }); }
-                await WithClient(() => { client.SignOut(); return Task.FromResult(true); }, token);
+                // Restoration and full-history sync can hold the account gate
+                // across slow HTTP calls. Cancel them before waiting to sign out.
+                await backgroundLifetime.CancelAsync();
+                await WithClient(() => { client.SignOut(); cache.SetMeta("signed_out", "1"); return Task.FromResult(true); }, token);
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
             case "lists": return cache.Lists;
             case "reminders": return cache.Reminders(p);
@@ -183,7 +200,7 @@ public sealed class ReminderService : IAsyncDisposable
             case "update_reminder": return LocalChange(p, "update");
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
-            case "sync": QueueSync(p.Flag("full")); return J.Node(new { queued = !IsLocalDemo, local_only = IsLocalDemo });
+            case "sync": QueueSync(p.Flag("full")); return J.Node(new { queued = !IsLocalDemo && cache.Meta("signed_out") != "1", local_only = IsLocalDemo });
             case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 1) });
             case "conflicts": return cache.Conflicts;
             case "resolve_conflict":
@@ -261,7 +278,7 @@ public sealed class ReminderService : IAsyncDisposable
     private JsonNode Notifications(JsonObject p)
     {
         var settings = cache.Settings; var toasts = new JsonArray(); var ids = new JsonArray();
-        if (!settings.Flag("notifications_enabled")) return new JsonObject { ["toasts"] = toasts, ["notified_ids"] = ids };
+        if (cache.Meta("signed_out") == "1" || !settings.Flag("notifications_enabled")) return new JsonObject { ["toasts"] = toasts, ["notified_ids"] = ids };
         var now = p.Text("now") is { } raw ? TimeUtil.Parse(raw) : DateTimeOffset.UtcNow;
         var cutoff = now.AddMinutes(-Math.Clamp(p.Number("stale_after_minutes", settings.Number("stale_after_minutes", 60)), 1, 1440));
         var due = cache.Query("SELECT * FROM reminders WHERE deleted=0 AND completed=0 AND notified=0 AND due_date IS NOT NULL AND due_date<=@p0 ORDER BY due_date", TimeUtil.Iso(now)); var missed = new List<JsonNode>(); var fresh = new List<JsonNode>();
@@ -288,6 +305,6 @@ public sealed class ReminderService : IAsyncDisposable
             finally { cloudClient?.Dispose(); cache.Dispose(); }
         }
         finally { clientGate.Release(); }
-        lifetime.Dispose(); clientGate.Dispose();
+        lifetime.Dispose(); backgroundLifetime.Dispose(); clientGate.Dispose();
     }
 }

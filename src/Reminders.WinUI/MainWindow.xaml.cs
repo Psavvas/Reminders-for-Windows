@@ -55,6 +55,7 @@ public sealed partial class MainWindow : Window
     private AppUpdate? _availableUpdate;
     private bool _updateBusy;
     private bool _syncDisposedForUpdate;
+    private bool _signingOut;
 
     public MainWindow()
     {
@@ -149,13 +150,16 @@ public sealed partial class MainWindow : Window
 
     private async Task BootAsync()
     {
+        if (_signingOut) return;
         SetGateState("Starting the sync service…");
         try
         {
             if (!_sync.IsRunning) await _sync.StartAsync();
             SetGateState("Checking your account…");
             var status = await _sync.CallAsync("auth_status", new { });
+            if (_signingOut) return;
             _settings = await _sync.CallAsync("settings", new { });
+            if (_signingOut) return;
             ApplyTheme(_settings.Text("theme", "system"));
             if (status.Flag("needs_2fa") && !status.Flag("authenticated"))
             {
@@ -169,6 +173,7 @@ public sealed partial class MainWindow : Window
             {
                 AuthGate.Visibility = Visibility.Collapsed;
                 await RefreshAllAsync();
+                if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
                 _statusTimer.Start(); _notificationTimer.Start(); _syncTimer.Start();
                 if (status.Flag("authenticated")) await RequestAutoSyncAsync();
                 if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo("Sign in to resume syncing", "Cached reminders and queued edits remain available.", InfoBarSeverity.Warning);
@@ -212,6 +217,7 @@ public sealed partial class MainWindow : Window
         var tagsTask = _sync.CallAsync<List<ReminderTag>>("tags", new { });
         var countsTask = _sync.CallAsync("smart_counts", new { });
         await Task.WhenAll(listsTask, tagsTask, countsTask);
+        if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
         _lists = listsTask.Result;
         DetailList.ItemsSource = _lists.Where(list => !list.IsGroup).ToList();
         var counts = countsTask.Result;
@@ -262,6 +268,7 @@ public sealed partial class MainWindow : Window
             var query = new Dictionary<string, object?> { ["include_completed"] = ShowCompleted.IsOn, ["search"] = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim(), ["sort"] = _sort };
             query[_view.Kind switch { NavKind.List => "list_id", NavKind.Tag => "tag", _ => "scope" }] = _view.Key;
             var rows = await _sync.CallAsync<List<ReminderItem>>("reminders", query);
+            if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
             if (_completing.Count > 0) return;
             SetReminderRows(rows);
         }
@@ -326,10 +333,11 @@ public sealed partial class MainWindow : Window
     }
     private async Task CheckNotificationsAsync()
     {
-        if (_demo || !_notificationsRegistered) return;
+        if (_demo || _signingOut || AuthGate.Visibility != Visibility.Collapsed || !_notificationsRegistered) return;
         try
         {
             var plan = await _sync.CallAsync("due_notifications", new { });
+            if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
             if (!plan.TryGetProperty("toasts", out var toasts)) return;
             foreach (var toast in toasts.EnumerateArray())
             {
@@ -348,7 +356,7 @@ public sealed partial class MainWindow : Window
 
     private async Task RequestAutoSyncAsync()
     {
-        if (_demo || !_sync.IsRunning) return;
+        if (_demo || _signingOut || AuthGate.Visibility != Visibility.Collapsed || !_sync.IsRunning) return;
         _lastSyncRequest = DateTimeOffset.UtcNow;
         try { await _sync.CallAsync("sync", new { }); }
         catch (Exception error) { ShowInfo("Sync failed", error.Message, InfoBarSeverity.Error); }
@@ -366,7 +374,11 @@ public sealed partial class MainWindow : Window
                 SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
                 UpdatePaneLayout();
             }
-            else await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password });
+            else
+            {
+                if (!_sync.IsRunning) await _sync.StartAsync();
+                await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password });
+            }
             PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync();
             if (_sync.IsLocalDemo) ShowInfo("Local account", "Reminders are saved on this PC. iCloud sync is off.", InfoBarSeverity.Informational);
         }
@@ -820,7 +832,7 @@ public sealed partial class MainWindow : Window
 
     private void Sync_EventReceived(object? sender, SyncEventArgs e) => DispatcherQueue.TryEnqueue(async () =>
     {
-        if (_syncDisposedForUpdate || _updateLifetime.IsCancellationRequested || !_sync.IsCurrentEvent(e)) return;
+        if (_signingOut || _syncDisposedForUpdate || _updateLifetime.IsCancellationRequested || !_sync.IsCurrentEvent(e)) return;
         switch (e.Name)
         {
             case "ready": await BootAsync(); break;

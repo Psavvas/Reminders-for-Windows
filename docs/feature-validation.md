@@ -115,9 +115,31 @@ automatically to the native app without using **Continue in app**. The matching
 trace shows the unfinished account response was ignored, a later eligible
 response started import, native `/validate` returned HTTP 200, import completed,
 and native sync began. This confirms automatic handoff for that session. The
-manual fallback, closing/reopening after browser sign-in, and Windows reboot
-restoration still need live checks.
+manual fallback and Windows reboot restoration still need live checks.
+Closing/reopening was checked later that day: browser-cookie validation returned
+HTTP 421, saved-token account login succeeded with HTTP 200, and native sync
+resumed without another password or verification prompt.
 
 Debug builds accept `--test-apple-sign-in` to label the window **Sign-in test**.
 Startup logs include assembly build identity, and `stage=page opening handoff=2`
 identifies this handoff implementation without logging account information.
+
+## Sign out
+
+**Sign out** is in **Settings → Account**. It removes the saved password,
+session cookies, and trust tokens, stops the active sync service and notification
+timers, clears the account's rows from the window, and returns to sign-in. An
+in-flight background restore or sync is cancelled before waiting for the account
+lock, so sign-out does not wait for a slow HTTP timeout. An
+unsaved detail edit asks before it is discarded. Cached reminders and queued
+edits stay on this PC; an explicit sign-out flag prevents automatic restoration
+and cache-based access on the next launch. Successful sign-in clears that flag.
+Local accounts and sample data leave their own session without clearing saved
+iCloud credentials.
+
+Account-free checks cover credential removal, sign-out across restart, disabled
+sync/notifications, and retaining queued edits through a later sign-in. Check the
+Settings action in a real account and then relaunch to confirm it remains signed
+out; signing back into the same account must restore the retained reminders.
+The final Settings placement has build validation; its live UI check was stopped
+by the user before interacting with the running copy.
