@@ -8,7 +8,16 @@ internal sealed record AppleSignInFailure(string Message, string Diagnostic);
 internal static class AppleSignInPolicy
 {
     public const string StartUrl = "https://www.icloud.com/reminders/";
-    public const string Instructions = "Sign in on Apple's page below. Apple will offer the verification methods available for your account. Choose Trust when offered to remember this PC.";
+    public const string Instructions = "Sign in on Apple's page below. Choose Trust when offered to remember this PC. The window will close when connected; if your reminders appear here, choose Continue in app.";
+
+    public static bool IsRemindersResponse(Uri uri, int status)
+    {
+        var path = uri.AbsolutePath;
+        return status == 200 && IsAppleUri(uri) &&
+            (uri.Host == "ckdatabasews.icloud.com" || uri.Host.EndsWith("-ckdatabasews.icloud.com", StringComparison.OrdinalIgnoreCase)) &&
+            path.StartsWith("/database/1/com.apple.reminders/production/private/", StringComparison.Ordinal) &&
+            (path.EndsWith("/records/query", StringComparison.Ordinal) || path.EndsWith("/changes/zone", StringComparison.Ordinal));
+    }
 
     public static bool CanImportAccount([NotNullWhen(true)] JsonNode? response)
     {
@@ -65,7 +74,7 @@ internal static class AppleSignInPolicy
         {
             "NETWORK" => "Apple's page finished verification, but the app could not connect to iCloud to save the session. Reload Apple sign-in and try again, or cancel and use text verification.",
             "TERMS_REQUIRED" => "Apple requires updated iCloud terms. Finish those on Apple's page, then try again.",
-            "2FA_REQUIRED" => "Apple has not finished verifying this session. Finish verification and choose Trust on Apple's page.",
+            "2FA_REQUIRED" => "Apple has not finished verifying this session. Finish signing in on Apple's page, then choose Continue in app.",
             "AUTH_REQUIRED" => "iCloud did not accept the session returned by Apple's page. Reload Apple sign-in and try again.",
             _ => "The app could not read or save Apple's sign-in session. Reload Apple sign-in to try again, or cancel and use text verification."
         };

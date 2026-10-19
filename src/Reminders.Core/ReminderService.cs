@@ -144,15 +144,18 @@ public sealed class ReminderService : IAsyncDisposable
                 QueueSync(cache.Lists.Count == 0); return login;
             case "request_2fa": return await WithClient(() => client.RequestCode(p.Text("method") == "sms", token), token);
             case "browser_login":
-                var browserAccount = p.Required("apple_id", 320).Trim().ToLowerInvariant();
+                var browserAccount = p.Optional("apple_id", 320)?.Trim().ToLowerInvariant();
                 var browserState = p["state"] as JsonObject ?? throw CoreException.Bad("Missing Apple session.");
                 var browserLogin = await WithClient(async () =>
                 {
-                    var switching = client.Account.Length > 0 && client.Account != browserAccount;
-                    if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out before switching accounts.");
-                    var authenticated = await client.ImportBrowserSession(browserAccount, browserState, token);
+                    var switching = false;
+                    var authenticated = await client.ImportBrowserSession(browserAccount, browserState, token, account =>
+                    {
+                        switching = client.Account.Length > 0 && client.Account != account;
+                        if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out before switching accounts.");
+                    });
                     if (switching) cache.Purge();
-                    cache.SetMeta("apple_id", browserAccount); return authenticated;
+                    cache.SetMeta("apple_id", authenticated.Required("apple_id")); return authenticated;
                 }, token);
                 QueueSync(cache.Lists.Count == 0); return browserLogin;
             case "submit_2fa":

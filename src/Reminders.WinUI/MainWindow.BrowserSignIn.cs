@@ -22,12 +22,13 @@ public sealed partial class MainWindow
         var message = new TextBlock { Text = AppleSignInPolicy.Instructions, TextWrapping = TextWrapping.Wrap };
         var panel = new StackPanel { Spacing = 12 }; panel.Children.Add(message); panel.Children.Add(host);
         var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Apple sign-in · icloud.com", Content = panel,
-            CloseButtonText = "Cancel", SecondaryButtonText = "Reload", IsSecondaryButtonEnabled = false };
+            CloseButtonText = "Cancel", PrimaryButtonText = "Continue in app", IsPrimaryButtonEnabled = false,
+            SecondaryButtonText = "Reload", IsSecondaryButtonEnabled = false };
         dialog.Resources["ContentDialogMaxWidth"] = 1000d;
 #if DEBUG
         if (AppleSignInPreview.Enabled) dialog.Title = "Account-free popup test";
 #endif
-        var importing = false; var finished = false; var closed = false;
+        var importing = false; var finished = false; var closed = false; var remindersObserved = false;
         var authHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Task import = Task.CompletedTask; Task initialization = Task.CompletedTask;
         CoreWebView2Environment? environment = null;
@@ -99,6 +100,14 @@ public sealed partial class MainWindow
                 if (AppleSignInPolicy.Stage(uri) == "authentication")
                     foreach (var header in new[] { "X-Apple-TwoSV-Trust-Token", "X-Apple-Session-Token" })
                         if (e.Response.Headers.Contains(header)) authHeaders[header] = e.Response.Headers.GetHeader(header);
+                // A usable Reminders page may be restored without a fresh
+                // account-login response. Validate its cookies independently.
+                if (!remindersObserved && AppleSignInPolicy.IsRemindersResponse(uri, e.Response.StatusCode))
+                {
+                    remindersObserved = true;
+                    AppLog.Info("apple sign-in: stage=reminders session_detected");
+                    import = QueueCookieImportAsync(import, core);
+                }
                 if (e.Response.StatusCode != 200 || uri.Host != "setup.icloud.com" || AppleSignInPolicy.AccountEndpoint(uri) is not ("accountLogin" or "validate" or "loginOrCreateAccount")) return;
                 // Do not drop a successful validation while an earlier account
                 // response is being read. Trust may change between responses.
@@ -137,16 +146,39 @@ public sealed partial class MainWindow
             if (!closed && !finished) await ImportAsync(core, e);
         }
 
+        async Task QueueCookieImportAsync(Task previous, CoreWebView2 core)
+        {
+            await previous;
+            if (!closed && !finished) await ConnectAsync(core, null, null, null);
+        }
+
         async Task ImportAsync(CoreWebView2 core, CoreWebView2WebResourceResponseReceivedEventArgs e)
         {
             try
             {
                 var response = JsonNode.Parse(await ReadSignInStream(await e.Response.GetContentAsync()));
-                AppLog.Info($"apple sign-in: stage=account_response trusted={response?["hsaTrustedBrowser"]?.ToString() == "true"} challenge={response?["hsaChallengeRequired"]?.ToString() == "true"} account_present={response?["dsInfo"] is JsonObject} services_present={response?["webservices"] is JsonObject}");
-                if (!AppleSignInPolicy.CanImportAccount(response)) return;
+                var eligible = AppleSignInPolicy.CanImportAccount(response);
+                AppLog.Info($"apple sign-in: stage=account_response eligible={eligible} account_present={response?["dsInfo"] is JsonObject} services_present={response?["webservices"] is JsonObject}");
+                if (!eligible || response is null) return;
                 var request = e.Request.Content is { } content ? JsonNode.Parse(await ReadSignInStream(content)) : null;
                 var account = response["dsInfo"]?["appleId"]?.GetValue<string>() ?? response["dsInfo"]?["primaryEmail"]?.GetValue<string>();
                 if (string.IsNullOrWhiteSpace(account)) throw new InvalidDataException();
+                var clientId = new Uri(e.Request.Uri).Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).FirstOrDefault(p => p[0] == "clientId") is { Length: 2 } pair ? Uri.UnescapeDataString(pair[1]) : null;
+                await ConnectAsync(core, account, request, clientId);
+            }
+            catch (OperationCanceledException) when (closed) { }
+            catch (Exception error) { ShowFailure(AppleSignInPolicy.ImportFailure(error)); }
+        }
+
+        async Task ConnectAsync(CoreWebView2 core, string? account, JsonNode? request, string? clientId)
+        {
+            if (closed || finished) return;
+            try
+            {
+                importing = true;
+                message.Text = "Connecting your Apple session to the app…";
+                dialog.IsPrimaryButtonEnabled = false; dialog.IsSecondaryButtonEnabled = false;
+                AppLog.Info("apple sign-in: stage=import started");
                 var cookies = await core.CookieManager.GetCookiesAsync("");
                 var state = new JsonObject
                 {
@@ -154,15 +186,13 @@ public sealed partial class MainWindow
                     ["trust_token"] = authHeaders.TryGetValue("X-Apple-TwoSV-Trust-Token", out var trust) ? JsonValue.Create(trust) : request?["trustToken"]?.DeepClone(),
                     ["account_country"] = request?["accountCountryCode"]?.DeepClone(),
                     ["browser_cookie_session"] = true, ["user_agent"] = core.Settings.UserAgent,
-                    ["client_id"] = new Uri(e.Request.Uri).Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).FirstOrDefault(p => p[0] == "clientId") is { Length: 2 } pair ? Uri.UnescapeDataString(pair[1]) : Guid.NewGuid().ToString(),
+                    ["client_id"] = clientId ?? Guid.NewGuid().ToString(),
                     ["cookies"] = JsonSerializerNode(cookies)
                 };
                 if (closed) return;
-                importing = true;
-                message.Text = "Connecting your Apple session to the app…";
-                dialog.IsSecondaryButtonEnabled = false;
                 await _sync.CallAsync("browser_login", new { apple_id = account, state }, lifetime.Token);
                 finished = true;
+                AppLog.Info("apple sign-in: stage=import completed");
                 PasswordBox.Password = ""; CodeBox.Text = "";
                 dialog.Hide();
             }
@@ -171,7 +201,7 @@ public sealed partial class MainWindow
             finally
             {
                 importing = false;
-                if (!closed) dialog.IsSecondaryButtonEnabled = true;
+                if (!closed && !finished) { dialog.IsPrimaryButtonEnabled = true; dialog.IsSecondaryButtonEnabled = true; }
             }
         }
 
@@ -196,8 +226,8 @@ public sealed partial class MainWindow
                 await browser.EnsureCoreWebView2Async(environment, options);
                 if (closed) return;
                 Configure(browser);
-                dialog.IsSecondaryButtonEnabled = true;
-                AppLog.Info("apple sign-in: stage=page opening");
+                dialog.IsPrimaryButtonEnabled = true; dialog.IsSecondaryButtonEnabled = true;
+                AppLog.Info("apple sign-in: stage=page opening handoff=2");
                 NavigateStart();
             }
             catch (OperationCanceledException) when (closed) { }
@@ -210,12 +240,21 @@ public sealed partial class MainWindow
 
         dialog.Opened += (_, _) => initialization = InitializeAsync();
         dialog.Closing += (_, _) => { closed = true; lifetime.Cancel(); };
+        dialog.PrimaryButtonClick += (_, e) =>
+        {
+            e.Cancel = true;
+            if (importing || closed || finished) return;
+            var current = views.LastOrDefault(v => v.Visibility == Visibility.Visible);
+            if (current?.CoreWebView2 is not { } core) return;
+            AppLog.Info("apple sign-in: stage=import manual_continue");
+            import = QueueCookieImportAsync(import, core);
+        };
         dialog.SecondaryButtonClick += (_, e) =>
         {
             e.Cancel = true;
             var current = views.LastOrDefault(v => v.Visibility == Visibility.Visible);
             if (current is not null && parents.ContainsKey(current)) { ReturnToParent(current); return; }
-            authHeaders.Clear(); message.Text = AppleSignInPolicy.Instructions;
+            authHeaders.Clear(); remindersObserved = false; message.Text = AppleSignInPolicy.Instructions;
             AppLog.Info("apple sign-in: stage=page reload");
             NavigateStart();
         };

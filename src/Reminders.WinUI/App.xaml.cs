@@ -8,7 +8,8 @@ public partial class App : Application
     public App()
     {
         UnhandledException += (_, args) => Services.AppLog.Error("Unhandled UI exception", args.Exception);
-        Services.AppLog.Info("Starting Reminders " + typeof(App).Assembly.GetName().Version);
+        Services.AppLog.Info("Starting Reminders " + typeof(App).Assembly.GetName().Version + " build=" +
+            System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion);
         try { InitializeComponent(); }
         catch (Exception error)
         {
@@ -21,6 +22,10 @@ public partial class App : Application
         try
         {
             _window = new MainWindow();
+#if DEBUG
+            if (Environment.GetCommandLineArgs().Contains("--test-apple-sign-in", StringComparer.OrdinalIgnoreCase))
+                _window.Title = "Reminders for Windows · Sign-in test";
+#endif
             _window.Activate();
             Services.AppLog.Info("Main window activated");
         }

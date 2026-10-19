@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Reminders.Core;
 
@@ -39,6 +40,57 @@ internal static class BrowserSessionTrustChecks
         }
         using (var restarted = new ICloudClient("test@example.com", secrets, Handler))
             check(await restarted.Restore(default) && reads == 2, "restart revalidates the usable session and Reminders access without a password handshake");
+        using (var discovered = new ICloudClient("", secrets, Handler))
+        {
+            var result = await discovered.ImportBrowserSession(null, state, default);
+            check(result.Flag("authenticated") && discovered.Account == "test@example.com", "direct cookie handoff learns the account from native validation without a captured browser response");
+        }
+        var guardedSecrets = new SecretStore(new MemorySecrets());
+        using (var guarded = new ICloudClient("existing@example.com", guardedSecrets, Handler))
+        {
+            var guardCalled = false; var before = reads;
+            try
+            {
+                await guarded.ImportBrowserSession(null, state, default, account =>
+                {
+                    guardCalled = account == "test@example.com";
+                    throw CoreException.Bad("Queued edits belong to another account.");
+                });
+                check(false, "account guard must reject the discovered session");
+            }
+            catch (CoreException)
+            {
+                check(guardCalled && reads == before, "account guard receives Apple's validated identity before accessing reminder data");
+                check(guarded.Account == "existing@example.com" && guardedSecrets.Session("test@example.com") is null,
+                    "blocked cookie handoff preserves the previous account and does not persist the new session");
+            }
+        }
+        var root = Path.Combine(Path.GetTempPath(), "reminders-browser-guard-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            using (var cache = new Cache(Path.Combine(root, "cache.db")))
+            {
+                cache.SetMeta("apple_id", "existing@example.com");
+                cache.Upsert(J.Node(new { id = "queued", list_id = "list", title = "Unsynced edit" }), true);
+                cache.Enqueue("queued", "update", J.Node(new { title = "Unsynced edit" }), "old");
+            }
+            var serviceVault = new MemorySecrets(); var before = reads;
+            await using (var service = new ReminderService(root, serviceVault, Handler))
+            {
+                try
+                {
+                    await service.CallAsync("browser_login", JsonSerializer.SerializeToElement(new { state }));
+                    check(false, "RPC must refuse to switch a discovered account with pending edits");
+                }
+                catch (CoreException error) { check(error.Code == "BAD_REQUEST" && reads == before, "RPC checks queued edits before committing the discovered account"); }
+            }
+            using var retained = new Cache(Path.Combine(root, "cache.db"));
+            check(retained.Meta("apple_id") == "existing@example.com" && retained.Pending(1).Count == 1 && retained.Reminder("queued").Text("title") == "Unsynced edit",
+                "failed direct handoff preserves the previous cache and outbox");
+            check(new SecretStore(serviceVault).Session("test@example.com") is null, "RPC refuses account switching before saving browser credentials");
+        }
+        finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, true); }
         foreach (var rejected in new[] { "challenge", "wrong_account", "denied", "record_error", "network" })
         {
             var targetSecrets = new SecretStore(new MemorySecrets()); var probes = 0;
@@ -55,7 +107,7 @@ internal static class BrowserSessionTrustChecks
                 }
                 return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(response.ToJsonString()) });
             }));
-            try { await candidate.ImportBrowserSession("test@example.com", state, default); check(false, "unverified browser session is refused: " + rejected); }
+            try { await candidate.ImportBrowserSession(rejected == "wrong_account" ? "test@example.com" : null, state, default); check(false, "unverified browser session is refused: " + rejected); }
             catch (CoreException error)
             {
                 var expected = rejected == "challenge" ? "2FA_REQUIRED" : rejected == "network" ? "NETWORK" : "AUTH_REQUIRED";

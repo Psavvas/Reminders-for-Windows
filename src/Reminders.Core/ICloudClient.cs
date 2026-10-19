@@ -58,16 +58,20 @@ internal sealed partial class ICloudClient : IDisposable
         try { await auth.SubmitCode(code, token); PendingTwoFactor = false; Connected = true; return Status; }
         finally { Persist(); }
     }
-    public async Task<JsonNode> ImportBrowserSession(string account, JsonObject state, CancellationToken token)
+    public async Task<JsonNode> ImportBrowserSession(string? expectedAccount, JsonObject state, CancellationToken token, Action<string>? validateAccount = null)
     {
         if (!state.Flag("browser_cookie_session") || state.Array("cookies").Count == 0) state.Required("session_token", 16384);
         var candidate = new AppleAuth((JsonObject)state.DeepClone(), handlerFactory);
         candidate.Diagnostic += message => Diagnostic?.Invoke(message);
         try
         {
-            if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification and choose Trust in Apple's sign-in window.");
-            if (!string.Equals(account, candidate.State.Text("apple_id"), StringComparison.OrdinalIgnoreCase))
+            if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification in Apple's sign-in window.");
+            var account = candidate.State.Required("apple_id", 320).Trim().ToLowerInvariant();
+            if (expectedAccount is not null && !string.Equals(expectedAccount, account, StringComparison.OrdinalIgnoreCase))
                 throw new CoreException("AUTH_REQUIRED", "Apple returned a different account. Please sign in again.");
+            // Cookie-only handoff learns the identity from iCloud's validation,
+            // never from page text. Check queued edits before saving or switching.
+            validateAccount?.Invoke(account);
             await CheckBrowserAccess(candidate, token);
             token.ThrowIfCancellationRequested();
             candidate.SaveCookies();

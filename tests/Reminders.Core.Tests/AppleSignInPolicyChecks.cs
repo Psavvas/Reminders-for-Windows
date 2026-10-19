@@ -17,6 +17,17 @@ internal static class AppleSignInPolicyChecks
         account["hsaChallengeRequired"] = false; account["webservices"] = new JsonObject();
         check(!AppleSignInPolicy.CanImportAccount(account), "incomplete account response is not treated as a completed sign-in");
         check(!AppleSignInPolicy.CanImportAccount(new JsonObject()), "missing account identity cannot trigger handoff");
+        foreach (var endpoint in new[] { "records/query", "changes/zone" })
+            check(AppleSignInPolicy.IsRemindersResponse(new Uri("https://p01-ckdatabasews.icloud.com/database/1/com.apple.reminders/production/private/" + endpoint), 200), "loaded Reminders can trigger handoff without an observed account response: " + endpoint);
+        foreach (var address in new[]
+        {
+            "https://example.com/database/1/com.apple.reminders/production/private/records/query",
+            "https://p01-ckdatabasews.icloud.com.example.com/database/1/com.apple.reminders/production/private/records/query",
+            "http://p01-ckdatabasews.icloud.com/database/1/com.apple.reminders/production/private/records/query",
+            "https://p01-ckdatabasews.icloud.com/database/1/com.apple.notes/production/private/records/query",
+            "https://p01-ckdatabasews.icloud.com/database/1/com.apple.reminders/production/private/records/modify"
+        }) check(!AppleSignInPolicy.IsRemindersResponse(new Uri(address), 200), "unrelated or unsafe traffic cannot trigger cookie handoff");
+        check(!AppleSignInPolicy.IsRemindersResponse(new Uri("https://p01-ckdatabasews.icloud.com/database/1/com.apple.reminders/production/private/records/query"), 401), "failed web data access does not imply a finished sign-in");
         check(AppleSignInPolicy.IsPopupUri("about:blank"), "blank popup preserves the opener while Apple prepares navigation");
         check(AppleSignInPolicy.IsPopupUri("https://idmsa.apple.com/appleauth/auth/authorize/signin"), "Apple authentication popups are permitted");
         foreach (var address in new[] { "http://www.icloud.com/", "https://apple.com.example.com/", "https://user@www.icloud.com/", "file:///C:/test", "javascript:alert(1)", "about:config" })

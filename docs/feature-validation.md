@@ -99,3 +99,18 @@ before accepting or restoring the session. It rejects a pending challenge, wrong
 account, denied Reminders access, and record-level authentication errors. The
 stored trust flag remains false; the app does not claim Apple granted trust or
 change Apple's rules for when verification will be required again.
+
+The handoff also recognizes successful Reminders query/change responses. This
+allows a restored web session to connect even if its account-login response was
+not observed. **Continue in app** explicitly retries cookie validation; it does
+not need a captured account response or any account information scraped from the
+page. The native client learns the identity from iCloud's validation and refuses
+to switch accounts with queued edits before saving credentials or clearing cache.
+Check that automatic handoff closes the web dialog. If it stays open after the
+web reminders load, check **Continue in app**, including error and cancellation
+behavior. This follow-up still needs a real-account result; the previous live
+attempt remained in the web window.
+
+Debug builds accept `--test-apple-sign-in` to label the window **Sign-in test**.
+Startup logs include assembly build identity, and `stage=page opening handoff=2`
+identifies this handoff implementation without logging account information.
