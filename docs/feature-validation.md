@@ -21,11 +21,44 @@ before changing the remote reminder. Those reminders must be completed on an
 Apple device. The app can create daily, weekly, monthly and yearly repeats with
 an interval of 1–999 and a due date.
 
+## Repeat frequency compatibility
+
+The Windows UI and RPC use daily=1, weekly=2, monthly=3, yearly=4. CloudKit's
+stored `RecurrenceRule.Frequency` uses daily=0, weekly=1, monthly=2, yearly=3.
+Convert explicitly on writing and reading the rule. Apple's hourly/minutely/
+secondly values (4/5/6), missing values and unknown frequencies are unsupported
+and must not be mistaken for one of these four schedules.
+
+This was verified on 2026-10-20 against Apple's publicly served
+[Reminders 2638Build16 script](https://www.icloud.com/applications/reminders2/2638Build16/en-us/main.js).
+The `RecurrenceRule` model reads `Frequency` as a number, and its conversion
+function (named `_m` in that build) maps 0/1/2/3 to daily/weekly/monthly/yearly.
+Downloaded script SHA-256:
+`cb1097a325a50c37e8d3e9f5b1395c0551e34744bd857c7dc243dde78951d8b8`.
+Tests use independent numeric service fixtures for all four units, calendar
+advancement, two-week intervals, create requests and reloaded cache descriptions.
+They also complete an Apple-created weekly rule without changing its frequency.
+
+Earlier test builds sent the UI value unchanged. The user confirmed that a
+Windows-created weekly reminder showed monthly on iPhone and advanced one month
+when completed there. Independent wire-format tests reproduce the mismatch
+before the fix. All four units were affected; yearly could become hourly.
+Previously uploaded rules cannot be safely repaired by guessing their intended
+schedule, because they are indistinguishable from valid Apple-created rules.
+Set affected reminders to their intended repeat in Apple's Reminders once; the
+corrected Windows reader will then use the same rule. Pending new reminders
+upload with the corrected values. Real iPhone validation of newly created rules
+in the corrected build remains pending.
+
+## Related records and icons
+
 Tag writes follow the linked-record shape described in the
 [public protocol implementation](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_hashtag_create.go).
 Repeat records follow its
 [recurrence write format](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_recurrence_request.go).
-Those references describe an unofficial API, not an Apple compatibility guarantee.
+That reference is used for record structure; its frequency numbers are not the
+service enum verified above. Those references describe an unofficial API, not
+an Apple compatibility guarantee.
 Apple documents app-specific passwords for Mail, Calendar and Contacts;
 they do not authenticate this CloudKit Reminders client. See
 [Apple's explanation](https://support.apple.com/en-us/102654).

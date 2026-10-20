@@ -18,7 +18,13 @@ internal static class Recurrence
         var fields = rule["fields"] as JsonObject ?? new();
         var supported = fields.All(p => p.Key is "Reminder" or "Frequency" or "Interval" or "OccurrenceCount" or "FirstDayOfTheWeek" or "Imported" or "Deleted" or "EndDate" or "CreationDate" or "LastModifiedDate" or "ResolutionTokenMap"
             || p.Value?["value"] is null || p.Value?["value"] is JsonArray { Count: 0 });
-        var frequency = CloudKit.Int(rule, "Frequency"); var interval = Math.Max(1, CloudKit.Int(rule, "Interval"));
+        // The UI/RPC uses 1=daily through 4=yearly. Apple's stored enum uses
+        // 0=daily, 1=weekly, 2=monthly, 3=yearly, then hourly/minutely/secondly.
+        // A missing or unsupported service value must never become a daily
+        // repeat or mislabel an hourly rule as yearly.
+        var frequency = CloudKit.Field(rule, "Frequency") is JsonValue raw && raw.TryGetValue<long>(out var wire)
+            ? wire switch { 0 => 1, 1 => 2, 2 => 3, 3 => 4, _ => 0 } : 0;
+        var interval = Math.Max(1, CloudKit.Int(rule, "Interval"));
         return new() { ["frequency"] = frequency, ["interval"] = interval, ["supported"] = supported && frequency is >= 1 and <= 4 && interval <= 999 };
     }
 
@@ -57,7 +63,12 @@ internal static class Recurrence
 
     public static JsonObject Fields(string reminder, JsonNode recurrence) => new()
     {
-        ["Reminder"] = CloudKit.Reference(reminder), ["Frequency"] = CloudKit.Number(recurrence.Number("frequency")),
+        ["Reminder"] = CloudKit.Reference(reminder),
+        ["Frequency"] = CloudKit.Number(recurrence.Number("frequency") switch
+        {
+            1 => 0, 2 => 1, 3 => 2, 4 => 3,
+            _ => throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat.")
+        }),
         ["Interval"] = CloudKit.Number(recurrence.Number("interval", 1)), ["OccurrenceCount"] = CloudKit.Number(0),
         ["FirstDayOfTheWeek"] = CloudKit.Number(0), ["Imported"] = CloudKit.Number(0), ["Deleted"] = CloudKit.Number(0)
     };

@@ -67,7 +67,7 @@ internal static class RecurrenceAndSyncChecks
         var created = await client.Create(payload, default);
         check(created.Text("title") == "Preflight" && created.Array("recurrence_ids").Count == 1, "recurring creation hydrates parent and repeat IDs");
         check(records["RecurrenceRule/rule"]["parent"].Text("recordName") == "Reminder/recurring", "repeat record has CloudKit parent");
-        check(CloudKit.Int(records["RecurrenceRule/rule"], "Frequency") == 1, "repeat frequency uses Apple wire enum");
+        check(CloudKit.Int(records["RecurrenceRule/rule"], "Frequency") == 0, "created daily repeat sends Apple's zero-based frequency");
         var beforeRetry = writes; await client.Create(payload, default); check(writes == beforeRetry, "create retry recovers existing stable identity");
         // An iPhone-created tag must survive adding a new Windows tag.
         records["Reminder/recurring"]["fields"]!["HashtagIDs"] = J.Node(new { type = "STRING_LIST", value = new[] { "existing" } });
@@ -91,11 +91,33 @@ internal static class RecurrenceAndSyncChecks
         beforeRetry = writes; await client.Update("Reminder/recurring", second, active.Text("change_tag"), default); check(writes == beforeRetry, "ambiguous completion retry recovers committed history");
         check(linkedWrites >= 3, "recurrence, tags and completion use linked atomic writes");
 
+        foreach (var (appFrequency, wireFrequency) in new[] { (1, 0), (2, 1), (3, 2), (4, 3) })
+        {
+            var newRepeat = J.Node(new { cloud_id = "Reminder/frequency-" + appFrequency, recurrence_id = "frequency-" + appFrequency,
+                list_id = "List/test", title = "Repeat unit", due_date = "2026-10-20T09:00:00Z", recurrence = new { frequency = appFrequency, interval = 1 } }).AsObject();
+            await client.Create(newRepeat, default);
+            check(CloudKit.Int(records["RecurrenceRule/frequency-" + appFrequency], "Frequency") == wireFrequency, "creation transmits the independent Apple frequency fixture: " + appFrequency);
+        }
+        // Simulate a weekly rule originating on an Apple device, independently
+        // of our writer. Completing it must advance seven days, not one day.
+        var appleDue = DateTimeOffset.UtcNow.AddHours(-1);
+        records["Reminder/apple-weekly"] = new JsonObject { ["recordName"] = "Reminder/apple-weekly", ["recordType"] = "Reminder", ["recordChangeTag"] = "apple",
+            ["fields"] = new JsonObject { ["List"] = CloudKit.Reference("List/test"), ["Completed"] = CloudKit.Number(0), ["DueDate"] = CloudKit.Timestamp(TimeUtil.ToFloating(appleDue, "UTC")), ["TimeZone"] = CloudKit.String("UTC"), ["RecurrenceRuleIDs"] = J.Node(new { type = "STRING_LIST", value = new[] { "apple-weekly" } }) } };
+        records["RecurrenceRule/apple-weekly"] = new JsonObject { ["recordName"] = "RecurrenceRule/apple-weekly", ["recordType"] = "RecurrenceRule", ["recordChangeTag"] = "apple",
+            ["fields"] = new JsonObject { ["Frequency"] = CloudKit.Number(1), ["Interval"] = CloudKit.Number(1), ["Reminder"] = CloudKit.Reference("Reminder/apple-weekly") } };
+        var appleAdvanced = await client.Update("Reminder/apple-weekly", J.Node(new { completed = true, completion_id = "Reminder/apple-weekly-history" }).AsObject(), "apple", default);
+        check(Math.Abs((TimeUtil.Parse(appleAdvanced.Required("due_date")) - appleDue.AddDays(7)).TotalMilliseconds) < 1, "completing an Apple-created weekly reminder preserves its seven-day schedule");
+        check(CloudKit.Int(records["RecurrenceRule/apple-weekly"], "Frequency") == 1, "completion preserves Apple's original weekly rule value");
+
         var root = Path.Combine(Path.GetTempPath(), "reminders-feature-tests-" + Guid.NewGuid().ToString("N"));
         try
         {
             using (var cache = new Cache(Path.Combine(root, "order.db")))
             {
+                cache.ApplyRecords(new JsonArray(records.Values.Select(r => r.DeepClone()).ToArray()));
+                check(cache.Reminder("Reminder/frequency-2").Property("recurrence").Number("frequency") == 2, "new Windows weekly reminder still displays weekly after downloading its Apple-format rule");
+                check(cache.Reminder("Reminder/apple-weekly").Property("recurrence").Number("frequency") == 2, "Apple-created weekly reminder displays weekly in the cache");
+                check(cache.Reminder("Reminder/frequency-3").Property("recurrence").Number("frequency") == 3, "stored Apple monthly frequency two is displayed as monthly, not reinterpreted as old Windows intent");
                 cache.ReplaceLists(new JsonArray(J.Node(new { id = "a", title = "A" }), J.Node(new { id = "b", title = "B" })));
                 cache.SetSettings(J.Node(new { list_order = new[] { "b", "a" } }).AsObject());
                 cache.ReplaceLists(new JsonArray(J.Node(new { id = "a", title = "A" }), J.Node(new { id = "c", title = "New" }), J.Node(new { id = "b", title = "B" })));
