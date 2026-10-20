@@ -179,3 +179,32 @@ account and is excluded from Release builds. Visual inspection caught an attempt
 to scroll before attachment to XamlRoot; that initialization was corrected. The
 user stopped the subsequent UI check, so final visual checks of the responsive
 layout, themes, and reset confirmation remain pending.
+
+## Write compatibility with v0.5.5
+
+The new stable-identity checks look up a reminder or completed occurrence before
+creating it, so retries can recover a committed write whose reply was lost.
+CloudKit Web Services reports a missing record as `NOT_FOUND`; the first
+implementation only accepted `UNKNOWN_ITEM`. This incorrectly rejected fresh
+creates and recurring completions before their modify request. Tests now use
+the [documented Web Services response](https://developer.apple.com/library/archive/documentation/DataManagement/Conceptual/CloudKitWebServicesReference/ErrorCodes.html)
+and reproduce the refusal before the fix. Optional per-record lookups accept
+both missing-item codes. Required lookups, top-level failures, denied access,
+missing zones, and authentication errors still fail normally.
+
+A rejected queued write previously stopped every later upload. Sync now keeps
+that edit and its dependent edits queued, attempts other reminders in sequence,
+and downloads current data before showing a warning. A later edit to the same
+reminder cannot overtake a rejected edit. Authentication and network failures
+still stop or restore the session. An index supports selecting independent
+uploads without repeatedly scanning a large backlog.
+
+Regression coverage includes successful creation and ordinary completion behind
+a rejected queue head, more than 100 dependent edits, rebasing an edit queued
+before creation finishes, retrying without duplicate creation or repeat
+advancement, and retaining every rejected edit. Diagnostics record endpoint and
+bounded server error code without record identities, content, or server reason
+text. The user reports that the published v0.5.5 still writes successfully;
+real-account creation/completion in the corrected test build remains to be
+confirmed. Clearing the user's cache is not required by this fix and has not
+been performed.

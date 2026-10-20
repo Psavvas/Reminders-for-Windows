@@ -59,7 +59,15 @@ internal sealed class CloudKit(AppleAuth auth)
                 throw new CoreException("ERROR", $"iCloud rejected the sync request (HTTP {response.Status}).", AppleAuth.Detail(J.Parse(response.Text)));
             throw new CoreException("NETWORK", "Could not reach iCloud", $"HTTP {response.Status}: {AppleAuth.Detail(J.Parse(response.Text))}");
         }
-        return JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response");
+        var result = JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response");
+        // HTTP 200 can still carry a per-record CloudKit failure. Log only the
+        // endpoint and bounded error enum, never the record or server reason.
+        var statuses = new[] { result }.Concat(result.Array("records"))
+            .Concat(result.Array("zones")).Concat(result.Array("zones").SelectMany(z => z.Array("records")));
+        foreach (var status in statuses)
+            if (status.Text("serverErrorCode") is { } code) auth.ReportCloudKitError(operation, code);
+        Reject([result]);
+        return result;
     }
     private static void Advance(HashSet<string> seen, string? next)
     {
@@ -110,7 +118,9 @@ internal sealed class CloudKit(AppleAuth auth)
     {
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(ids.Distinct().Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
         var rows = response.Array("records");
-        var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") != "UNKNOWN_ITEM").Select(r => r?.DeepClone()).ToArray());
+        // Web Services reports NOT_FOUND; some responses use the native error
+        // name UNKNOWN_ITEM. Only optional per-record misses are expected here.
+        var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") is not ("NOT_FOUND" or "UNKNOWN_ITEM")).Select(r => r?.DeepClone()).ToArray());
         Reject(found); return found;
     }
     public async Task<JsonArray> Modify(JsonNode operation, CancellationToken token)

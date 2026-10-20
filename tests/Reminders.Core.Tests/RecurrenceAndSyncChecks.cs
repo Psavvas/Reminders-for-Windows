@@ -31,7 +31,9 @@ internal static class RecurrenceAndSyncChecks
             if (request.RequestUri!.AbsolutePath.EndsWith("/accountLogin"))
                 response = J.Node(new { dsInfo = new { dsid = "1", hsaVersion = 2, appleId = "test@example.com" }, hsaTrustedBrowser = true, webservices = new { ckdatabasews = new { url = "https://p01.icloud.com" } } });
             else if (request.RequestUri.AbsolutePath.EndsWith("records/lookup"))
-                response = new JsonObject { ["records"] = new JsonArray(body.Array("records").OfType<JsonObject>().Select(r => records.TryGetValue(r.Required("recordName"), out var found) ? found.DeepClone() : J.Node(new { recordName = r.Text("recordName"), serverErrorCode = "UNKNOWN_ITEM" })).ToArray()) };
+                // CloudKit Web Services uses NOT_FOUND, rather than the native
+                // CKError name UNKNOWN_ITEM, for a record that does not exist yet.
+                response = new JsonObject { ["records"] = new JsonArray(body.Array("records").OfType<JsonObject>().Select(r => records.TryGetValue(r.Required("recordName"), out var found) ? found.DeepClone() : J.Node(new { recordName = r.Text("recordName"), serverErrorCode = "NOT_FOUND" })).ToArray()) };
             else if (request.RequestUri.AbsolutePath.EndsWith("records/modify"))
             {
                 writes++;

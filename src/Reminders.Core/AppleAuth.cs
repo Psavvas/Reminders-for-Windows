@@ -15,6 +15,11 @@ internal sealed class AppleAuth : IDisposable
     private CookieContainer cookies = new();
     internal HttpClient Http { get; private set; }
     internal event Action<string>? Diagnostic;
+    internal void ReportCloudKitError(string operation, string code)
+    {
+        var safeCode = code.Length is > 0 and <= 64 && code.All(c => c is >= 'A' and <= 'Z' or '_') ? code : "UNKNOWN";
+        Diagnostic?.Invoke($"icloud: {operation} server_error={safeCode}");
+    }
     internal JsonObject State { get; private set; }
     private readonly List<JsonNode> phones = [];
     private readonly List<(string Method, long Id, string Mode)> sent = [];

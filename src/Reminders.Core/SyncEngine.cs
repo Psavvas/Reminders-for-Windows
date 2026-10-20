@@ -28,16 +28,14 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 try
                 {
                     Progress("Uploading queued changes...");
-                    CoreException? rejected = null; JsonNode? push = null;
-                    try { push = await Recover(() => Push(deadline.Token), deadline.Token); }
-                    catch (CoreException error) when (error.Code == "OPERATION_REJECTED") { rejected = error; }
+                    var push = await Recover(() => Push(deadline.Token), deadline.Token);
                     var needsFull = force || cache.Meta("sync_cursor") is null || cache.Meta("cloudkit_read_protocol") != "4";
                     var pull = await Recover(() => needsFull ? Full(deadline.Token) : Delta(deadline.Token), deadline.Token);
                     Interlocked.Exchange(ref completed, generation);
-                    if (rejected is not null)
+                    if (push.Number("failed") > 0)
                     {
-                        emit("sync_warning", rejected.Body);
-                        return new JsonObject { ["push"] = J.Node(new { failed = 1 }), ["pull"] = pull };
+                        emit("sync_warning", push["error"]!.DeepClone());
+                        return new JsonObject { ["push"] = push, ["pull"] = pull };
                     }
                     if (Interlocked.Read(ref requested) == generation && cache.Pending(1).Count == 0) return new JsonObject { ["push"] = push, ["pull"] = pull };
                 }
@@ -85,11 +83,12 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
     }
     private async Task<JsonNode> Push(CancellationToken token)
     {
-        var pushed = 0; var conflicts = 0;
+        var pushed = 0; var conflicts = 0; var failed = 0; long afterSeq = 0; CoreException? rejected = null;
         for (var i = 0; i < 100; i++)
         {
-            var item = cache.Pending(1).FirstOrDefault(); if (item is null) break;
+            var item = cache.NextUpload(afterSeq); if (item is null) break;
             var seq = item.Number("seq"); var id = item.Required("reminder_id"); var payload = J.Parse(item.Text("payload")) as JsonObject ?? new();
+            afterSeq = seq;
             // Upgrade already-queued completions before touching the network.
             // Their history identity must survive retries just like new edits.
             if (payload.Flag("completed") && payload.Text("completion_id") is null)
@@ -123,9 +122,16 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
             }
             catch (CoreException ex)
             {
-                cache.Execute("UPDATE outbox SET attempts=attempts+1,last_error=@p0 WHERE seq=@p1", ex.Message, seq); emit("push_failed", new JsonObject { ["reminder_id"] = id, ["error"] = ex.Body }); throw;
+                cache.Execute("UPDATE outbox SET attempts=attempts+1,last_error=@p0 WHERE seq=@p1", ex.Message, seq); emit("push_failed", new JsonObject { ["reminder_id"] = id, ["error"] = ex.Body });
+                // A record rejection is local to this queued change. Preserve
+                // it and its dependent edits, and continue other reminders.
+                // Authentication and transport errors still abort/recover.
+                if (ex.Code is not ("OPERATION_REJECTED" or "BAD_REQUEST")) throw;
+                rejected ??= ex; failed++;
             }
         }
-        return J.Node(new { pushed, conflicts, failed = 0 });
+        var result = J.Node(new { pushed, conflicts, failed });
+        if (rejected is not null) result["error"] = rejected.Body;
+        return result;
     }
 }

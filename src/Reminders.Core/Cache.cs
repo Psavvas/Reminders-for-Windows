@@ -207,6 +207,9 @@ internal sealed class Cache : IDisposable
     }
     public void Enqueue(string id, string op, JsonNode payload, string? tag) => Execute("INSERT INTO outbox(reminder_id,op,payload,base_tag,created_at) VALUES(@p0,@p1,@p2,@p3,@p4)", id, op, payload.ToJsonString(), tag, TimeUtil.Now);
     public JsonArray Pending(int limit = 100) => Query("SELECT * FROM outbox ORDER BY seq LIMIT @p0", limit);
+    // Keep edits to a single reminder in order, while allowing another reminder
+    // past an earlier rejected upload. Successful creates may remap queued IDs.
+    public JsonNode? NextUpload(long afterSeq) => Query("SELECT * FROM outbox AS next WHERE seq>@p0 AND NOT EXISTS (SELECT 1 FROM outbox AS earlier WHERE earlier.reminder_id=next.reminder_id AND earlier.seq<next.seq) ORDER BY seq LIMIT 1", afterSeq).FirstOrDefault();
     public void Acknowledge(long seq, string id, string? tag) => Transaction(() => { Execute("DELETE FROM outbox WHERE seq=@p0", seq); Execute("UPDATE outbox SET base_tag=@p0 WHERE reminder_id=@p1 AND seq>@p2", tag, id, seq); Execute("UPDATE reminders SET change_tag=@p0,dirty=EXISTS(SELECT 1 FROM outbox WHERE reminder_id=@p1) WHERE id=@p1", tag, id); return true; });
     public string ResolveId(string id) => Meta("id_alias:" + id) ?? id;
     public void ReplaceId(string oldId, string newId) => Transaction(() => { Execute("UPDATE reminders SET id=@p0 WHERE id=@p1", newId, oldId); foreach (var table in new[] { "tags", "outbox" }) Execute($"UPDATE {table} SET reminder_id=@p0 WHERE reminder_id=@p1", newId, oldId); SetMeta("id_alias:" + oldId, newId); return true; });

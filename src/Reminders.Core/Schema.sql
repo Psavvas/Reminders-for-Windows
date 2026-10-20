@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS outbox (
   created_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
   last_error TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_outbox_reminder_seq ON outbox(reminder_id,seq);
 CREATE TABLE IF NOT EXISTS conflicts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, reminder_id TEXT NOT NULL,
   local_json TEXT NOT NULL, remote_json TEXT NOT NULL,
