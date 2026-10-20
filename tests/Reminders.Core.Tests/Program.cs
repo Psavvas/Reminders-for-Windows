@@ -242,6 +242,7 @@ finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Dele
 await AuthVerificationChecks.RunAsync(Check);
 await BrowserSessionTrustChecks.RunAsync(Check);
 await SignOutChecks.RunAsync(Check);
+await CacheRecoveryChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 await RecurrenceAndSyncChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);

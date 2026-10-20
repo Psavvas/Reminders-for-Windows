@@ -27,10 +27,18 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(10));
                 try
                 {
-                    Progress("Uploading queued changes..."); var push = await Recover(() => Push(deadline.Token), deadline.Token);
+                    Progress("Uploading queued changes...");
+                    CoreException? rejected = null; JsonNode? push = null;
+                    try { push = await Recover(() => Push(deadline.Token), deadline.Token); }
+                    catch (CoreException error) when (error.Code == "OPERATION_REJECTED") { rejected = error; }
                     var needsFull = force || cache.Meta("sync_cursor") is null || cache.Meta("cloudkit_read_protocol") != "4";
                     var pull = await Recover(() => needsFull ? Full(deadline.Token) : Delta(deadline.Token), deadline.Token);
                     Interlocked.Exchange(ref completed, generation);
+                    if (rejected is not null)
+                    {
+                        emit("sync_warning", rejected.Body);
+                        return new JsonObject { ["push"] = J.Node(new { failed = 1 }), ["pull"] = pull };
+                    }
                     if (Interlocked.Read(ref requested) == generation && cache.Pending(1).Count == 0) return new JsonObject { ["push"] = push, ["pull"] = pull };
                 }
                 catch (OperationCanceledException) when (!token.IsCancellationRequested) { if (force) Interlocked.Exchange(ref fullRequested, 1); throw new CoreException("NETWORK", "Sync timed out after 10 minutes. Cached reminders are available; try syncing again."); }

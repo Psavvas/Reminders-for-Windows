@@ -4,6 +4,15 @@
  <Application.Resources>
   <ResourceDictionary>
    <ResourceDictionary.MergedDictionaries><XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls"/></ResourceDictionary.MergedDictionaries>
+   <Style x:Key="SettingsCardStyle" TargetType="Border">
+    <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}"/>
+    <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="16"/>
+   </Style>
+   <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}"/>
+    <Setter Property="TextWrapping" Value="Wrap"/><Setter Property="FontSize" Value="13"/>
+   </Style>
   </ResourceDictionary>
  </Application.Resources>
 </Application>

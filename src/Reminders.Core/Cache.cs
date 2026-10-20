@@ -214,6 +214,21 @@ internal sealed class Cache : IDisposable
     {
         get { var rows = Query("SELECT * FROM conflicts WHERE resolved=0 ORDER BY detected_at DESC"); foreach (var row in rows.OfType<JsonObject>()) { row["local"] = J.Parse(row.Text("local_json")); row["remote"] = J.Parse(row.Text("remote_json")); row.Remove("local_json"); row.Remove("remote_json"); } return rows; }
     }
-    public void Purge() => Transaction(() => { foreach (var table in new[] { "lists", "reminders", "tags", "outbox", "conflicts", "related_records" }) Execute($"DELETE FROM {table}"); SetMeta("sync_cursor", null); SetMeta("last_sync", null); return true; });
+    private void PurgeData()
+    {
+        foreach (var table in new[] { "lists", "reminders", "tags", "outbox", "conflicts", "related_records" }) Execute($"DELETE FROM {table}");
+        foreach (var key in new[] { "sync_cursor", "last_sync", "last_full_sync", "cloudkit_read_protocol" }) SetMeta(key, null);
+        Execute("DELETE FROM meta WHERE key GLOB 'id_alias:*'");
+    }
+    public void Purge() => Transaction(() => { PurgeData(); return true; });
+    public JsonNode Clear(bool discardPending) => Transaction(() =>
+    {
+        var pending = Query("SELECT COUNT(*) AS count FROM outbox")[0].Number("count");
+        var conflicts = Query("SELECT COUNT(*) AS count FROM conflicts WHERE resolved=0")[0].Number("count");
+        if ((pending > 0 || conflicts > 0) && !discardPending)
+            throw new CoreException("PENDING_CHANGES", "Confirm discarding unsynced changes and conflicts before clearing the cache.");
+        PurgeData();
+        return J.Node(new { cleared = true, discarded_pending = pending, discarded_conflicts = conflicts });
+    });
     public void Dispose() { lock (gate) connection.Dispose(); }
 }

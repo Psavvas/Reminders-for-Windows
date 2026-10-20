@@ -143,3 +143,39 @@ Settings action in a real account and then relaunch to confirm it remains signed
 out; signing back into the same account must restore the retained reminders.
 The final Settings placement has build validation; its live UI check was stopped
 by the user before interacting with the running copy.
+
+## Settings and cache recovery
+
+Settings has four categories: **General**, **Sync & storage**, **Account**, and
+**About**. A category selector replaces the side navigation in smaller windows.
+Controls are grouped into cards, custom pane width appears only when selected,
+and the long app disclaimer is expandable. Categories and the privacy-policy
+view preserve unsaved settings; Save changes applies them and Cancel discards
+them. **Settings and storage** on the sign-in screen provides recovery access
+without requiring successful sign-in first.
+
+**Sync & storage → Clear app cache** removes downloaded reminders, tags, repeat
+records, sync cursors, old identifier aliases, queued uploads, and conflicts.
+It keeps account identity, saved sign-in, app preferences, and the explicit
+sign-out choice. It does not delete records in iCloud. Background work is cancelled
+and drained before the atomic reset, preventing an older download from filling
+the cleared cache. A fresh download starts when the account can restore.
+
+If there are queued changes or unresolved conflicts, the confirmation requires
+an unchecked-by-default discard choice. The backend also checks this condition
+inside the reset transaction. Local-only accounts reject cache clearing because
+their reminders have no cloud copy. The implementation was tested on isolated
+databases; the user's real cache was not cleared.
+
+A known record rejection during upload no longer blocks downloading the latest
+iCloud data. The edit remains queued and the UI shows a warning linking to Sync
+& storage after the download. Transient or unclassified server errors remain
+retryable. Regression checks cover retained edits, successful downloads despite
+rejected uploads, reset cancellation/draining, preserved credentials/preferences,
+discard confirmation, and fresh downloads without an old sync cursor.
+
+The sample-only `--preview-settings` flag opens the General page without an Apple
+account and is excluded from Release builds. Visual inspection caught an attempt
+to scroll before attachment to XamlRoot; that initialization was corrected. The
+user stopped the subsequent UI check, so final visual checks of the responsive
+layout, themes, and reset confirmation remain pending.

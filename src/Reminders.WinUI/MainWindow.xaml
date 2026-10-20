@@ -136,6 +136,7 @@
       <InfoBar.ActionButton><Button Content="Review iCloud setup" Click="ReviewICloudSetup_Click"/></InfoBar.ActionButton>
      </InfoBar>
      <HyperlinkButton x:Name="SetupHelpLink" Content="iCloud setup and troubleshooting" HorizontalAlignment="Center" Click="ReviewICloudSetup_Click"/>
+     <HyperlinkButton Content="Settings and storage" HorizontalAlignment="Center" Click="Settings_Click"/>
      <HyperlinkButton Content="Privacy policy" HorizontalAlignment="Center" Click="PrivacyPolicy_Click"/>
      <Button Content="Explore the UI with sample data" HorizontalAlignment="Center" Click="Demo_Click"/>
     </StackPanel>

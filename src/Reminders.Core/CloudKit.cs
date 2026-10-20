@@ -37,6 +37,10 @@ internal sealed class CloudKit(AppleAuth auth)
         var code = error.Text("serverErrorCode");
         if (code is "CONFLICT" or "SERVER_RECORD_CHANGED") throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", error.ToJsonString());
         if (code is "AUTHENTICATION_FAILED" or "AUTHENTICATION_REQUIRED") throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.");
+        if (code is "UNKNOWN_ITEM" or "NOT_FOUND" or "INVALID_ARGUMENTS" or "ACCESS_DENIED" or "PERMISSION_FAILURE" or "VALIDATION_FAILED" or "ZONE_NOT_FOUND" or "QUOTA_EXCEEDED")
+            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review Sync & storage in Settings to retry or clear the cache.", code + ": " + error.Text("reason"));
+        // Keep transient/unknown service failures retryable, including during
+        // restoration. They do not establish a rejected local edit.
         throw new CoreException("NETWORK", "iCloud rejected a reminder operation", code + ": " + error.Text("reason"));
     }
     private async Task<JsonNode> Post(string operation, JsonNode body, CancellationToken token)

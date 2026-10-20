@@ -55,7 +55,7 @@ public sealed partial class MainWindow : Window
     private AppUpdate? _availableUpdate;
     private bool _updateBusy;
     private bool _syncDisposedForUpdate;
-    private bool _signingOut;
+    private bool _accountBusy;
 
     public MainWindow()
     {
@@ -117,6 +117,12 @@ public sealed partial class MainWindow : Window
         }
         _bootStarted = true;
 #if DEBUG
+        if (Environment.GetCommandLineArgs().Contains("--preview-settings", StringComparer.OrdinalIgnoreCase))
+        {
+            LoadDemo();
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Settings_Click(this, new RoutedEventArgs()));
+            return;
+        }
         if (AppleSignInPreview.Enabled)
         {
             ShowLogin();
@@ -150,16 +156,16 @@ public sealed partial class MainWindow : Window
 
     private async Task BootAsync()
     {
-        if (_signingOut) return;
+        if (_accountBusy) return;
         SetGateState("Starting the sync service…");
         try
         {
             if (!_sync.IsRunning) await _sync.StartAsync();
             SetGateState("Checking your account…");
             var status = await _sync.CallAsync("auth_status", new { });
-            if (_signingOut) return;
+            if (_accountBusy) return;
             _settings = await _sync.CallAsync("settings", new { });
-            if (_signingOut) return;
+            if (_accountBusy) return;
             ApplyTheme(_settings.Text("theme", "system"));
             if (status.Flag("needs_2fa") && !status.Flag("authenticated"))
             {
@@ -173,7 +179,7 @@ public sealed partial class MainWindow : Window
             {
                 AuthGate.Visibility = Visibility.Collapsed;
                 await RefreshAllAsync();
-                if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
+                if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
                 _statusTimer.Start(); _notificationTimer.Start(); _syncTimer.Start();
                 if (status.Flag("authenticated")) await RequestAutoSyncAsync();
                 if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo("Sign in to resume syncing", "Cached reminders and queued edits remain available.", InfoBarSeverity.Warning);
@@ -217,7 +223,7 @@ public sealed partial class MainWindow : Window
         var tagsTask = _sync.CallAsync<List<ReminderTag>>("tags", new { });
         var countsTask = _sync.CallAsync("smart_counts", new { });
         await Task.WhenAll(listsTask, tagsTask, countsTask);
-        if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
+        if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
         _lists = listsTask.Result;
         DetailList.ItemsSource = _lists.Where(list => !list.IsGroup).ToList();
         var counts = countsTask.Result;
@@ -268,7 +274,7 @@ public sealed partial class MainWindow : Window
             var query = new Dictionary<string, object?> { ["include_completed"] = ShowCompleted.IsOn, ["search"] = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim(), ["sort"] = _sort };
             query[_view.Kind switch { NavKind.List => "list_id", NavKind.Tag => "tag", _ => "scope" }] = _view.Key;
             var rows = await _sync.CallAsync<List<ReminderItem>>("reminders", query);
-            if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
+            if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
             if (_completing.Count > 0) return;
             SetReminderRows(rows);
         }
@@ -333,11 +339,11 @@ public sealed partial class MainWindow : Window
     }
     private async Task CheckNotificationsAsync()
     {
-        if (_demo || _signingOut || AuthGate.Visibility != Visibility.Collapsed || !_notificationsRegistered) return;
+        if (_demo || _accountBusy || AuthGate.Visibility != Visibility.Collapsed || !_notificationsRegistered) return;
         try
         {
             var plan = await _sync.CallAsync("due_notifications", new { });
-            if (_signingOut || AuthGate.Visibility != Visibility.Collapsed) return;
+            if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
             if (!plan.TryGetProperty("toasts", out var toasts)) return;
             foreach (var toast in toasts.EnumerateArray())
             {
@@ -356,7 +362,7 @@ public sealed partial class MainWindow : Window
 
     private async Task RequestAutoSyncAsync()
     {
-        if (_demo || _signingOut || AuthGate.Visibility != Visibility.Collapsed || !_sync.IsRunning) return;
+        if (_demo || _accountBusy || AuthGate.Visibility != Visibility.Collapsed || !_sync.IsRunning) return;
         _lastSyncRequest = DateTimeOffset.UtcNow;
         try { await _sync.CallAsync("sync", new { }); }
         catch (Exception error) { ShowInfo("Sync failed", error.Message, InfoBarSeverity.Error); }
@@ -828,11 +834,11 @@ public sealed partial class MainWindow : Window
     {
         _sync.EventReceived += Sync_EventReceived;
     }
-    private void ShowInfo(string title, string message, InfoBarSeverity severity) { AppInfoBar.Title = title; AppInfoBar.Message = message; AppInfoBar.Severity = severity; AppInfoBar.IsOpen = true; }
+    private void ShowInfo(string title, string message, InfoBarSeverity severity) { AppInfoBar.ActionButton = null; AppInfoBar.Title = title; AppInfoBar.Message = message; AppInfoBar.Severity = severity; AppInfoBar.IsOpen = true; }
 
     private void Sync_EventReceived(object? sender, SyncEventArgs e) => DispatcherQueue.TryEnqueue(async () =>
     {
-        if (_signingOut || _syncDisposedForUpdate || _updateLifetime.IsCancellationRequested || !_sync.IsCurrentEvent(e)) return;
+        if (_accountBusy || _syncDisposedForUpdate || _updateLifetime.IsCancellationRequested || !_sync.IsCurrentEvent(e)) return;
         switch (e.Name)
         {
             case "ready": await BootAsync(); break;
@@ -853,6 +859,12 @@ public sealed partial class MainWindow : Window
                 ShowInfo("Syncing", e.Data.Text("message", $"Processing {e.Data.Text("stage", "reminders")}..."), InfoBarSeverity.Informational);
                 break;
             case "sync_finished": AppInfoBar.IsOpen = false; await RefreshAllAsync(); break;
+            case "sync_warning":
+                ShowInfo("Some changes haven't synced", "iCloud refused a queued change. Your latest reminders were downloaded. Review Sync & storage to retry or clear the app cache.", InfoBarSeverity.Warning);
+                var recovery = new Button { Content = "Review sync settings" };
+                recovery.Click += async (_, _) => await ShowSettingsAsync(1);
+                AppInfoBar.ActionButton = recovery;
+                break;
             case "sync_error": ShowInfo("Sync failed", e.Data.Text("message", "Try again in a moment."), InfoBarSeverity.Error); break;
             case "push_failed": ShowInfo("Upload failed", e.Data.Property("error").Text("message", "Your edit is saved locally and will be retried."), InfoBarSeverity.Error); break;
             case "conflict": ShowInfo("Sync conflict", "This reminder also changed in iCloud. Open sync conflicts to choose which version to keep.", InfoBarSeverity.Warning); await RefreshStatusAsync(); break;

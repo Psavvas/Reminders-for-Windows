@@ -16,6 +16,7 @@ public sealed class ReminderService : IAsyncDisposable
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource backgroundLifetime = new();
     private readonly ConcurrentDictionary<long, Task> background = new();
+    private readonly ConcurrentDictionary<long, Task> queuedWork = new();
     private readonly object workGate = new();
     private long nextTask;
     private JsonObject authSnapshot;
@@ -70,8 +71,17 @@ public sealed class ReminderService : IAsyncDisposable
                 catch (Exception ex) { Emit("sync_error", new CoreException("ERROR", "The sync operation failed", ex.GetType().Name).Body); Diagnostic?.Invoke($"sync failed: {ex.GetType().Name}"); }
             });
             background[id] = task;
-            _ = task.ContinueWith(_ => background.TryRemove(id, out var ignored), TaskScheduler.Default);
+            queuedWork[id] = task;
+            _ = task.ContinueWith(_ => { background.TryRemove(id, out var ignored); queuedWork.TryRemove(id, out ignored); }, TaskScheduler.Default);
         }
+    }
+    private async Task CancelBackgroundWorkAsync()
+    {
+        Task[] work;
+        CancellationTokenSource source;
+        lock (workGate) { source = backgroundLifetime; work = queuedWork.Values.ToArray(); }
+        await source.CancelAsync();
+        await Task.WhenAll(work);
     }
     private void ResumeBackgroundWork()
     {
@@ -178,9 +188,24 @@ public sealed class ReminderService : IAsyncDisposable
                 if (IsLocalDemo) { authSnapshot["authenticated"] = false; return J.Node(new { signed_out = true }); }
                 // Restoration and full-history sync can hold the account gate
                 // across slow HTTP calls. Cancel them before waiting to sign out.
-                await backgroundLifetime.CancelAsync();
+                await CancelBackgroundWorkAsync();
                 await WithClient(() => { client.SignOut(); cache.SetMeta("signed_out", "1"); return Task.FromResult(true); }, token);
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
+            case "clear_cache":
+                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders are stored only on this PC and are not a downloadable cache.");
+                await CancelBackgroundWorkAsync();
+                try
+                {
+                    return await WithClient(() =>
+                    {
+                        return Task.FromResult(cache.Clear(p.Flag("discard_pending")));
+                    }, token);
+                }
+                finally
+                {
+                    ResumeBackgroundWork();
+                    if (!lifetime.IsCancellationRequested) await StartAsync(lifetime.Token);
+                }
             case "lists": return cache.Lists;
             case "reminders": return cache.Reminders(p);
             case "reminder": return cache.Reminder(cache.ResolveId(p.Required("id")));
