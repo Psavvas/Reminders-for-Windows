@@ -197,3 +197,15 @@ the HTTP status when available. Verification diagnostics record the acceptance
 decision and whether a token was issued, without recording either secret.
 The certification screenshot alone cannot establish the reviewer's failure:
 capture the tested package version and the app.log endpoint/status sequence.
+
+### Fresh native sign-in versus browser restoration
+
+Compared with released v0.5.5, saved-cookie support had also changed fresh
+password sign-in: recreating its HTTP client reused the browser cookie container
+and browser user agent. A new native password handshake now starts with a fresh
+cookie container and the same native user agent as v0.5.5. It removes browser-only
+restoration metadata while retaining the remembered trust token. Normal session
+restoration and importing an Apple-hosted sign-in still preserve their cookies
+and user agent. Account-free checks cover this separation and the existing SMS
+delivery/verification flow. This is a concrete compatibility correction; live SMS
+verification for the updated build still needs a result.

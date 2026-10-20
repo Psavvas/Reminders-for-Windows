@@ -12,7 +12,7 @@ internal sealed class AppleAuth : IDisposable
     private const string Widget = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d";
     private const string UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15";
     private readonly Func<HttpMessageHandler> handlerFactory;
-    private readonly CookieContainer cookies = new();
+    private CookieContainer cookies = new();
     internal HttpClient Http { get; private set; }
     internal event Action<string>? Diagnostic;
     internal JsonObject State { get; private set; }
@@ -108,7 +108,11 @@ internal sealed class AppleAuth : IDisposable
     public async Task SignIn(string account, string password, bool acceptTerms, CancellationToken token)
     {
         browserSessionVerified = false;
-        Http.Dispose(); Http = CreateHttp(); State["session_id"] = null; State["scnt"] = null; State["auth_attributes"] = null;
+        // A new password handshake must behave like the released native flow,
+        // without cookies or a user agent inherited from a browser session.
+        Http.Dispose(); cookies = new();
+        State.Remove("cookies"); State.Remove("browser_cookie_session"); State.Remove("user_agent");
+        Http = CreateHttp(); State["session_id"] = null; State["scnt"] = null; State["auth_attributes"] = null;
         var id = Uri.EscapeDataString(State.Required("client_id"));
         var bootstrap = await Auth(HttpMethod.Get, $"/authorize/signin?frame_id={id}&skVersion=7&iframeid={id}&client_id={Widget}&response_type=code&redirect_uri=https%3A%2F%2Fwww.icloud.com&response_mode=web_message&state={id}&authVersion=latest", null, token);
         if (bootstrap.Status is < 200 or >= 300) throw Classify(bootstrap.Status, bootstrap.Text);

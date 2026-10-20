@@ -41,6 +41,19 @@ internal static class AuthVerificationChecks
         var browserState = (JsonObject)saved.DeepClone(); browserState.Remove("session_token");
         browserState["browser_cookie_session"] = true;
         browserState["user_agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0";
+        using (var freshNative = new AppleAuth((JsonObject)browserState.DeepClone(), () => new ScriptHandler(request =>
+        {
+            check(request.Headers.UserAgent.ToString().Contains("Safari/605.1.15") && !request.Headers.UserAgent.ToString().Contains("Edg/"), "fresh native sign-in restores the released Safari user agent instead of inheriting browser identity");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("{}") });
+        })))
+        {
+            try { await freshNative.SignIn("test@example.com", "test-password", false, default); }
+            catch (CoreException error) { check(error.Code == "NETWORK", "native isolation fixture stops at bootstrap without requesting verification"); }
+            freshNative.SaveCookies();
+            check(freshNative.State.Array("cookies").Count == 0 && !freshNative.State.Flag("browser_cookie_session") && freshNative.State.Text("user_agent") is null,
+                "fresh native handshake discards browser cookies and browser-only restoration metadata");
+            check(freshNative.State.Text("trust_token") == "trusted", "native handshake retains the remembered trust token used by the released flow");
+        }
         var cookieRestores = 0;
         HttpMessageHandler CookieHandler() => new ScriptHandler(async request =>
         {
