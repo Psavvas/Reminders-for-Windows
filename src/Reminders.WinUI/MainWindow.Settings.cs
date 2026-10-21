@@ -58,6 +58,8 @@ public sealed partial class MainWindow
         if (_dialogOpen || _accountBusy || _verificationBusy || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         SizeChangedEventHandler? resize = null;
+        using var updateCancellation = new CancellationTokenSource();
+        Task updateCheck = Task.CompletedTask;
         try
         {
             JsonElement auth = default, syncStatus = default;
@@ -120,9 +122,40 @@ public sealed partial class MainWindow
                 SettingsDescription(local ? "Leave this session to return to sign-in." : "Sign out on this PC. Downloaded reminders and queued edits will be kept until you sign back in or clear the cache."), signOut));
 
             var about = SettingsPage("About", "App information and support.");
-            var updates = new Button { Content = "Check for updates", IsEnabled = !_demo && !_updateBusy };
+            var updates = new Button { Content = "Check for updates", IsEnabled = !_demo };
+            var updateProgress = new ProgressRing { Width = 20, Height = 20, IsActive = false, Visibility = Visibility.Collapsed };
+            AutomationProperties.SetName(updateProgress, "Checking for updates");
+            var updateControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+            updateControls.Children.Add(updates); updateControls.Children.Add(updateProgress);
+            var installUpdate = new Button { Visibility = Visibility.Collapsed };
+            var updateNotice = new InfoBar { IsOpen = false, IsClosable = false, ActionButton = installUpdate };
             var privacy = new Button { Content = "Privacy policy" };
-            about.Children.Add(SettingsCard("Reminders for Windows", SettingsDescription($"Version {AppUpdater.CurrentVersion.ToString(3)}"), updates));
+            about.Children.Add(SettingsCard("Reminders for Windows", SettingsDescription($"Version {AppUpdater.CurrentVersion.ToString(3)}"), updateControls, updateNotice));
+            updates.Click += async (_, _) =>
+            {
+                if (updateCancellation.IsCancellationRequested || _updateLifetime.IsCancellationRequested) return;
+                if (_updateBusy)
+                {
+                    updateNotice.Severity = InfoBarSeverity.Informational;
+                    updateNotice.Title = "An update check is already running";
+                    updateNotice.Message = "Try again in a moment.";
+                    installUpdate.Visibility = Visibility.Collapsed; updateNotice.IsOpen = true;
+                    return;
+                }
+                updates.IsEnabled = false; updates.Content = "Checking…";
+                updateProgress.Visibility = Visibility.Visible; updateProgress.IsActive = true;
+                updateNotice.IsOpen = false; installUpdate.Visibility = Visibility.Collapsed;
+                try
+                {
+                    updateCheck = CheckForUpdatesAsync(true, updateNotice, updateCancellation.Token);
+                    await updateCheck;
+                }
+                finally
+                {
+                    updateProgress.IsActive = false; updateProgress.Visibility = Visibility.Collapsed;
+                    updates.Content = "Check for updates"; updates.IsEnabled = true;
+                }
+            };
             about.Children.Add(SettingsCard("Links", privacy, new HyperlinkButton { Content = "View source on GitHub", NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"), Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left }));
             about.Children.Add(new Expander { Header = "About this app", HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = SettingsDescription("Reminders for Windows is an independent app and is not affiliated with, endorsed by, or sponsored by Apple Inc. or Microsoft Corporation. iCloud is a trademark of Apple Inc. Windows is a trademark of Microsoft Corporation. Sync uses unofficial iCloud interfaces that may change or stop working without notice.") });
@@ -171,7 +204,13 @@ public sealed partial class MainWindow
             string? action = null;
             void Request(string value) { action = value; dialog.Hide(); }
             signOut.Click += (_, _) => Request("sign_out"); clearCache.Click += (_, _) => Request("clear_cache");
-            setup.Click += (_, _) => Request("setup"); updates.Click += (_, _) => Request("updates");
+            setup.Click += (_, _) => Request("setup");
+            installUpdate.Click += async (_, _) =>
+            {
+                if (AppUpdater.CanInstall) { Request("install_update"); return; }
+                try { await global::Windows.System.Launcher.LaunchUriAsync(new Uri($"https://github.com/{AppUpdater.Repository}/releases/latest")); }
+                catch (Exception error) { updateNotice.Severity = InfoBarSeverity.Error; updateNotice.Title = "Couldn't open releases"; updateNotice.Message = error.Message; updateNotice.IsOpen = true; }
+            };
             var showingPrivacy = false;
             privacy.Click += (_, _) => { dialog.Content = CreatePrivacyPolicyContent(); dialog.Title = "Privacy policy"; dialog.PrimaryButtonText = ""; dialog.CloseButtonText = "Back"; dialog.DefaultButton = ContentDialogButton.Close; showingPrivacy = true; };
             dialog.CloseButtonClick += (_, e) =>
@@ -182,11 +221,13 @@ public sealed partial class MainWindow
             };
             sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 1 && sync.Value <= 60;
             var result = await dialog.ShowAsync();
+            updateCancellation.Cancel();
+            await updateCheck;
             _dialogOpen = false;
             if (action == "sign_out") { await SignOutAsync(); return; }
             if (action == "clear_cache") { await ClearCacheAsync(); return; }
             if (action == "setup") { ShowSetupGuide(); return; }
-            if (action == "updates") { await CheckForUpdatesAsync(true); return; }
+            if (action == "install_update") { await InstallUpdateAsync(); return; }
             if (result != ContentDialogResult.Primary || !double.IsFinite(sync.Value)) return;
             var themeValue = theme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
             var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 1, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
@@ -199,6 +240,12 @@ public sealed partial class MainWindow
             ShowInfo("Couldn't open settings", error.Message, InfoBarSeverity.Error);
             if (AuthGate.Visibility != Visibility.Collapsed) { GateError.Message = error.Message; GateError.IsOpen = true; }
         }
-        finally { if (resize is not null) Root.SizeChanged -= resize; _dialogOpen = false; }
+        finally
+        {
+            updateCancellation.Cancel();
+            await updateCheck;
+            if (resize is not null) Root.SizeChanged -= resize;
+            _dialogOpen = false;
+        }
     }
 }

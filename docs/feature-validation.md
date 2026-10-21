@@ -251,6 +251,16 @@ view preserve unsaved settings; Save changes applies them and Cancel discards
 them. **Settings and storage** on the sign-in screen provides recovery access
 without requiring successful sign-in first.
 
+**About → Check for updates** keeps Settings open. A spinner and disabled check
+button indicate progress; the result (up to date, available release, or error)
+appears in the same card. Category changes and privacy-policy navigation keep
+the result and unsaved preferences. Closing Settings cancels and drains its
+check before account actions continue. Background update checks do not start
+while a dialog is open. The explicit Install and restart action still opens
+the existing installation confirmation; Open releases keeps Settings open.
+The updater service checks and x64 builds passed. Live checks
+of the inline result, cancellation, and retained preferences remain pending.
+
 **Sync & storage → Clear app cache** removes downloaded reminders, tags, repeat
 records, sync cursors, old identifier aliases, queued uploads, and conflicts.
 It keeps account identity, saved sign-in, app preferences, and the explicit

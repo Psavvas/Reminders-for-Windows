@@ -809,38 +809,52 @@ public sealed partial class MainWindow : Window
         UpdateTitleBarTheme();
     }
 
-    private async Task CheckForUpdatesAsync(bool manual)
+    private async Task CheckForUpdatesAsync(bool manual, InfoBar? target = null, CancellationToken cancellationToken = default)
     {
-        if (_demo || _updateBusy || _updateLifetime.IsCancellationRequested) return;
+        if (_demo || _updateBusy || _updateLifetime.IsCancellationRequested || cancellationToken.IsCancellationRequested) return;
         // Portable and development launches only contact GitHub on an explicit check.
-        if (!manual && !AppUpdater.CanInstall) return;
+        if (!manual && (!AppUpdater.CanInstall || _dialogOpen)) return;
+        var notice = target ?? UpdateInfoBar;
+        var action = notice.ActionButton;
+        using var checkLifetime = CancellationTokenSource.CreateLinkedTokenSource(_updateLifetime.Token, cancellationToken);
         _updateBusy = true;
         try
         {
-            _availableUpdate = await _updater.CheckAsync(_updateLifetime.Token);
-            if (_updateLifetime.IsCancellationRequested) return;
+            var available = await _updater.CheckAsync(checkLifetime.Token);
+            checkLifetime.Token.ThrowIfCancellationRequested();
+            _availableUpdate = available;
+            if (target is not null) UpdateInfoBar.IsOpen = false;
             if (_availableUpdate is null)
             {
-                UpdateInfoBar.IsOpen = false;
-                if (manual) { UpdateInfoBar.Title = "You're up to date"; UpdateInfoBar.Message = "No newer stable release is available."; UpdateInfoBar.IsOpen = true; UpdateButton.Visibility = Visibility.Collapsed; }
+                notice.IsOpen = false;
+                if (manual) { notice.Severity = InfoBarSeverity.Success; notice.Title = "You're up to date"; notice.Message = "No newer stable release is available."; notice.IsOpen = true; action.Visibility = Visibility.Collapsed; }
                 return;
             }
-            UpdateInfoBar.Title = $"Reminders for Windows {_availableUpdate.Version} is available";
-            UpdateInfoBar.Message = AppUpdater.CanInstall ? "Install the update and restart when you're ready. Your reminders and sign-in will be kept." : "Download the new release from GitHub for this portable or packaged build.";
-            UpdateButton.Content = AppUpdater.CanInstall ? "Install and restart" : "Open releases";
-            UpdateButton.Visibility = Visibility.Visible;
-            UpdateInfoBar.IsOpen = true;
+            notice.Severity = InfoBarSeverity.Informational;
+            notice.Title = $"Reminders for Windows {_availableUpdate.Version} is available";
+            notice.Message = AppUpdater.CanInstall ? "Install the update and restart when you're ready. Your reminders and sign-in will be kept." : "Download the new release from GitHub for this portable or packaged build.";
+            action.Content = AppUpdater.CanInstall ? "Install and restart" : "Open releases";
+            action.Visibility = Visibility.Visible;
+            notice.IsOpen = true;
         }
-        catch (OperationCanceledException) when (_updateLifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (checkLifetime.IsCancellationRequested) { }
         catch (Exception error)
         {
+            if (checkLifetime.IsCancellationRequested) return;
             AppLog.Error("Could not check for updates", error);
-            if (manual) { UpdateInfoBar.Title = "Could not check for updates"; UpdateInfoBar.Message = error.Message; UpdateInfoBar.IsOpen = true; UpdateButton.Visibility = Visibility.Collapsed; }
+            if (manual)
+            {
+                notice.Severity = InfoBarSeverity.Error; notice.Title = "Could not check for updates";
+                notice.Message = error is OperationCanceledException ? "The update check took too long. Please try again." : error.Message;
+                notice.IsOpen = true; action.Visibility = Visibility.Collapsed;
+            }
         }
         finally { _updateBusy = false; }
     }
 
-    private async void Update_Click(object sender, RoutedEventArgs args)
+    private async void Update_Click(object sender, RoutedEventArgs args) => await InstallUpdateAsync();
+
+    private async Task InstallUpdateAsync()
     {
         if (_updateBusy || _dialogOpen || _availableUpdate is null) return;
         if (!AppUpdater.CanInstall)
@@ -855,7 +869,10 @@ public sealed partial class MainWindow : Window
         {
             var confirmation = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Install update?", Content = "Reminders for Windows will close while the update installs, then reopen. Save any unfinished reminder edits first.", PrimaryButtonText = "Install and restart", CloseButtonText = "Later" };
             if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
+            UpdateInfoBar.Severity = InfoBarSeverity.Informational;
             UpdateInfoBar.Title = "Downloading update";
+            UpdateInfoBar.Message = "Preparing download…"; UpdateInfoBar.IsOpen = true;
+            UpdateButton.Content = "Install and restart"; UpdateButton.Visibility = Visibility.Visible;
             // Progress<T> does not rely on a WinUI SynchronizationContext.
             var progress = new Progress<double>(percent => DispatcherQueue.TryEnqueue(() => UpdateInfoBar.Message = $"{percent:F0}% downloaded"));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_updateLifetime.Token);
