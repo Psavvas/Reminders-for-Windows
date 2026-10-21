@@ -116,12 +116,18 @@
       </Grid>
      </Grid>
     </Grid>
-    <StackPanel x:Name="StatusBanners" Visibility="Collapsed" VerticalAlignment="Top" Canvas.ZIndex="10" Translation="0,0,16">
-     <StackPanel.Shadow><ThemeShadow/></StackPanel.Shadow>
-     <InfoBar x:Name="UpdateInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" Severity="Informational" CornerRadius="0" BorderThickness="0">
-      <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
-     </InfoBar>
-     <InfoBar x:Name="AppInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" CornerRadius="0" BorderThickness="0"/>
+    <StackPanel x:Name="StatusBanners" Visibility="Collapsed" VerticalAlignment="Top" Canvas.ZIndex="10">
+     <StackPanel.Resources><x:Double x:Key="InfoBarMinHeight">64</x:Double></StackPanel.Resources>
+     <Border x:Name="UpdateBannerSurface" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Translation="0,0,16">
+      <Border.Shadow><ThemeShadow/></Border.Shadow>
+      <InfoBar x:Name="UpdateInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" Severity="Informational" CornerRadius="0" BorderThickness="0">
+       <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
+      </InfoBar>
+     </Border>
+     <Border x:Name="AppBannerSurface" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Translation="0,0,16">
+      <Border.Shadow><ThemeShadow/></Border.Shadow>
+      <InfoBar x:Name="AppInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" CornerRadius="0" BorderThickness="0"/>
+     </Border>
     </StackPanel>
    </Grid>
   </NavigationView>

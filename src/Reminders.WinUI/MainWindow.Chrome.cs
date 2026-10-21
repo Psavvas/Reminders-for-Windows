@@ -14,7 +14,7 @@ public sealed partial class MainWindow
     {
         Root.ActualThemeChanged += (_, _) => UpdateTitleBarTheme();
         Root.Loaded += (_, _) => UpdateTitleBarTheme();
-        foreach (var banner in new[] { AppInfoBar, UpdateInfoBar })
+        foreach (var (banner, surface) in new[] { (AppInfoBar, AppBannerSurface), (UpdateInfoBar, UpdateBannerSurface) })
         {
             banner.RegisterPropertyChangedCallback(InfoBar.IsOpenProperty, (sender, _) =>
             {
@@ -22,30 +22,29 @@ public sealed partial class MainWindow
                 // IsOpen hides the template's content, but does not collapse
                 // the control itself. Closed banners must occupy no space.
                 bar.Visibility = bar.IsOpen ? Visibility.Visible : Visibility.Collapsed;
+                surface.Visibility = bar.Visibility;
                 // An empty elevated container can still cast a thin shadow.
                 StatusBanners.Visibility = AppInfoBar.IsOpen || UpdateInfoBar.IsOpen ? Visibility.Visible : Visibility.Collapsed;
-                if (bar.IsOpen) AnimateBanner(bar);
+                if (bar.IsOpen) AnimateBanner(surface);
             });
         }
         UpdateTitleBarTheme();
     }
 
-    private static void AnimateBanner(InfoBar banner)
+    private static void AnimateBanner(FrameworkElement surface)
     {
         if (!new UISettings().AnimationsEnabled) return;
-        ElementCompositionPreview.SetIsTranslationEnabled(banner, true);
-        var visual = ElementCompositionPreview.GetElementVisual(banner);
+        // Move the opaque backing and notification together. Fading the whole
+        // surface would let the page title and toolbar bleed through it.
+        ElementCompositionPreview.SetIsTranslationEnabled(surface, true);
+        var visual = ElementCompositionPreview.GetElementVisual(surface);
         var compositor = visual.Compositor;
         var easing = compositor.CreateCubicBezierEasingFunction(new Vector2(.16f, 1), new Vector2(.3f, 1));
         var slide = compositor.CreateVector3KeyFrameAnimation();
-        slide.InsertKeyFrame(0, new Vector3(0, -20, 0));
-        slide.InsertKeyFrame(1, Vector3.Zero, easing);
+        slide.InsertKeyFrame(0, new Vector3(0, -20, 16));
+        slide.InsertKeyFrame(1, new Vector3(0, 0, 16), easing);
         slide.Duration = TimeSpan.FromMilliseconds(220);
-        var fade = compositor.CreateScalarKeyFrameAnimation();
-        fade.InsertKeyFrame(0, 0); fade.InsertKeyFrame(1, 1, easing);
-        fade.Duration = TimeSpan.FromMilliseconds(160);
         visual.StartAnimation("Translation", slide);
-        visual.StartAnimation("Opacity", fade);
     }
 
     private void UpdateTitleBarTheme()

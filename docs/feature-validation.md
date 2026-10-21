@@ -94,13 +94,17 @@ Notifications are top-aligned overlays over the main content, alongside the
 reminder layout in the same grid with no reserved banner row. They do not move
 the list or editor when opened or closed. Closed bars are explicitly collapsed;
 their old outer margins and NavigationView content border/corner are removed.
-Opening a banner uses a short slide-down/fade and a subtle shadow. Render-time
-translation leaves layout positions unchanged. Windows' animation preference
+Each banner has an opaque theme-aware backing beneath WinUI's translucent
+severity color, so the heading and toolbar do not show through it. The backing,
+notification and shadow slide together without an opacity fade. The overlay's
+minimum height is 64 DIPs to cover the heading and Add button without leaving
+clipped fragments below it. Opening uses a short slide-down and subtle shadow.
+Render-time translation leaves layout positions unchanged. Windows' animation preference
 is respected. Update actions, sync recovery buttons and Close remain available.
 
-When both banners are closed, their elevated parent is also collapsed so its
-empty bounds cannot leave a shadow line across the top. The pane resize thumb
-shows only its short accent handle on hover, drag or keyboard focus; the old
+When both banners are closed, their parent and individual elevated surfaces are
+collapsed so empty bounds cannot leave a shadow line across the top. The pane
+resize thumb shows only its short accent handle on hover, drag or keyboard focus; the old
 full-height decorative and focus lines are removed, while system keyboard
 focus visuals and existing resize controls remain. A dark, account-free sample
 confirmed the clean top edge after dismissing the sync banner and the handle
@@ -117,11 +121,11 @@ and repeat editing are retained.
 
 Debug-only `--preview-editor` loads an isolated in-memory sample task; add
 `--preview-light` or `--preview-banner` for appearance/notification checks.
-The dark preview confirmed the themed native title bar, full-width banner and
-grouped editor. The user stopped Computer Use before banner dismissal or light
-mode could be checked. The final floating-banner animation was added afterward
-and still needs live inspection. No real-account reminder was changed by the
-preview.
+Dark previews confirmed the themed native title bar, full-width banner, grouped
+editor and the new opaque backing. The user stopped Computer Use with Escape
+before rechecking the final 64-DIP banner height. Its final height, light-mode
+appearance and slide animation still need visual checks. No real-account
+reminder was changed by the previews.
 
 ## Related records and icons
 
