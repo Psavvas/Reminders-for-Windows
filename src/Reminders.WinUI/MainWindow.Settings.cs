@@ -85,7 +85,7 @@ public sealed partial class MainWindow
 
             var general = SettingsPage("General", "Appearance and reminder defaults.");
             general.Children.Add(SettingsCard("Appearance", SettingsRow("Theme", null, theme), SettingsRow("Completion animation", "Animate reminders when completed.", animation, 60)));
-            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", "Both panes keep a readable width. Small windows show one pane at a time.", paneSizing), detailWidth));
+            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", "Normal splits stay readable. At either edge, selecting a task opens full-width details with Back navigation.", paneSizing), detailWidth));
             general.Children.Add(SettingsCard("Reminders", SettingsRow("Default list", null, defaultList), SettingsRow("Due-date notifications", null, notifications, 60)));
 
             var syncPage = SettingsPage("Sync & storage", "Keep your reminders up to date and recover from sync problems.");

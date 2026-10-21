@@ -11,6 +11,8 @@ public sealed partial class MainWindow
 {
     private bool _updatingLayout;
     private double? _dragOriginalFraction;
+    private double _paneDragDelta;
+    private bool _draggingPane;
 
     private void ReminderLayout_SizeChanged(object sender, SizeChangedEventArgs args) => UpdatePaneLayout();
 
@@ -20,17 +22,18 @@ public sealed partial class MainWindow
         _updatingLayout = true;
         try
         {
-            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction);
+            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction,
+                detailSelected: _selected is not null && !_draggingPane);
             // Star columns can shrink during measure; fixed pixel columns keep the
             // parent's desired width too large to deliver a smaller SizeChanged.
             ReminderColumn.Width = new GridLength(sizes.Compact ? 1 : sizes.List, GridUnitType.Star);
             SplitterColumn.Width = new GridLength(sizes.Compact ? 0 : PaneSizing.DividerWidth);
-            DetailsColumn.Width = new GridLength(sizes.Compact ? 0 : sizes.Details, sizes.Compact ? GridUnitType.Pixel : GridUnitType.Star);
+            DetailsColumn.Width = new GridLength(sizes.Compact ? 0 : sizes.Details, sizes.Compact || sizes.Details == 0 ? GridUnitType.Pixel : GridUnitType.Star);
             Grid.SetColumn(DetailsHost, sizes.Compact ? 0 : 2);
             ReminderHost.MaxWidth = sizes.List;
             DetailsHost.MaxWidth = sizes.Details;
             ReminderHost.Visibility = !sizes.Compact || _selected is null ? Visibility.Visible : Visibility.Collapsed;
-            DetailsHost.Visibility = !sizes.Compact || _selected is not null ? Visibility.Visible : Visibility.Collapsed;
+            DetailsHost.Visibility = (sizes.Compact ? _selected is not null : sizes.Details > 0) ? Visibility.Visible : Visibility.Collapsed;
             PaneDivider.Visibility = sizes.Compact ? Visibility.Collapsed : Visibility.Visible;
             BackToReminders.Visibility = sizes.Compact ? Visibility.Visible : Visibility.Collapsed;
             AddLabel.Visibility = sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
@@ -67,16 +70,26 @@ public sealed partial class MainWindow
     private void PaneDivider_DragStarted(object sender, DragStartedEventArgs args)
     {
         _dragOriginalFraction = _uiPreferences.DetailPaneFraction;
+        _paneDragDelta = 0;
+        _draggingPane = true;
     }
-    private void PaneDivider_DragDelta(object sender, DragDeltaEventArgs args) => ResizeDetails(args.HorizontalChange);
+    private void PaneDivider_DragDelta(object sender, DragDeltaEventArgs args)
+    {
+        // Accumulate from the original split so the pointer can reach an edge
+        // past a minimum-width stop without hiding the captured thumb mid-drag.
+        _paneDragDelta += args.HorizontalChange;
+        _uiPreferences.DetailPaneFraction = PaneSizing.Resize(ReminderLayout.ActualWidth, _dragOriginalFraction, _paneDragDelta);
+        UpdatePaneLayout();
+    }
     private void PaneDivider_DragCompleted(object sender, DragCompletedEventArgs args)
     {
+        _draggingPane = false;
         if (args.Canceled)
         {
             _uiPreferences.DetailPaneFraction = _dragOriginalFraction;
-            UpdatePaneLayout();
         }
         else SaveUiPreferences();
+        UpdatePaneLayout();
     }
 
     private void PaneDivider_KeyDown(object sender, KeyRoutedEventArgs args)

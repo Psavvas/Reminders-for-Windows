@@ -129,19 +129,27 @@ reminder was changed by the previews.
 
 ## Pane limits and the New reminder form
 
-Both side-by-side panes keep at least 320 DIPs. Saved zero/full-width and tiny
-custom shares are constrained when displayed, so an expanded details pane
-cannot hide the list and a small details pane cannot squash its text. The saved
-preferred share still returns when the window grows. Drag and arrow-key resizing
-stop at these limits and work immediately when reversed. Cancelling a drag
-restores the prior share without reloading or discarding an unsaved detail edit.
+Intermediate split positions keep both panes at least 320 DIPs wide, so tiny
+custom shares cannot squash their text. The intentional 0% and 100% endpoints
+both use list-to-task navigation: without a selection, the list fills the content
+area; selecting a task opens details across that full area with Back to reminders.
+Back restores the list without changing the chosen endpoint. A resize handle
+remains at the list's right edge, where dragging inward restores a readable split;
+Home or double-click restores automatic sizing.
+
+Pointer resizing accumulates movement from the original split, allowing a drag
+to reach either endpoint beyond the normal minimum-width stop. A selected task
+switches to full-width details after the drag ends, keeping the captured handle
+available throughout the gesture. Cancelling a drag restores the prior share
+without reloading or discarding an unsaved detail edit. Normal preferred shares
+still return when the window grows.
 
 Below 648 DIPs of content width, automatic and custom sizing both use one pane
 at a time. Selecting a task opens full-width details with Back to reminders;
 without a selection the list fills the content area. Paired editor controls
 respond to their actual inner width and stack below 500 DIPs, leaving enough
 room for the native time picker. Settings labels the custom percentage as a
-preferred width and explains the readable minimum.
+preferred width and explains full-width task navigation at either endpoint.
 
 The New reminder dialog shares the editor's prominent title, compact scrollable
 notes and Schedule card. List selection remains visible; priority and flagging
@@ -152,14 +160,17 @@ forms. The form's width and scroll height adapt to the window while Add reminder
 and Cancel stay in the fixed dialog footer. Existing list/date/title/interval
 validation and the creation request fields are retained.
 
-651 account-free checks passed, including saved extreme shares, minimum bounds,
-compact custom layouts, shrink/grow behavior and drag reversal from old values.
-A dark sample confirmed the minimum editor width, readable empty-details text,
-and expanding details without hiding the list. The refreshed dialog was checked
+790 account-free checks passed, including task selection and Back at both
+endpoints, restoring split view from the list's edge, cumulative dragging beyond
+the minimum stop, saved shares, compact layouts and shrink/grow behavior.
+An earlier dark sample confirmed readable split panes and empty-details text.
+The refreshed dialog was checked
 with scheduling off/on and successfully created a timed weekly reminder in
 memory, including the expected Weekly metadata. No iCloud record was changed.
-Live checks of compact Back navigation, narrow-dialog reflow and light mode
-remain pending. Debug previews accept `--preview-list-min`,
+The endpoint live check could not activate its sample window: the UI helper
+returned `failed to activate captured window` on the initial attempt and retry.
+Full-width endpoint navigation, narrow-dialog reflow and light mode still need
+live checks. Debug previews accept `--preview-list-min`,
 `--preview-details-min` and `--preview-new-reminder` alongside `--preview-editor`;
 these flags are excluded from Release builds.
 

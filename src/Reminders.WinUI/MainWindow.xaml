@@ -61,7 +61,7 @@
      </Grid>
      <primitives:Thumb x:Name="PaneDivider" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
        AutomationProperties.Name="Resize reminder details" IsTabStop="True" UseSystemFocusVisuals="True"
-       ToolTipService.ToolTip="Drag to resize the panes. Double-click or press Home for automatic sizing. Arrow keys resize."
+       ToolTipService.ToolTip="Drag to resize. At either edge, selecting a task opens full-width details. Double-click or press Home for automatic sizing. Arrow keys resize."
        DragStarted="PaneDivider_DragStarted" DragDelta="PaneDivider_DragDelta" DragCompleted="PaneDivider_DragCompleted"
        KeyDown="PaneDivider_KeyDown" DoubleTapped="PaneDivider_DoubleTapped">
       <primitives:Thumb.ContextFlyout><MenuFlyout><MenuFlyoutItem Text="Size panes automatically" Click="AutomaticPaneSizing_Click"/></MenuFlyout></primitives:Thumb.ContextFlyout>
