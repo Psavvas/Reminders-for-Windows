@@ -174,6 +174,22 @@ live checks. Debug previews accept `--preview-list-min`,
 `--preview-details-min` and `--preview-new-reminder` alongside `--preview-editor`;
 these flags are excluded from Release builds.
 
+## UI polish
+
+The reminder toolbar uses consistent gutters and a compact title row. Empty
+subtitles, metadata, notes and tag labels collapse instead of reserving blank
+space. Rows retain native selection/focus feedback with consistent padding;
+the completed toggle and count share a single footer row. Empty lists and empty
+search results have separate, wrapping messages. Details header, form and Save
+button share a 620-DIP maximum width, and the hidden Back button leaves no
+extra column gap. New reminder and Details share title/notes field styles.
+
+790 existing backend/scheduling/layout checks passed. An isolated dark sample
+confirmed the toolbar, list rows with/without notes, compact footer, editor and
+empty-details placeholder. The final Back-column spacing adjustment, light
+theme and empty-search message still need live visual checks. No real-account
+data was changed.
+
 ## Related records and icons
 
 Tag writes follow the linked-record shape described in the

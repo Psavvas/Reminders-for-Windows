@@ -16,11 +16,12 @@ public sealed class ReminderList
 public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledReminder
 {
     private string _title = "";
+    private string _description = "";
     private bool _completed;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("list_id")] public string ListId { get; set; } = "";
     [JsonPropertyName("title")] public string Title { get => _title; set => Set(ref _title, value); }
-    [JsonPropertyName("description")] public string Description { get; set; } = "";
+    [JsonPropertyName("description")] public string Description { get => _description; set => Set(ref _description, value); }
     [JsonPropertyName("due_date")] public string? DueDate { get; set; }
     [JsonPropertyName("priority")] public long Priority { get; set; }
     [JsonPropertyName("completed")] public bool Completed { get => _completed; set => Set(ref _completed, value); }
@@ -32,6 +33,10 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     [JsonPropertyName("recurrence")] public RepeatSchedule? Recurrence { get; set; }
 
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => string.IsNullOrWhiteSpace(Metadata)
+        ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => string.IsNullOrWhiteSpace(Description)
+        ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
     [JsonIgnore] public bool IsOverdue => !Completed && !Deleted && DateTimeOffset.TryParse(DueDate, out var due)
         && (AllDay ? due.LocalDateTime.Date < DateTime.Today : due < DateTimeOffset.Now);
     [JsonIgnore] public Microsoft.UI.Xaml.Media.Brush MetadataBrush => IsOverdue
@@ -66,6 +71,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     public void RefreshTimeMetadata()
     {
         PropertyChanged?.Invoke(this, new(nameof(Metadata)));
+        PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
     }
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -74,6 +80,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
         PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility))); PropertyChanged?.Invoke(this, new(nameof(DescriptionVisibility)));
     }
 }
 

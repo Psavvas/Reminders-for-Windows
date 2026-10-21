@@ -26,12 +26,10 @@ public sealed partial class MainWindow
         SizeChangedEventHandler? resize = null;
         try
         {
-            var title = new TextBox { PlaceholderText = "What needs doing?", FontSize = 20,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+            var title = new TextBox { PlaceholderText = "What needs doing?",
+                Style = (Style)Application.Current.Resources["TaskTitleEditorStyle"] };
             AutomationProperties.SetName(title, "Task title");
-            var notes = new TextBox { Header = "Notes", PlaceholderText = "Add notes…", AcceptsReturn = true,
-                TextWrapping = TextWrapping.Wrap, MinHeight = 64, MaxHeight = 180 };
-            ScrollViewer.SetVerticalScrollBarVisibility(notes, ScrollBarVisibility.Auto);
+            var notes = new TextBox { Style = (Style)Application.Current.Resources["TaskNotesEditorStyle"] };
             var list = new ComboBox { Header = "List", ItemsSource = OrderedLists(), DisplayMemberPath = "Title",
                 SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
             list.SelectedValue = _view.Kind == NavKind.List ? _view.Key : _settings.Text("default_list_id", "");

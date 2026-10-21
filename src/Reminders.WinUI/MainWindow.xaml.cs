@@ -306,6 +306,12 @@ public sealed partial class MainWindow : Window
     {
         RebuildReminderSections(force: true);
         EmptyState.Visibility = _reminders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var searching = !string.IsNullOrWhiteSpace(SearchBox.Text);
+        EmptyStateTitle.Text = searching ? "No matching reminders" : "No reminders here";
+        EmptyStateMessage.Text = searching ? "Try another search or clear the search field."
+            : _view.Kind == NavKind.Smart && _view.Key is "completed" or "deleted"
+                ? "Reminders will appear here when you " + (_view.Key == "completed" ? "complete" : "delete") + " them."
+                : "Add a reminder whenever you need one.";
         RowCount.Text = _reminders.Count == 1 ? "1 reminder" : $"{_reminders.Count:N0} reminders";
     }
     private void SetReminderRows(IEnumerable<ReminderItem> rows)
@@ -562,7 +568,9 @@ public sealed partial class MainWindow : Window
         if (tag == "conflicts") { await ResolveConflictsAsync(); return; }
         var split = tag.Split(':', 2); if (split.Length != 2) return;
         _view = new(args.SelectedItemContainer.Content?.ToString() ?? "Reminders", "", split[0] switch { "list" => NavKind.List, "tag" => NavKind.Tag, _ => NavKind.Smart }, split[1]);
-        ViewTitle.Text = _view.Label; ViewSubtitle.Text = _view.Kind == NavKind.Tag ? "Filtered by tag" : ""; ShowDetail(null); await LoadRemindersAsync();
+        ViewTitle.Text = _view.Label; ViewSubtitle.Text = _view.Kind == NavKind.Tag ? "Filtered by tag" : "";
+        ViewSubtitle.Visibility = string.IsNullOrEmpty(ViewSubtitle.Text) ? Visibility.Collapsed : Visibility.Visible;
+        ShowDetail(null); await LoadRemindersAsync();
     }
 
     private void Navigation_PaneOpening(NavigationView sender, object args)
@@ -709,6 +717,7 @@ public sealed partial class MainWindow : Window
             DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
             UpdateRepeatControls();
             DetailTags.Text = string.Join("  ", reminder.Tags.Select(t => "#" + t)); NewTagName.Text = "";
+            DetailTags.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
         UpdatePaneLayout();
