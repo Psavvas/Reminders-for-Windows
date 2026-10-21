@@ -33,7 +33,7 @@
     <NavigationViewItem SelectsOnInvoked="False" Content="Sync now" Tag="sync"><NavigationViewItem.Icon><FontIcon Glyph="&#xE895;"/></NavigationViewItem.Icon></NavigationViewItem>
    </NavigationView.FooterMenuItems>
    <Grid>
-    <Grid x:Name="ReminderLayout" SizeChanged="ReminderLayout_SizeChanged">
+    <Grid x:Name="ReminderLayout" SizeChanged="ReminderLayout_SizeChanged" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
      <Grid.ColumnDefinitions><ColumnDefinition x:Name="ReminderColumn"/><ColumnDefinition x:Name="SplitterColumn" Width="8"/><ColumnDefinition x:Name="DetailsColumn"/></Grid.ColumnDefinitions>
      <Grid x:Name="ReminderHost" Background="{ThemeResource LayerFillColorDefaultBrush}">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

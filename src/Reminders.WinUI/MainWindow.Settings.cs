@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Reminders.Windows.Services;
 using System.Text.Json;
@@ -8,6 +9,12 @@ namespace Reminders.Windows;
 
 public sealed partial class MainWindow
 {
+    private static Button SettingsAction(string label) => new()
+    {
+        Content = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center },
+        Style = (Style)Application.Current.Resources["SettingsActionStyle"]
+    };
+
     private static TextBlock SettingsDescription(string text) => new()
     {
         Text = text, Style = (Style)Application.Current.Resources["SettingsDescriptionStyle"]
@@ -16,12 +23,12 @@ public sealed partial class MainWindow
     private static Border SettingsCard(string title, params UIElement[] content)
     {
         var panel = new StackPanel { Spacing = 16 };
-        panel.Children.Add(new TextBlock { Text = title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 16 });
+        panel.Children.Add(new TextBlock { Text = title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 16, TextWrapping = TextWrapping.Wrap });
         foreach (var child in content) panel.Children.Add(child);
         return new Border { Style = (Style)Application.Current.Resources["SettingsCardStyle"], Child = panel };
     }
 
-    private static Grid SettingsRow(string title, string? description, FrameworkElement control, double controlWidth = 180)
+    private static Grid SettingsRow(string title, string? description, FrameworkElement control, double controlWidth = 208)
     {
         AutomationProperties.SetName(control, title);
         var row = new Grid { ColumnSpacing = 20, RowSpacing = 8 };
@@ -34,11 +41,12 @@ public sealed partial class MainWindow
         row.Children.Add(text); row.Children.Add(control); control.VerticalAlignment = VerticalAlignment.Center;
         row.SizeChanged += (_, _) =>
         {
-            var compact = row.ActualWidth < 410;
+            var compact = row.ActualWidth < 480;
             Grid.SetColumn(control, compact ? 0 : 1); Grid.SetRow(control, compact ? 1 : 0);
             Grid.SetColumnSpan(text, compact ? 2 : 1); Grid.SetColumnSpan(control, compact ? 2 : 1);
-            control.HorizontalAlignment = compact ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-            control.Width = controlWidth;
+            var stretch = compact && control is ComboBox;
+            control.HorizontalAlignment = stretch ? HorizontalAlignment.Stretch : compact ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            control.Width = stretch ? double.NaN : Math.Min(controlWidth, row.ActualWidth);
         };
         return row;
     }
@@ -71,25 +79,28 @@ public sealed partial class MainWindow
                 _settings = await _sync.CallAsync("settings", new { });
             }
             var local = _demo || _sync.IsLocalDemo;
-            var theme = new ComboBox { ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
-            var paneSizing = new ComboBox { ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
+            var choiceStyle = (Style)Application.Current.Resources["SettingsChoiceStyle"];
+            var theme = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
+            var paneSizing = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
             var detailWidth = new Slider { Header = "Preferred details width (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? .5, 0, 1) * 100 };
-            detailWidth.Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-            paneSizing.SelectionChanged += (_, _) => detailWidth.Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-            var animation = new ToggleSwitch { IsOn = _uiPreferences.CompletionAnimation, OnContent = "", OffContent = "" };
-            var notifications = new ToggleSwitch { IsOn = _settings.Flag("notifications_enabled"), OnContent = "", OffContent = "" };
-            var sync = new NumberBox { Minimum = 1, Maximum = 60, Value = Math.Clamp(_settings.Number("sync_minutes"), 1, 60), SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
-            var defaultList = new ComboBox { DisplayMemberPath = "Title", SelectedValuePath = "Id" };
+            var customLayout = new StackPanel { Spacing = 8, Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed };
+            customLayout.Children.Add(detailWidth);
+            customLayout.Children.Add(SettingsDescription("Splits stay readable. At either end of the slider, opening a task fills the content area. Use Back to return to the list."));
+            paneSizing.SelectionChanged += (_, _) => customLayout.Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            var animation = new ToggleSwitch { IsOn = _uiPreferences.CompletionAnimation, OnContent = "", OffContent = "", MinWidth = 0 };
+            var notifications = new ToggleSwitch { IsOn = _settings.Flag("notifications_enabled"), OnContent = "", OffContent = "", MinWidth = 0 };
+            var sync = new NumberBox { Minimum = 1, Maximum = 60, MinWidth = 0, MinHeight = 40, Value = Math.Clamp(_settings.Number("sync_minutes"), 1, 60), SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+            var defaultList = new ComboBox { Style = choiceStyle, DisplayMemberPath = "Title", SelectedValuePath = "Id" };
             defaultList.ItemsSource = new[] { new ReminderList { Id = "", Title = "First list in sidebar" } }.Concat(OrderedLists()).ToList();
             defaultList.SelectedValue = _settings.Text("default_list_id", ""); if (defaultList.SelectedIndex < 0) defaultList.SelectedIndex = 0;
 
             var general = SettingsPage("General", "Appearance and reminder defaults.");
             general.Children.Add(SettingsCard("Appearance", SettingsRow("Theme", null, theme), SettingsRow("Completion animation", "Animate reminders when completed.", animation, 60)));
-            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", "Normal splits stay readable. At either edge, selecting a task opens full-width details with Back navigation.", paneSizing), detailWidth));
+            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", null, paneSizing), customLayout));
             general.Children.Add(SettingsCard("Reminders", SettingsRow("Default list", null, defaultList), SettingsRow("Due-date notifications", null, notifications, 60)));
 
             var syncPage = SettingsPage("Sync & storage", "Keep your reminders up to date and recover from sync problems.");
-            var syncNow = new Button { Content = "Sync now", IsEnabled = !local && auth.Flag("authenticated") };
+            var syncNow = SettingsAction("Sync now"); syncNow.IsEnabled = !local && auth.Flag("authenticated");
             var syncNotice = new InfoBar { IsOpen = false, IsClosable = true };
             var syncContent = new StackPanel { Spacing = 16 };
             var lastSync = DateTimeOffset.TryParse(syncStatus.Text("last_sync"), out var time) ? $"Last synced {time.ToLocalTime():g}" : "No completed sync yet";
@@ -105,31 +116,32 @@ public sealed partial class MainWindow
                 catch (Exception error) { syncNotice.Severity = InfoBarSeverity.Error; syncNotice.Message = error.Message; }
                 finally { syncNotice.IsOpen = true; syncNow.IsEnabled = true; }
             };
-            var clearCache = new Button { Content = "Clear app cache", IsEnabled = !local && !_updateBusy };
+            var clearCache = SettingsAction("Clear app cache"); clearCache.IsEnabled = !local && !_updateBusy;
             var pending = syncStatus.Number("pending_pushes") + syncStatus.Number("conflicts");
             syncPage.Children.Add(SettingsCard("App cache", SettingsDescription(local
                 ? "These reminders exist only on this PC, so clearing a downloaded cache is unavailable."
                 : "Remove downloaded reminders and sync history, then download a fresh copy. Sign-in and app preferences are kept."),
                 SettingsDescription(pending > 0 ? $"{pending} unsynced changes or conflicts. Clearing the cache will ask before discarding them." : "No unsynced changes or conflicts."), clearCache));
-            var setup = new Button { Content = "iCloud setup and troubleshooting" }; syncPage.Children.Add(setup);
+            var setup = SettingsAction("iCloud setup and troubleshooting"); syncPage.Children.Add(setup);
 
             var account = SettingsPage("Account", local ? "Manage your local session." : "Manage the Apple Account used for your reminders.");
             var accountName = local ? (_demo ? "Sample data" : "Local account") : auth.Text("apple_id", "iCloud account");
             if (string.IsNullOrWhiteSpace(accountName)) accountName = "iCloud account";
-            var signOut = new Button { Content = _demo ? "Leave sample data" : _sync.IsLocalDemo ? "Leave local account" : "Sign out",
-                IsEnabled = !_updateBusy && (local || !auth.Flag("signed_out") && (auth.Flag("authenticated") || auth.Flag("has_cache") || auth.Flag("needs_2fa") || auth.Flag("restoring"))) };
+            var signOut = SettingsAction(_demo ? "Leave sample data" : _sync.IsLocalDemo ? "Leave local account" : "Sign out");
+            signOut.IsEnabled = !_updateBusy && (local || !auth.Flag("signed_out") && (auth.Flag("authenticated") || auth.Flag("has_cache") || auth.Flag("needs_2fa") || auth.Flag("restoring")));
             account.Children.Add(SettingsCard(accountName, SettingsDescription(local ? "Reminders stay on this PC." : auth.Flag("authenticated") ? "Signed in" : "Sign-in needed"),
                 SettingsDescription(local ? "Leave this session to return to sign-in." : "Sign out on this PC. Downloaded reminders and queued edits will be kept until you sign back in or clear the cache."), signOut));
 
             var about = SettingsPage("About", "App information and support.");
-            var updates = new Button { Content = "Check for updates", IsEnabled = !_demo };
+            var updates = SettingsAction("Check for updates"); updates.IsEnabled = !_demo;
             var updateProgress = new ProgressRing { Width = 20, Height = 20, IsActive = false, Visibility = Visibility.Collapsed };
             AutomationProperties.SetName(updateProgress, "Checking for updates");
-            var updateControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-            updateControls.Children.Add(updates); updateControls.Children.Add(updateProgress);
-            var installUpdate = new Button { Visibility = Visibility.Collapsed };
+            var updateControls = new Grid { ColumnSpacing = 12 };
+            updateControls.ColumnDefinitions.Add(new()); updateControls.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+            Grid.SetColumn(updateProgress, 1); updateControls.Children.Add(updates); updateControls.Children.Add(updateProgress);
+            var installUpdate = SettingsAction(""); installUpdate.Visibility = Visibility.Collapsed;
             var updateNotice = new InfoBar { IsOpen = false, IsClosable = false, ActionButton = installUpdate };
-            var privacy = new Button { Content = "Privacy policy" };
+            var privacy = SettingsAction("Privacy policy");
             about.Children.Add(SettingsCard("Reminders for Windows", SettingsDescription($"Version {AppUpdater.CurrentVersion.ToString(3)}"), updateControls, updateNotice));
             updates.Click += async (_, _) =>
             {
@@ -142,7 +154,7 @@ public sealed partial class MainWindow
                     installUpdate.Visibility = Visibility.Collapsed; updateNotice.IsOpen = true;
                     return;
                 }
-                updates.IsEnabled = false; updates.Content = "Checking…";
+                updates.IsEnabled = false; ((TextBlock)updates.Content).Text = "Checking…";
                 updateProgress.Visibility = Visibility.Visible; updateProgress.IsActive = true;
                 updateNotice.IsOpen = false; installUpdate.Visibility = Visibility.Collapsed;
                 try
@@ -153,29 +165,36 @@ public sealed partial class MainWindow
                 finally
                 {
                     updateProgress.IsActive = false; updateProgress.Visibility = Visibility.Collapsed;
-                    updates.Content = "Check for updates"; updates.IsEnabled = true;
+                    ((TextBlock)updates.Content).Text = "Check for updates"; updates.IsEnabled = true;
                 }
             };
-            about.Children.Add(SettingsCard("Links", privacy, new HyperlinkButton { Content = "View source on GitHub", NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"), Padding = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Left }));
+            about.Children.Add(SettingsCard("Links", privacy, new HyperlinkButton { Content = new TextBlock { Text = "View source on GitHub", TextWrapping = TextWrapping.Wrap }, NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"), Padding = new Thickness(12, 8, 12, 8), HorizontalAlignment = HorizontalAlignment.Left }));
             about.Children.Add(new Expander { Header = "About this app", HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = SettingsDescription("Reminders for Windows is an independent app and is not affiliated with, endorsed by, or sponsored by Apple Inc. or Microsoft Corporation. iCloud is a trademark of Apple Inc. Windows is a trademark of Microsoft Corporation. Sync uses unofficial iCloud interfaces that may change or stop working without notice.") });
 
             var names = new[] { "General", "Sync & storage", "Account", "About" };
             var pages = new[] { general, syncPage, account, about };
-            var nav = new ListView { SelectionMode = ListViewSelectionMode.Single, IsItemClickEnabled = false };
+            var nav = new ListView { SelectionMode = ListViewSelectionMode.Single, IsItemClickEnabled = false, Padding = new Thickness(0) };
+            ScrollViewer.SetHorizontalScrollBarVisibility(nav, ScrollBarVisibility.Disabled);
             var symbols = new[] { Symbol.Setting, Symbol.Sync, Symbol.Contact, Symbol.Help };
             for (var i = 0; i < names.Length; i++)
             {
-                var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-                label.Children.Add(new SymbolIcon { Symbol = symbols[i] }); label.Children.Add(new TextBlock { Text = names[i], VerticalAlignment = VerticalAlignment.Center });
-                nav.Items.Add(new ListViewItem { Content = label, Padding = new Thickness(10, 12, 10, 12) });
+                var label = new Grid { ColumnSpacing = 12 };
+                label.ColumnDefinitions.Add(new() { Width = new GridLength(20) }); label.ColumnDefinitions.Add(new());
+                var icon = new SymbolIcon { Symbol = symbols[i], Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
+                var text = new TextBlock { Text = names[i], VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+                Grid.SetColumn(text, 1); label.Children.Add(icon); label.Children.Add(text);
+                var item = new ListViewItem { Content = label, Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 4),
+                    MinHeight = 48, HorizontalContentAlignment = HorizontalAlignment.Stretch, CornerRadius = new CornerRadius(6) };
+                AutomationProperties.SetName(item, names[i]); nav.Items.Add(item);
             }
             AutomationProperties.SetName(nav, "Settings categories");
-            var compactNav = new ComboBox { ItemsSource = names, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 0, 0, 12) };
+            var compactNav = new ComboBox { Style = choiceStyle, ItemsSource = names, Margin = new Thickness(0, 0, 0, 16) };
             AutomationProperties.SetName(compactNav, "Settings category");
             var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(0, 0, 8, 0) };
             var layout = new Grid { ColumnSpacing = 24 };
-            layout.ColumnDefinitions.Add(new() { Width = new GridLength(180) }); layout.ColumnDefinitions.Add(new());
+            layout.ColumnDefinitions.Add(new() { Width = new GridLength(200) }); layout.ColumnDefinitions.Add(new());
             layout.RowDefinitions.Add(new() { Height = GridLength.Auto }); layout.RowDefinitions.Add(new());
             Grid.SetColumnSpan(compactNav, 2); Grid.SetRow(nav, 1); Grid.SetRow(scroll, 1); Grid.SetColumn(scroll, 1);
             layout.Children.Add(compactNav); layout.Children.Add(nav); layout.Children.Add(scroll);
@@ -193,14 +212,16 @@ public sealed partial class MainWindow
             void Resize()
             {
                 layout.Width = Math.Clamp(Root.ActualWidth - 100, 280, 900); layout.Height = Math.Clamp(Root.ActualHeight - 230, 200, 580);
-                var compact = layout.Width < 650;
+                var compact = layout.Width < 720;
                 compactNav.Visibility = compact ? Visibility.Visible : Visibility.Collapsed; nav.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-                layout.ColumnDefinitions[0].Width = new GridLength(compact ? 0 : 180); layout.ColumnSpacing = compact ? 0 : 24;
+                layout.ColumnDefinitions[0].Width = new GridLength(compact ? 0 : 200); layout.ColumnSpacing = compact ? 0 : 24;
             }
             resize = (_, _) => Resize(); Root.SizeChanged += resize; Resize(); SelectCategory(Math.Clamp(initialCategory, 0, pages.Length - 1));
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "Settings", Content = layout,
                 PrimaryButtonText = "Save changes", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
             dialog.Resources["ContentDialogMaxWidth"] = 1020d;
+            dialog.Resources["ContentDialogMinWidth"] = 0d;
+            dialog.Resources["ExpanderChevronMargin"] = new Thickness(16, 0, 16, 0);
             string? action = null;
             void Request(string value) { action = value; dialog.Hide(); }
             signOut.Click += (_, _) => Request("sign_out"); clearCache.Click += (_, _) => Request("clear_cache");

@@ -186,9 +186,20 @@ extra column gap. New reminder and Details share title/notes field styles.
 
 790 existing backend/scheduling/layout checks passed. An isolated dark sample
 confirmed the toolbar, list rows with/without notes, compact footer, editor and
-empty-details placeholder. The final Back-column spacing adjustment, light
-theme and empty-search message still need live visual checks. No real-account
-data was changed.
+empty-details placeholder. A later dark preview also confirmed the final
+Back-column alignment. Light theme and empty-search text still need live visual
+checks. No real-account data was changed.
+
+The resize gutter now shares the details background, removing the third color
+between the two panes. Settings uses padded, wrapping category rows, wider
+dropdowns, compact switches, consistently padded action buttons and an inset
+disclosure chevron. Narrow settings rows stack and stretch dropdowns; category
+navigation switches to a dropdown before the content becomes cramped. Custom
+pane-width help appears with its slider. A dark sample confirmed the clean
+gutter and General page padding, icons, switches and dropdowns. The remaining
+Settings pages, narrow-window reflow and light theme still need live checks;
+further inspection was deferred while the desktop was in use. All 790 existing
+checks passed again.
 
 ## Related records and icons
 
