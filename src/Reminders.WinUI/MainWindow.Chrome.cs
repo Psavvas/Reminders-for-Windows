@@ -22,6 +22,8 @@ public sealed partial class MainWindow
                 // IsOpen hides the template's content, but does not collapse
                 // the control itself. Closed banners must occupy no space.
                 bar.Visibility = bar.IsOpen ? Visibility.Visible : Visibility.Collapsed;
+                // An empty elevated container can still cast a thin shadow.
+                StatusBanners.Visibility = AppInfoBar.IsOpen || UpdateInfoBar.IsOpen ? Visibility.Visible : Visibility.Collapsed;
                 if (bar.IsOpen) AnimateBanner(bar);
             });
         }

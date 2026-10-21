@@ -75,14 +75,10 @@
         <VisualStateGroup x:Name="FocusStates">
          <VisualState x:Name="Unfocused"/>
          <VisualState x:Name="PointerFocused"/>
-         <VisualState x:Name="Focused"><VisualState.Setters><Setter Target="KeyboardFocusLine.Opacity" Value="1"/></VisualState.Setters></VisualState>
+         <VisualState x:Name="Focused"><VisualState.Setters><Setter Target="DividerVisual.Opacity" Value="1"/></VisualState.Setters></VisualState>
         </VisualStateGroup>
        </VisualStateManager.VisualStateGroups>
-       <Grid x:Name="DividerVisual" Opacity="0">
-        <Border Width="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
-        <Border Width="4" Height="40" CornerRadius="2" Background="{ThemeResource AccentFillColorDefaultBrush}"/>
-       </Grid>
-       <Border x:Name="KeyboardFocusLine" Width="2" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0"/>
+       <Border x:Name="DividerVisual" Width="4" Height="40" CornerRadius="2" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0"/>
       </Grid></ControlTemplate></primitives:Thumb.Template>
      </primitives:Thumb>
      <Grid x:Name="DetailsHost" Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
@@ -120,7 +116,7 @@
       </Grid>
      </Grid>
     </Grid>
-    <StackPanel x:Name="StatusBanners" VerticalAlignment="Top" Canvas.ZIndex="10" Translation="0,0,16">
+    <StackPanel x:Name="StatusBanners" Visibility="Collapsed" VerticalAlignment="Top" Canvas.ZIndex="10" Translation="0,0,16">
      <StackPanel.Shadow><ThemeShadow/></StackPanel.Shadow>
      <InfoBar x:Name="UpdateInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" Severity="Informational" CornerRadius="0" BorderThickness="0">
       <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>

@@ -98,6 +98,15 @@ Opening a banner uses a short slide-down/fade and a subtle shadow. Render-time
 translation leaves layout positions unchanged. Windows' animation preference
 is respected. Update actions, sync recovery buttons and Close remain available.
 
+When both banners are closed, their elevated parent is also collapsed so its
+empty bounds cannot leave a shadow line across the top. The pane resize thumb
+shows only its short accent handle on hover, drag or keyboard focus; the old
+full-height decorative and focus lines are removed, while system keyboard
+focus visuals and existing resize controls remain. A dark, account-free sample
+confirmed the clean top edge after dismissing the sync banner and the handle
+without the vertical line. The subsequent resize drag was interrupted by user
+input, so that gesture and light-mode appearance still need visual checks.
+
 The task editor has a compact title/notes area, a grouped Schedule card and an
 expandable Tags & priority section. List context is text in the header instead
 of a disabled list picker. Delete is in Task actions; Save changes stays in a
