@@ -61,6 +61,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DetailDateTime.SizeChanged += EditorPair_SizeChanged;
+        DetailRecurrence.SizeChanged += EditorPair_SizeChanged;
+        DetailOptions.SizeChanged += EditorPair_SizeChanged;
         var settingsAccelerator = new KeyboardAccelerator { Key = (global::Windows.System.VirtualKey)188, Modifiers = global::Windows.System.VirtualKeyModifiers.Control };
         settingsAccelerator.Invoked += SettingsAccelerator_Invoked;
         Root.KeyboardAccelerators.Add(settingsAccelerator);
@@ -126,6 +129,13 @@ public sealed partial class MainWindow : Window
             AppInfoBar.IsOpen = false;
             var sample = _reminders.FirstOrDefault(row => !row.AllDay);
             if (sample is not null) { ReminderList.SelectedItem = sample; ShowDetail(sample); }
+            if (Environment.GetCommandLineArgs().Contains("--preview-list-min", StringComparer.OrdinalIgnoreCase))
+                _uiPreferences.DetailPaneFraction = 1;
+            if (Environment.GetCommandLineArgs().Contains("--preview-details-min", StringComparer.OrdinalIgnoreCase))
+                _uiPreferences.DetailPaneFraction = 0;
+            UpdatePaneLayout();
+            if (Environment.GetCommandLineArgs().Contains("--preview-new-reminder", StringComparer.OrdinalIgnoreCase))
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () => await ShowNewReminderAsync());
             if (Environment.GetCommandLineArgs().Contains("--preview-banner", StringComparer.OrdinalIgnoreCase))
                 ShowInfo("Syncing", "Downloading reminders, lists, tags and repeat schedules…", InfoBarSeverity.Informational);
             return;

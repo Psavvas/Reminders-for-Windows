@@ -11,7 +11,6 @@ public sealed partial class MainWindow
 {
     private bool _updatingLayout;
     private double? _dragOriginalFraction;
-    private ReminderItem? _dragOriginalSelection;
 
     private void ReminderLayout_SizeChanged(object sender, SizeChangedEventArgs args) => UpdatePaneLayout();
 
@@ -21,30 +20,31 @@ public sealed partial class MainWindow
         _updatingLayout = true;
         try
         {
-            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction, _selected is not null);
+            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction);
             // Star columns can shrink during measure; fixed pixel columns keep the
             // parent's desired width too large to deliver a smaller SizeChanged.
-            ReminderColumn.Width = sizes.List == 0 ? new GridLength(0) : new GridLength(sizes.Compact ? 1 : sizes.List, GridUnitType.Star);
+            ReminderColumn.Width = new GridLength(sizes.Compact ? 1 : sizes.List, GridUnitType.Star);
             SplitterColumn.Width = new GridLength(sizes.Compact ? 0 : PaneSizing.DividerWidth);
-            DetailsColumn.Width = new GridLength(sizes.Compact ? 0 : sizes.Details, sizes.Compact || sizes.Details == 0 ? GridUnitType.Pixel : GridUnitType.Star);
+            DetailsColumn.Width = new GridLength(sizes.Compact ? 0 : sizes.Details, sizes.Compact ? GridUnitType.Pixel : GridUnitType.Star);
             Grid.SetColumn(DetailsHost, sizes.Compact ? 0 : 2);
             ReminderHost.MaxWidth = sizes.List;
             DetailsHost.MaxWidth = sizes.Details;
-            ReminderHost.Visibility = (sizes.Compact ? _selected is null : sizes.List > 0) ? Visibility.Visible : Visibility.Collapsed;
-            DetailsHost.Visibility = (sizes.Compact ? _selected is not null : sizes.Details > 0) ? Visibility.Visible : Visibility.Collapsed;
+            ReminderHost.Visibility = !sizes.Compact || _selected is null ? Visibility.Visible : Visibility.Collapsed;
+            DetailsHost.Visibility = !sizes.Compact || _selected is not null ? Visibility.Visible : Visibility.Collapsed;
             PaneDivider.Visibility = sizes.Compact ? Visibility.Collapsed : Visibility.Visible;
             BackToReminders.Visibility = sizes.Compact ? Visibility.Visible : Visibility.Collapsed;
             AddLabel.Visibility = sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
-            var stacked = sizes.Details < 420;
-            ArrangeDetailPair(DetailDateTime, DetailTime, stacked);
-            ArrangeDetailPair(DetailRecurrence, DetailRepeatInterval, stacked);
-            ArrangeDetailPair(DetailOptions, DetailFlagged, stacked);
+            ArrangeDetailPair(DetailDateTime, DetailTime);
+            ArrangeDetailPair(DetailRecurrence, DetailRepeatInterval);
+            ArrangeDetailPair(DetailOptions, DetailFlagged);
         }
         finally { _updatingLayout = false; }
     }
 
-    private static void ArrangeDetailPair(Grid grid, FrameworkElement second, bool stacked)
+    private static void ArrangeDetailPair(Grid grid, FrameworkElement second)
     {
+        // Two equal columns must each fit the native time picker's 242-DIP minimum.
+        var stacked = grid.ActualWidth < 500;
         var paired = second.Visibility == Visibility.Visible;
         grid.ColumnDefinitions[1].Width = new GridLength(stacked || !paired ? 0 : 1, stacked || !paired ? GridUnitType.Pixel : GridUnitType.Star);
         grid.RowSpacing = stacked && paired ? 10 : 0;
@@ -52,22 +52,21 @@ public sealed partial class MainWindow
         Grid.SetRow(second, stacked ? 1 : 0);
     }
 
+    private void EditorPair_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (sender is Grid grid && grid.Children.Count == 2 && grid.Children[1] is FrameworkElement second)
+            ArrangeDetailPair(grid, second);
+    }
+
     private void ResizeDetails(double delta)
     {
-        var previousFraction = _uiPreferences.DetailPaneFraction;
         _uiPreferences.DetailPaneFraction = PaneSizing.Resize(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction, delta);
-        if (_uiPreferences.DetailPaneFraction == 0 && previousFraction != 0)
-        {
-            ReminderList.SelectedItem = null;
-            ShowDetail(null);
-        }
         UpdatePaneLayout();
     }
 
     private void PaneDivider_DragStarted(object sender, DragStartedEventArgs args)
     {
         _dragOriginalFraction = _uiPreferences.DetailPaneFraction;
-        _dragOriginalSelection = _selected;
     }
     private void PaneDivider_DragDelta(object sender, DragDeltaEventArgs args) => ResizeDetails(args.HorizontalChange);
     private void PaneDivider_DragCompleted(object sender, DragCompletedEventArgs args)
@@ -75,11 +74,9 @@ public sealed partial class MainWindow
         if (args.Canceled)
         {
             _uiPreferences.DetailPaneFraction = _dragOriginalFraction;
-            ReminderList.SelectedItem = _dragOriginalSelection;
-            ShowDetail(_dragOriginalSelection);
+            UpdatePaneLayout();
         }
         else SaveUiPreferences();
-        _dragOriginalSelection = null;
     }
 
     private void PaneDivider_KeyDown(object sender, KeyRoutedEventArgs args)

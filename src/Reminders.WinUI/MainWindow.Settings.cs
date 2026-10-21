@@ -73,7 +73,7 @@ public sealed partial class MainWindow
             var local = _demo || _sync.IsLocalDemo;
             var theme = new ComboBox { ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
             var paneSizing = new ComboBox { ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
-            var detailWidth = new Slider { Header = "Details pane width (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? .5, 0, 1) * 100 };
+            var detailWidth = new Slider { Header = "Preferred details width (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? .5, 0, 1) * 100 };
             detailWidth.Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
             paneSizing.SelectionChanged += (_, _) => detailWidth.Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
             var animation = new ToggleSwitch { IsOn = _uiPreferences.CompletionAnimation, OnContent = "", OffContent = "" };
@@ -85,7 +85,7 @@ public sealed partial class MainWindow
 
             var general = SettingsPage("General", "Appearance and reminder defaults.");
             general.Children.Add(SettingsCard("Appearance", SettingsRow("Theme", null, theme), SettingsRow("Completion animation", "Animate reminders when completed.", animation, 60)));
-            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", "Drag the divider to resize either pane.", paneSizing), detailWidth));
+            general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", "Both panes keep a readable width. Small windows show one pane at a time.", paneSizing), detailWidth));
             general.Children.Add(SettingsCard("Reminders", SettingsRow("Default list", null, defaultList), SettingsRow("Due-date notifications", null, notifications, 60)));
 
             var syncPage = SettingsPage("Sync & storage", "Keep your reminders up to date and recover from sync problems.");

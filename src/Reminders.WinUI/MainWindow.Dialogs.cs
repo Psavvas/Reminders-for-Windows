@@ -153,57 +153,6 @@ public sealed partial class MainWindow
         PrimaryButtonText = action, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary
     };
 
-    private async Task ShowNewReminderAsync()
-    {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
-        _dialogOpen = true;
-        try
-        {
-            var title = new TextBox { Header = "Title", PlaceholderText = "What needs doing?" };
-            var notes = new TextBox { Header = "Notes", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 80 };
-            var list = new ComboBox { Header = "List", ItemsSource = OrderedLists(), DisplayMemberPath = "Title", SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
-            list.SelectedValue = _view.Kind == NavKind.List ? _view.Key : _settings.Text("default_list_id", "");
-            if (list.SelectedIndex < 0) list.SelectedIndex = 0;
-            var date = new CalendarDatePicker { Header = "Due date (optional)", HorizontalAlignment = HorizontalAlignment.Stretch };
-            if (_view.Kind == NavKind.Smart && _view.Key == "today") date.Date = DateTimeOffset.Now;
-            var scheduled = new ToggleSwitch { Header = "Set due date", IsOn = date.Date is not null };
-            date.IsEnabled = scheduled.IsOn;
-            var allDay = new ToggleSwitch { Header = "All day", IsOn = true, IsEnabled = scheduled.IsOn };
-            var time = new TimePicker { Header = "Time", Time = new TimeSpan(9, 0, 0), IsEnabled = false };
-            scheduled.Toggled += (_, _) =>
-            {
-                date.IsEnabled = scheduled.IsOn; allDay.IsEnabled = scheduled.IsOn;
-                if (scheduled.IsOn && date.Date is null) date.Date = DateTimeOffset.Now;
-                time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            };
-            allDay.Toggled += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            date.DateChanged += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            var priority = new ComboBox { Header = "Priority", ItemsSource = new[] { "None", "Low", "Medium", "High" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var repeat = new ComboBox { Header = "Repeat", ItemsSource = new[] { "Never", "Daily", "Weekly", "Monthly", "Yearly" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var interval = new NumberBox { Header = "Repeat every", Minimum = 1, Maximum = 999, Value = 1, IsEnabled = false, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
-            repeat.SelectionChanged += (_, _) => { interval.IsEnabled = repeat.SelectedIndex > 0; if (repeat.SelectedIndex > 0) scheduled.IsOn = true; };
-            scheduled.Toggled += (_, _) => { if (!scheduled.IsOn) repeat.SelectedIndex = 0; };
-            var flagged = new ToggleSwitch { Header = "Flagged" };
-            var panel = new StackPanel { Spacing = 12, MinWidth = 360 };
-            foreach (var control in new UIElement[] { title, notes, list, scheduled, date, allDay, time, repeat, interval, priority, flagged }) panel.Children.Add(control);
-            var dialog = MakeDialog("New reminder", panel, "Add");
-            dialog.IsPrimaryButtonEnabled = false;
-            void Validate() => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string
-                && (!scheduled.IsOn || date.Date is not null) && (repeat.SelectedIndex == 0 || double.IsFinite(interval.Value) && interval.Value is >= 1 and <= 999 && interval.Value == Math.Truncate(interval.Value));
-            title.TextChanged += (_, _) => Validate(); list.SelectionChanged += (_, _) => Validate();
-            repeat.SelectionChanged += (_, _) => Validate(); interval.ValueChanged += (_, _) => Validate(); date.DateChanged += (_, _) => Validate(); scheduled.Toggled += (_, _) => Validate();
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedValue is not string listId) return;
-            var due = FormatDueDate(scheduled.IsOn ? date.Date : null, allDay.IsOn, time.Time);
-            var priorityValue = priority.SelectedIndex switch { 1 => 9, 2 => 5, 3 => 1, _ => 0 };
-            var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
-            if (_demo) _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text, DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence });
-            else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text, due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn, recurrence });
-            await RefreshAllAsync();
-        }
-        catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }
-        finally { _dialogOpen = false; }
-    }
-
     private static string? FormatDueDate(DateTimeOffset? date, bool allDay, TimeSpan time) => date is not DateTimeOffset value ? null
         : allDay ? value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
         : value.Date.Add(time).ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);

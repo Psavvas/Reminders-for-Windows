@@ -9,45 +9,44 @@ internal static class PaneSizingChecks
         var custom = PaneSizing.Calculate(1008, 0.65);
         check(custom.List == 350 && custom.Details == 650, "Custom detail share applies to usable width");
         var smaller = PaneSizing.Calculate(808, 0.65);
-        check(smaller.List == 280 && smaller.Details == 520, "Custom sizing respects the chosen share without minimum stops");
+        check(smaller.List == 320 && smaller.Details == 480, "Shrinking the window preserves a readable list despite its saved custom share");
         check(PaneSizing.Calculate(1008, 0.65) == custom, "Custom share returns when window grows");
         var narrow = PaneSizing.Calculate(647, null);
         check(narrow.Compact && narrow.List == 647 && narrow.Details == 647, "Automatic sizing uses full-width single panes in narrow windows");
         var boundary = PaneSizing.Calculate(648, null);
         check(!boundary.Compact && boundary.List == 320 && boundary.Details == 320, "Automatic panes fit exactly at minimum width");
-        foreach (var fraction in new double?[] { null, 0, 0.2, 0.8, 1, -1, 2, double.NaN, double.PositiveInfinity })
+        foreach (var fraction in new double?[] { null, 0, 0.001, 0.05, 0.2, 0.8, 0.999, 1, -1, 2, double.NaN, double.PositiveInfinity })
         {
-            foreach (var width in new[] { 648d, 808, 1008, 2008 })
+            foreach (var width in new[] { 648d, 649, 808, 1008, 2008 })
             {
                 var sizes = PaneSizing.Calculate(width, fraction);
-                check(sizes.List >= 0 && sizes.Details >= 0 && Math.Abs(sizes.List + sizes.Details + 8 - width) < 0.001, "Custom panes stay inside available space");
+                check(!sizes.Compact && sizes.List >= 320 && sizes.Details >= 320 && Math.Abs(sizes.List + sizes.Details + 8 - width) < 0.001, "Every custom split fits and keeps both panes readable");
+            }
+            foreach (var width in new[] { 0d, 8, 300, 400, 647 })
+            {
+                var sizes = PaneSizing.Calculate(width, fraction);
+                check(sizes.Compact && sizes.List == width && sizes.Details == width, "Narrow windows use a full-width single pane even with a custom split");
             }
         }
-        foreach (var width in new[] { 400d, 647, 648, 1008, 2008 })
-        {
-            var detailsClosed = PaneSizing.Calculate(width, 0);
-            var listClosed = PaneSizing.Calculate(width, 1);
-            check(!detailsClosed.Compact && detailsClosed.Details == 0 && detailsClosed.List == width - 8, "Details can close completely at any usable window width");
-            var selectedDetails = PaneSizing.Calculate(width, 0, detailSelected: true);
-            check(selectedDetails.Compact && selectedDetails.List == width && selectedDetails.Details == width, "Selecting a reminder with manually collapsed details opens the full-width view with Back navigation");
-            check(PaneSizing.Calculate(width, 0, detailSelected: false) == detailsClosed, "Back restores the collapsed list layout and its resize divider");
-            check(!listClosed.Compact && listClosed.List == 0 && listClosed.Details == width - 8, "List can close completely at any usable window width");
-        }
+        var formerFullPreview = PaneSizing.Calculate(1008, 1);
+        check(formerFullPreview.List == 320 && formerFullPreview.Details == 680, "An old fully expanded preview preference cannot hide the reminder list");
+        var formerSliver = PaneSizing.Calculate(1008, 0.01);
+        check(formerSliver.List == 680 && formerSliver.Details == 320, "An old sliver preference cannot squash the placeholder or editor");
         check(PaneSizing.Calculate(1008, double.NaN) == balanced, "Invalid saved share falls back to automatic sizing");
-        check(PaneSizing.Calculate(1008, 0.65, detailSelected: true) == custom, "Selection preserves a nonzero custom split");
         check(PaneSizing.Calculate(647, double.NaN).Compact, "Invalid custom preference uses compact automatic sizing");
         check(PaneSizing.Calculate(double.NaN, null).Compact, "Invalid or unmeasured width stays compact");
         check(PaneSizing.Calculate(8, 0.5).Compact, "A window smaller than the divider cannot split");
 
-        var closedDetails = PaneSizing.Resize(1008, null, 1000);
-        var closedList = PaneSizing.Resize(1008, null, -1000);
-        check(closedDetails == 0, "Dragging past the right edge closes details without overshoot");
-        check(closedList == 1, "Dragging past the left edge closes the list without overshoot");
-        check(PaneSizing.Resize(1008, closedDetails, -24) == 0.024, "Dragging or pressing Left reopens closed details");
-        check(PaneSizing.Resize(1008, closedList, 24) == 0.976, "Dragging or pressing Right reopens the closed list");
-        check(PaneSizing.Resize(1008, 0.05, 10) == 0.04, "Resizing near an edge stays continuous without a snap jump");
+        var minimumDetails = PaneSizing.Resize(1008, null, 1000);
+        var minimumList = PaneSizing.Resize(1008, null, -1000);
+        check(Math.Abs(minimumDetails!.Value - 0.32) < 0.000001, "Dragging past the right edge stops at the minimum editor width");
+        check(Math.Abs(minimumList!.Value - 0.68) < 0.000001, "Dragging past the left edge stops at the minimum list width");
+        check(Math.Abs(PaneSizing.Resize(1008, minimumDetails, -24)!.Value - 0.344) < 0.000001, "Dragging away from the minimum expands details immediately");
+        check(Math.Abs(PaneSizing.Resize(1008, minimumList, 24)!.Value - 0.656) < 0.000001, "Dragging away from the maximum expands the list immediately");
+        check(Math.Abs(PaneSizing.Resize(1008, 0.01, -24)!.Value - 0.344) < 0.000001, "An old tiny saved share resizes from its visible width without a dead zone");
+        check(Math.Abs(PaneSizing.Resize(1008, 0.99, 24)!.Value - 0.656) < 0.000001, "An old expanded saved share resizes from its visible width without a dead zone");
         check(PaneSizing.Resize(1008, 0.5, double.NaN) == 0.5, "An invalid drag delta leaves the split unchanged");
         check(PaneSizing.Resize(647, null, 24) is null, "Resizing does not change a compact automatic layout");
-        check(PaneSizing.Calculate(400, PaneSizing.Resize(400, 0, -24)).Details == 24, "Collapsed panes reopen in a narrow window");
+        check(PaneSizing.Resize(400, 0.65, -24) == 0.65, "Compact resizing leaves the saved preference intact for a wider window");
     }
 }
