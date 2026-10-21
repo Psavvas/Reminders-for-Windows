@@ -23,6 +23,8 @@ public partial class App : Application
         {
             _window = new MainWindow();
 #if DEBUG
+            if (Environment.GetCommandLineArgs().Contains("--preview-editor", StringComparer.OrdinalIgnoreCase))
+                _window.Title = "Reminders for Windows · Editor preview";
             if (Environment.GetCommandLineArgs().Contains("--test-apple-sign-in", StringComparer.OrdinalIgnoreCase))
                 _window.Title = "Reminders for Windows · Sign-in test";
 #endif

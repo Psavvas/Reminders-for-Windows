@@ -82,6 +82,38 @@ The sample window closed before UI inspection. Live UI and iPhone propagation
 of post-creation schedule edits still need confirmation; the earlier repeat-date
 and web sign-in confirmations do not cover this new editing path.
 
+## Window theme, notifications and task editor
+
+The native title bar follows the root's actual light/dark theme, including
+appearance changes while the app is open and changes to the Windows system
+theme. Active and inactive caption/button colors match the app surface. This
+uses the Windows App SDK's
+[title-bar theme API](https://learn.microsoft.com/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.windowing.appwindowtitlebar.preferredtheme).
+
+Notifications are top-aligned overlays over the main content, alongside the
+reminder layout in the same grid with no reserved banner row. They do not move
+the list or editor when opened or closed. Closed bars are explicitly collapsed;
+their old outer margins and NavigationView content border/corner are removed.
+Opening a banner uses a short slide-down/fade and a subtle shadow. Render-time
+translation leaves layout positions unchanged. Windows' animation preference
+is respected. Update actions, sync recovery buttons and Close remain available.
+
+The task editor has a compact title/notes area, a grouped Schedule card and an
+expandable Tags & priority section. List context is text in the header instead
+of a disabled list picker. Delete is in Task actions; Save changes stays in a
+fixed footer outside the scrolling fields. Time appears for timed tasks, the
+all-day switch appears when a date is set, and the interval appears only for a
+repeat. Paired fields stack in narrow panes. Existing save/validation behavior
+and repeat editing are retained.
+
+Debug-only `--preview-editor` loads an isolated in-memory sample task; add
+`--preview-light` or `--preview-banner` for appearance/notification checks.
+The dark preview confirmed the themed native title bar, full-width banner and
+grouped editor. The user stopped Computer Use before banner dismissal or light
+mode could be checked. The final floating-banner animation was added afterward
+and still needs live inspection. No real-account reminder was changed by the
+preview.
+
 ## Related records and icons
 
 Tag writes follow the linked-record shape described in the

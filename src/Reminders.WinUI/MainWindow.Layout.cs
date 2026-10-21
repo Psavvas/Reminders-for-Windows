@@ -36,18 +36,18 @@ public sealed partial class MainWindow
             BackToReminders.Visibility = sizes.Compact ? Visibility.Visible : Visibility.Collapsed;
             AddLabel.Visibility = sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
             var stacked = sizes.Details < 420;
-            ArrangeDetailPair(DetailListPriority, DetailPriority, stacked);
             ArrangeDetailPair(DetailDateTime, DetailTime, stacked);
             ArrangeDetailPair(DetailRecurrence, DetailRepeatInterval, stacked);
-            ArrangeDetailPair(DetailToggles, DetailFlagged, stacked);
+            ArrangeDetailPair(DetailOptions, DetailFlagged, stacked);
         }
         finally { _updatingLayout = false; }
     }
 
     private static void ArrangeDetailPair(Grid grid, FrameworkElement second, bool stacked)
     {
-        grid.ColumnDefinitions[1].Width = new GridLength(stacked ? 0 : 1, stacked ? GridUnitType.Pixel : GridUnitType.Star);
-        grid.RowSpacing = stacked ? 10 : 0;
+        var paired = second.Visibility == Visibility.Visible;
+        grid.ColumnDefinitions[1].Width = new GridLength(stacked || !paired ? 0 : 1, stacked || !paired ? GridUnitType.Pixel : GridUnitType.Star);
+        grid.RowSpacing = stacked && paired ? 10 : 0;
         Grid.SetColumn(second, stacked ? 0 : 1);
         Grid.SetRow(second, stacked ? 1 : 0);
     }

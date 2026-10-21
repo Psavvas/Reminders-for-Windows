@@ -4,16 +4,21 @@
  xmlns:local="using:Reminders.Windows"
  xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives"
  Title="Reminders for Windows">
- <Grid x:Name="Root" SizeChanged="Root_SizeChanged">
+ <Grid x:Name="Root" SizeChanged="Root_SizeChanged" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
   <Grid.KeyboardAccelerators>
    <KeyboardAccelerator Key="N" Modifiers="Control" Invoked="NewAccelerator_Invoked"/>
    <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="SearchAccelerator_Invoked"/>
   </Grid.KeyboardAccelerators>
   <NavigationView x:Name="Navigation" PaneTitle="Reminders for Windows" IsBackButtonVisible="Collapsed"
                   PaneDisplayMode="LeftCompact" IsPaneOpen="True" OpenPaneLength="260" CompactPaneLength="48"
-                  IsSettingsVisible="True" IsPaneToggleButtonVisible="True" AlwaysShowHeader="False"
+                  IsSettingsVisible="True" IsPaneToggleButtonVisible="True" AlwaysShowHeader="False" IsTitleBarAutoPaddingEnabled="False"
                   PaneOpening="Navigation_PaneOpening" PaneClosing="Navigation_PaneClosing"
                   ItemInvoked="Navigation_ItemInvoked" SelectionChanged="Navigation_SelectionChanged">
+   <NavigationView.Resources>
+    <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
+    <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0</Thickness>
+    <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
+   </NavigationView.Resources>
    <NavigationView.MenuItems>
     <NavigationViewItem Content="Today" Tag="smart:today"><NavigationViewItem.Icon><FontIcon Glyph="&#xE823;"/></NavigationViewItem.Icon></NavigationViewItem>
     <NavigationViewItem Content="Upcoming" Tag="smart:upcoming"><NavigationViewItem.Icon><FontIcon Glyph="&#xE787;"/></NavigationViewItem.Icon></NavigationViewItem>
@@ -28,14 +33,7 @@
     <NavigationViewItem SelectsOnInvoked="False" Content="Sync now" Tag="sync"><NavigationViewItem.Icon><FontIcon Glyph="&#xE895;"/></NavigationViewItem.Icon></NavigationViewItem>
    </NavigationView.FooterMenuItems>
    <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
-    <StackPanel Grid.Row="0">
-     <InfoBar x:Name="UpdateInfoBar" IsOpen="False" IsClosable="True" Severity="Informational" Margin="12,8,12,0">
-      <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
-     </InfoBar>
-     <InfoBar x:Name="AppInfoBar" IsOpen="False" IsClosable="True" Margin="12,8,12,0"/>
-    </StackPanel>
-    <Grid x:Name="ReminderLayout" Grid.Row="1" SizeChanged="ReminderLayout_SizeChanged">
+    <Grid x:Name="ReminderLayout" SizeChanged="ReminderLayout_SizeChanged">
      <Grid.ColumnDefinitions><ColumnDefinition x:Name="ReminderColumn"/><ColumnDefinition x:Name="SplitterColumn" Width="8"/><ColumnDefinition x:Name="DetailsColumn"/></Grid.ColumnDefinitions>
      <Grid x:Name="ReminderHost" Background="{ThemeResource LayerFillColorDefaultBrush}">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -87,25 +85,48 @@
        <Border x:Name="KeyboardFocusLine" Width="2" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0"/>
       </Grid></ControlTemplate></primitives:Thumb.Template>
      </primitives:Thumb>
-     <Grid x:Name="DetailsHost" Grid.Column="2">
+     <Grid x:Name="DetailsHost" Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
       <StackPanel x:Name="NoSelection" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Margin="24" MaxWidth="320"><FontIcon Glyph="&#xE8A5;" FontSize="36" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/><TextBlock Text="Select a reminder" TextWrapping="Wrap" TextAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}"/><TextBlock Text="Its details will appear here." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
-      <ScrollViewer x:Name="DetailPane" Visibility="Collapsed"><StackPanel Padding="24,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="10">
-       <StackPanel.Transitions><TransitionCollection><EntranceThemeTransition FromHorizontalOffset="20"/></TransitionCollection></StackPanel.Transitions>
-       <Button x:Name="BackToReminders" Content="Back to reminders" Click="BackToReminders_Click" Visibility="Collapsed"/>
-       <TextBlock Text="Details" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,4"/>
-       <TextBox x:Name="DetailTitle" Header="Title" TextChanged="Detail_Changed"/>
-       <TextBox x:Name="DetailNotes" Header="Notes" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" TextChanged="Detail_Changed"/>
-       <TextBlock x:Name="DetailTags" TextWrapping="Wrap" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-       <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="NewTagName" Header="Add a tag" PlaceholderText="school" MaxLength="129"/><Button x:Name="AddTagButton" Grid.Column="1" Content="Add tag" VerticalAlignment="Bottom" Click="AddTag_Click"/></Grid>
-       <Grid x:Name="DetailListPriority" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailList" Header="List" DisplayMemberPath="Title" SelectedValuePath="Id" IsEnabled="False"/><ComboBox x:Name="DetailPriority" Grid.Column="1" Header="Priority" SelectionChanged="Detail_Changed"><ComboBoxItem Content="None" Tag="0"/><ComboBoxItem Content="Low" Tag="9"/><ComboBoxItem Content="Medium" Tag="5"/><ComboBoxItem Content="High" Tag="1"/></ComboBox></Grid>
-       <Grid x:Name="DetailDateTime" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><CalendarDatePicker x:Name="DetailDate" Header="Due date" DateChanged="Detail_Changed"/><TimePicker x:Name="DetailTime" Grid.Column="1" Header="Time" TimeChanged="Detail_Changed"/></Grid>
-       <Grid x:Name="DetailRecurrence" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailRepeatChoice" Header="Repeat" PlaceholderText="Custom repeat" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="Never"/><ComboBoxItem Content="Daily"/><ComboBoxItem Content="Weekly"/><ComboBoxItem Content="Monthly"/><ComboBoxItem Content="Yearly"/></ComboBox><NumberBox x:Name="DetailRepeatInterval" Grid.Column="1" Header="Repeat every" Minimum="1" Maximum="999" Value="1" SpinButtonPlacementMode="Compact" ValueChanged="Detail_Changed"/></Grid>
-       <TextBlock x:Name="DetailRepeatHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed"/>
-       <Grid x:Name="DetailToggles" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ToggleSwitch x:Name="DetailAllDay" Header="All day" Toggled="Detail_Changed"/><ToggleSwitch x:Name="DetailFlagged" Grid.Column="1" Header="Flagged" Toggled="Detail_Changed"/></Grid>
-       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0"><Button x:Name="SaveButton" Content="Save changes" Style="{ThemeResource AccentButtonStyle}" IsEnabled="False" Click="Save_Click"/><Button Content="Delete" AutomationProperties.Name="Delete reminder" Click="Delete_Click"/></StackPanel>
-      </StackPanel></ScrollViewer>
+      <Grid x:Name="DetailPane" Visibility="Collapsed">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid Padding="20,12" ColumnSpacing="12">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <Button x:Name="BackToReminders" AutomationProperties.Name="Back to reminders" ToolTipService.ToolTip="Back to reminders" Click="BackToReminders_Click" Visibility="Collapsed" VerticalAlignment="Center"><FontIcon Glyph="&#xE72B;" FontSize="14"/></Button>
+        <StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="Task details" Style="{ThemeResource BodyStrongTextBlockStyle}"/><TextBlock x:Name="DetailListName" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/></StackPanel>
+        <Button Grid.Column="2" AutomationProperties.Name="Task actions" ToolTipService.ToolTip="Task actions" VerticalAlignment="Center"><FontIcon Glyph="&#xE712;" FontSize="16"/><Button.Flyout><MenuFlyout><MenuFlyoutItem Text="Delete task" Click="Delete_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon></MenuFlyoutItem></MenuFlyout></Button.Flyout></Button>
+       </Grid>
+       <ScrollViewer x:Name="DetailScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+        <StackPanel Padding="20,0,20,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="16">
+         <TextBox x:Name="DetailTitle" PlaceholderText="Task title" AutomationProperties.Name="Task title" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" TextChanged="Detail_Changed"/>
+         <TextBox x:Name="DetailNotes" Header="Notes" PlaceholderText="Add notes…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" MaxHeight="180" ScrollViewer.VerticalScrollBarVisibility="Auto" TextChanged="Detail_Changed"/>
+         <Border Style="{StaticResource EditorSectionStyle}">
+          <StackPanel Spacing="10">
+           <TextBlock Text="Schedule" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+           <Grid x:Name="DetailDateTime" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><CalendarDatePicker x:Name="DetailDate" Header="Due date" PlaceholderText="No date" HorizontalAlignment="Stretch" DateChanged="Detail_Changed"/><TimePicker x:Name="DetailTime" Grid.Column="1" Header="Time" HorizontalAlignment="Stretch" TimeChanged="Detail_Changed"/></Grid>
+           <Grid x:Name="DetailAllDayRow"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="All day" VerticalAlignment="Center"/><ToggleSwitch x:Name="DetailAllDay" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" AutomationProperties.Name="All day" Toggled="Detail_Changed"/></Grid>
+           <Grid x:Name="DetailRecurrence" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailRepeatChoice" Header="Repeat" PlaceholderText="Custom repeat" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="Never"/><ComboBoxItem Content="Daily"/><ComboBoxItem Content="Weekly"/><ComboBoxItem Content="Monthly"/><ComboBoxItem Content="Yearly"/></ComboBox><NumberBox x:Name="DetailRepeatInterval" Grid.Column="1" Header="Every" Minimum="1" Maximum="999" Value="1" SpinButtonPlacementMode="Compact" ValueChanged="Detail_Changed"/></Grid>
+           <TextBlock x:Name="DetailRepeatHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed"/>
+          </StackPanel>
+         </Border>
+         <Expander x:Name="DetailMore" Header="Tags &amp; priority" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+          <StackPanel Spacing="16">
+           <StackPanel Spacing="8"><TextBlock x:Name="DetailTags" TextWrapping="Wrap" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/><Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="NewTagName" Header="Add a tag" PlaceholderText="Tag name" MaxLength="129"/><Button x:Name="AddTagButton" Grid.Column="1" Content="Add" AutomationProperties.Name="Add tag" VerticalAlignment="Bottom" Click="AddTag_Click"/></Grid></StackPanel>
+           <Grid x:Name="DetailOptions" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailPriority" Header="Priority" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="None" Tag="0"/><ComboBoxItem Content="Low" Tag="9"/><ComboBoxItem Content="Medium" Tag="5"/><ComboBoxItem Content="High" Tag="1"/></ComboBox><ToggleSwitch x:Name="DetailFlagged" Grid.Column="1" Header="Flagged" Toggled="Detail_Changed"/></Grid>
+          </StackPanel>
+         </Expander>
+        </StackPanel>
+       </ScrollViewer>
+       <Border Grid.Row="2" Padding="20,12" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0"><Button x:Name="SaveButton" Content="Save changes" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" IsEnabled="False" Click="Save_Click"/></Border>
+      </Grid>
      </Grid>
     </Grid>
+    <StackPanel x:Name="StatusBanners" VerticalAlignment="Top" Canvas.ZIndex="10" Translation="0,0,16">
+     <StackPanel.Shadow><ThemeShadow/></StackPanel.Shadow>
+     <InfoBar x:Name="UpdateInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" Severity="Informational" CornerRadius="0" BorderThickness="0">
+      <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
+     </InfoBar>
+     <InfoBar x:Name="AppInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" CornerRadius="0" BorderThickness="0"/>
+    </StackPanel>
    </Grid>
   </NavigationView>
 

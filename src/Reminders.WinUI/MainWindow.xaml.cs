@@ -88,6 +88,7 @@ public sealed partial class MainWindow : Window
         _paneHoverCloseTimer.Tick += (_, _) => CloseHoverPane();
         AttachSyncEvents();
         SetWindowSize();
+        InitializeWindowChrome();
         SetPanePinned(UiPreferences.LoadNavigationPaneOpen(), persist: false);
         _initializingPane = false;
         Activated += MainWindow_Activated;
@@ -118,6 +119,17 @@ public sealed partial class MainWindow : Window
         }
         _bootStarted = true;
 #if DEBUG
+        if (Environment.GetCommandLineArgs().Contains("--preview-editor", StringComparer.OrdinalIgnoreCase))
+        {
+            LoadDemo();
+            ApplyTheme(Environment.GetCommandLineArgs().Contains("--preview-light", StringComparer.OrdinalIgnoreCase) ? "light" : "dark");
+            AppInfoBar.IsOpen = false;
+            var sample = _reminders.FirstOrDefault(row => !row.AllDay);
+            if (sample is not null) { ReminderList.SelectedItem = sample; ShowDetail(sample); }
+            if (Environment.GetCommandLineArgs().Contains("--preview-banner", StringComparer.OrdinalIgnoreCase))
+                ShowInfo("Syncing", "Downloading reminders, lists, tags and repeat schedules…", InfoBarSeverity.Informational);
+            return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--preview-settings", StringComparer.OrdinalIgnoreCase))
         {
             LoadDemo();
@@ -226,7 +238,6 @@ public sealed partial class MainWindow : Window
         await Task.WhenAll(listsTask, tagsTask, countsTask);
         if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
         _lists = listsTask.Result;
-        DetailList.ItemsSource = _lists.Where(list => !list.IsGroup).ToList();
         var counts = countsTask.Result;
         SetBadge("smart:today", counts.Number("today"));
         _tags = tagsTask.Result.Select(tag => tag.Name).Distinct(StringComparer.CurrentCultureIgnoreCase).Order().ToList();
@@ -517,7 +528,7 @@ public sealed partial class MainWindow : Window
     {
         _demo = true; AuthGate.Visibility = Visibility.Collapsed;
         _settings = JsonDocument.Parse("""{"theme":"system","sync_minutes":1,"notifications_enabled":true}""").RootElement.Clone(); ApplyTheme("system");
-        _lists = DemoData.CreateLists(); DetailList.ItemsSource = _lists;
+        _lists = DemoData.CreateLists();
         _tags = ["errands"];
         RebuildListNavigation();
         _demoRows.Clear(); _demoRows.AddRange(DemoData.CreateReminders());
@@ -677,7 +688,9 @@ public sealed partial class MainWindow : Window
         _selected = reminder; _loadingDetail = true; NoSelection.Visibility = reminder is null ? Visibility.Visible : Visibility.Collapsed; DetailPane.Visibility = reminder is null ? Visibility.Collapsed : Visibility.Visible;
         if (reminder is not null)
         {
-            DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description; DetailList.SelectedValue = reminder.ListId; DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
+            DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description;
+            DetailListName.Text = _lists.FirstOrDefault(list => list.Id == reminder.ListId)?.Title ?? "Reminder";
+            DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
             var customRepeat = reminder.Recurrence?.Supported == false;
@@ -708,10 +721,16 @@ public sealed partial class MainWindow : Window
         if (DetailRepeatChoice is null || DetailRepeatInterval is null || DetailRepeatHint is null) return;
         var repeats = DetailRepeatChoice.SelectedIndex > 0;
         DetailRepeatInterval.IsEnabled = DetailRepeatChoice.IsEnabled && repeats;
+        DetailRepeatInterval.Visibility = repeats ? Visibility.Visible : Visibility.Collapsed;
+        DetailRepeatInterval.Header = DetailRepeatChoice.SelectedIndex switch { 1 => "Every (days)", 2 => "Every (weeks)", 3 => "Every (months)", 4 => "Every (years)", _ => "Every" };
+        DetailAllDayRow.Visibility = DetailDate.Date is not null ? Visibility.Visible : Visibility.Collapsed;
+        DetailTime.IsEnabled = DetailDate.Date is not null && !DetailAllDay.IsOn;
+        DetailTime.Visibility = DetailTime.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
         var hint = !DetailRepeatChoice.IsEnabled ? "Edit this custom repeat on an Apple device to preserve its schedule."
             : repeats && DetailDate.Date is null ? "Set a due date for this repeat." : "";
         DetailRepeatHint.Text = hint;
         DetailRepeatHint.Visibility = hint.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdatePaneLayout();
     }
     private void Detail_Changed(object sender, object e)
     {
@@ -721,7 +740,6 @@ public sealed partial class MainWindow : Window
         var repeats = DetailRepeatChoice.SelectedIndex > 0 || _selected.Recurrence?.Supported == false;
         SaveButton.IsEnabled = (!repeats || DetailDate.Date is not null)
             && (!DetailRepeatInterval.IsEnabled || double.IsFinite(DetailRepeatInterval.Value) && DetailRepeatInterval.Value is >= 1 and <= 999 && DetailRepeatInterval.Value == Math.Truncate(DetailRepeatInterval.Value));
-        DetailTime.IsEnabled = !DetailAllDay.IsOn;
     }
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
@@ -785,7 +803,11 @@ public sealed partial class MainWindow : Window
         foreach (var conflict in conflicts) { var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Resolve sync conflict", Content = "Keep the version edited on this PC, or the current iCloud version?", PrimaryButtonText = "Keep this PC", SecondaryButtonText = "Keep iCloud", CloseButtonText = "Later" }; var result = await dialog.ShowAsync(); if (result == ContentDialogResult.None) break; await _sync.CallAsync("resolve_conflict", new { id = conflict.Id, keep = result == ContentDialogResult.Primary ? "local" : "remote" }); }
         await RefreshAllAsync();
     }
-    private void ApplyTheme(string theme) => Root.RequestedTheme = theme switch { "dark" => ElementTheme.Dark, "light" => ElementTheme.Light, _ => ElementTheme.Default };
+    private void ApplyTheme(string theme)
+    {
+        Root.RequestedTheme = theme switch { "dark" => ElementTheme.Dark, "light" => ElementTheme.Light, _ => ElementTheme.Default };
+        UpdateTitleBarTheme();
+    }
 
     private async Task CheckForUpdatesAsync(bool manual)
     {
