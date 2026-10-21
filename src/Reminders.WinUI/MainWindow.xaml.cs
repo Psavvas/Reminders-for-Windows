@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
     private string _sort = "manual";
     private bool _verificationBusy;
     private bool _loadingDetail;
+    private bool _detailDirty;
     private bool _demo;
     private DateTimeOffset _lastSyncRequest = DateTimeOffset.MinValue;
     private bool _bootStarted;
@@ -679,10 +680,14 @@ public sealed partial class MainWindow : Window
             DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description; DetailList.SelectedValue = reminder.ListId; DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
-            DetailRepeat.Text = reminder.Recurrence?.Label ?? "Does not repeat";
+            var customRepeat = reminder.Recurrence?.Supported == false;
+            DetailRepeatChoice.IsEnabled = !customRepeat;
+            DetailRepeatChoice.SelectedIndex = customRepeat ? -1 : (int)(reminder.Recurrence?.Frequency ?? 0);
+            DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
+            UpdateRepeatControls();
             DetailTags.Text = string.Join("  ", reminder.Tags.Select(t => "#" + t)); NewTagName.Text = "";
         }
-        SaveButton.IsEnabled = false; _loadingDetail = false;
+        SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
         UpdatePaneLayout();
         if (reminder is not null) AnimateDetailPane();
     }
@@ -698,7 +703,26 @@ public sealed partial class MainWindow : Window
         slide.InsertKeyFrame(0f, new Vector3(18f, 0f, 0f)); slide.InsertKeyFrame(1f, Vector3.Zero, easing); slide.Duration = fade.Duration;
         visual.StartAnimation("Opacity", fade); visual.StartAnimation("Offset", slide);
     }
-    private void Detail_Changed(object sender, object e) { if (!_loadingDetail && _selected is not null) { SaveButton.IsEnabled = true; DetailTime.IsEnabled = !DetailAllDay.IsOn; } }
+    private void UpdateRepeatControls()
+    {
+        if (DetailRepeatChoice is null || DetailRepeatInterval is null || DetailRepeatHint is null) return;
+        var repeats = DetailRepeatChoice.SelectedIndex > 0;
+        DetailRepeatInterval.IsEnabled = DetailRepeatChoice.IsEnabled && repeats;
+        var hint = !DetailRepeatChoice.IsEnabled ? "Edit this custom repeat on an Apple device to preserve its schedule."
+            : repeats && DetailDate.Date is null ? "Set a due date for this repeat." : "";
+        DetailRepeatHint.Text = hint;
+        DetailRepeatHint.Visibility = hint.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void Detail_Changed(object sender, object e)
+    {
+        if (_loadingDetail || _selected is null) return;
+        _detailDirty = true;
+        UpdateRepeatControls();
+        var repeats = DetailRepeatChoice.SelectedIndex > 0 || _selected.Recurrence?.Supported == false;
+        SaveButton.IsEnabled = (!repeats || DetailDate.Date is not null)
+            && (!DetailRepeatInterval.IsEnabled || double.IsFinite(DetailRepeatInterval.Value) && DetailRepeatInterval.Value is >= 1 and <= 999 && DetailRepeatInterval.Value == Math.Truncate(DetailRepeatInterval.Value));
+        DetailTime.IsEnabled = !DetailAllDay.IsOn;
+    }
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         if (_selected is null) return;
@@ -706,14 +730,22 @@ public sealed partial class MainWindow : Window
         var priority = long.Parse(((ComboBoxItem?)DetailPriority.SelectedItem)?.Tag?.ToString() ?? "0");
         try
         {
+            var recurrence = DetailRepeatChoice.SelectedIndex <= 0 ? null : new RepeatSchedule { Frequency = DetailRepeatChoice.SelectedIndex, Interval = (long)DetailRepeatInterval.Value };
+            var repeatChanged = DetailRepeatChoice.IsEnabled && (recurrence?.Frequency != _selected.Recurrence?.Frequency || recurrence?.Interval != _selected.Recurrence?.Interval);
             if (_demo)
             {
                 _selected.Title = DetailTitle.Text.Trim(); _selected.Description = DetailNotes.Text;
                 _selected.DueDate = due; _selected.AllDay = DetailAllDay.IsOn;
                 _selected.Flagged = DetailFlagged.IsOn; _selected.Priority = priority;
+                if (repeatChanged) _selected.Recurrence = recurrence;
             }
-            else await _sync.CallAsync("update_reminder", new { id = _selected.Id, title = DetailTitle.Text.Trim(), description = DetailNotes.Text, due_date = due, all_day = DetailAllDay.IsOn, flagged = DetailFlagged.IsOn, priority });
-            SaveButton.IsEnabled = false; await LoadRemindersAsync();
+            else
+            {
+                var patch = new Dictionary<string, object?> { ["id"] = _selected.Id, ["title"] = DetailTitle.Text.Trim(), ["description"] = DetailNotes.Text, ["due_date"] = due, ["all_day"] = DetailAllDay.IsOn, ["flagged"] = DetailFlagged.IsOn, ["priority"] = priority };
+                if (repeatChanged) patch["recurrence"] = recurrence;
+                await _sync.CallAsync("update_reminder", patch);
+            }
+            SaveButton.IsEnabled = false; _detailDirty = false; await LoadRemindersAsync();
         }
         catch (Exception error) { ShowInfo("Couldn't save reminder", error.Message, InfoBarSeverity.Error); }
     }

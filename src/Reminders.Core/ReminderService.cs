@@ -233,7 +233,10 @@ public sealed class ReminderService : IAsyncDisposable
                 var conflict = cache.Conflicts.FirstOrDefault(c => c.Number("id") == conflictId);
                 if (p.Text("keep") == "local" && conflict?["local"] is JsonObject local)
                 {
-                    var patch = new JsonObject { ["id"] = conflict.Required("reminder_id") }; foreach (var f in Cache.EditFields) if (local.ContainsKey(f)) patch[f] = local[f]?.DeepClone(); LocalChange(patch, "update");
+                    var patch = new JsonObject { ["id"] = conflict.Required("reminder_id") };
+                    foreach (var f in Cache.EditFields)
+                        if (local.ContainsKey(f) && (f != "recurrence" || local.Flag("recurrence_edit"))) patch[f] = local[f]?.DeepClone();
+                    LocalChange(patch, "update");
                 }
                 cache.Execute("UPDATE conflicts SET resolved=1 WHERE id=@p0", conflictId); return J.Node(new { resolved = conflictId });
             case "due_notifications": return Notifications(p);
@@ -255,10 +258,21 @@ public sealed class ReminderService : IAsyncDisposable
                 var allDay = fields.ContainsKey("all_day") ? fields.Flag("all_day") : current.Flag("all_day");
                 if (p.ContainsKey("due_date")) fields["due_date"] = TimeUtil.Normalize(p["due_date"], allDay);
                 else if (p.ContainsKey("all_day") && allDay && current.Text("due_date") is { } raw) fields["due_date"] = TimeUtil.Normalize(JsonValue.Create(raw), true);
-                if (current["recurrence"] is not null)
+                var due = fields.ContainsKey("due_date") ? fields.Text("due_date") : current.Text("due_date");
+                if (p.ContainsKey("recurrence"))
+                {
+                    if (fields.Flag("completed")) throw CoreException.Bad("Save the repeat change before completing this reminder.");
+                    if (current["recurrence"] is JsonObject existing && existing.Property("supported") is not null && !existing.Flag("supported"))
+                        throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.");
+                    fields["recurrence"] = Recurrence.Validate(p["recurrence"], due);
+                    fields["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
+                    if (fields["recurrence"] is null) fields["recurrence_ids"] = new JsonArray();
+                }
+                var effectiveRepeat = fields.ContainsKey("recurrence") ? fields["recurrence"] : current["recurrence"];
+                if (effectiveRepeat is not null)
                 {
                     if (fields.ContainsKey("due_date") && fields["due_date"] is null) throw CoreException.Bad("A repeating reminder needs a due date.");
-                    if (fields.Flag("completed") && current["recurrence"]!.Property("supported")?.ToString() == "false")
+                    if (fields.Flag("completed") && effectiveRepeat.Property("supported")?.ToString() == "false")
                         throw CoreException.Bad("Complete this custom repeat on an Apple device to preserve its schedule.");
                 }
                 if (fields.Flag("completed"))

@@ -45,10 +45,42 @@ when completed there. Independent wire-format tests reproduce the mismatch
 before the fix. All four units were affected; yearly could become hourly.
 Previously uploaded rules cannot be safely repaired by guessing their intended
 schedule, because they are indistinguishable from valid Apple-created rules.
-Set affected reminders to their intended repeat in Apple's Reminders once; the
-corrected Windows reader will then use the same rule. Pending new reminders
-upload with the corrected values. Real iPhone validation of newly created rules
-in the corrected build remains pending.
+Set affected reminders to their intended repeat once using the new Details
+editor or Apple's Reminders; both will then use the same rule. Pending reminders
+upload with the corrected values. The user subsequently confirmed the recurring
+due dates and Apple-device web sign-in work in the corrected test copy.
+
+## Editing a task's repeat
+
+Select a task and use **Repeat** and **Repeat every** in Details, then **Save
+changes**. Add a daily/weekly/monthly/yearly repeat to an existing task, change
+its unit or interval (1–999 whole units), or choose **Never** to stop repeating.
+A repeat needs a due date; choosing Never also allows clearing that date in the
+same save. The controls stack in narrow detail panes. Custom and multiple-rule
+Apple schedules remain read-only to preserve their constraints; other fields
+can still be edited without sending a replacement schedule.
+
+Existing supported rules are updated in place, preserving their end date,
+remaining occurrence count, task identity and unrelated fields. Adding a repeat
+creates a linked rule; Never clears the parent's rule IDs and marks the linked
+rule deleted without deleting the task. Parent and rule changes are atomic and
+use their current revision tags. The changed rule is applied to the cache as
+soon as upload succeeds. A conflict involving a rule is reported against its
+parent task, and keep-local retries a repeat change only when that conflict
+actually included a repeat edit.
+
+Each queued schedule edit stores a stable UUID. Its identity is included in the
+parent's existing `recurrenceRuleIDs` resolution token so that retry can detect
+an already committed change, including Never, before comparing stale revisions.
+No additional CloudKit fields are introduced. Tests cover lost replies,
+duplicate retries, offline create/add/change/remove sequences across restart,
+cache refresh, valid/invalid intervals, required dates, unchanged custom rules,
+preserved end conditions and stale parent/rule conflicts. Local-only accounts
+use the same edit validation and calendar behavior.
+
+The sample window closed before UI inspection. Live UI and iPhone propagation
+of post-creation schedule edits still need confirmation; the earlier repeat-date
+and web sign-in confirmations do not cover this new editing path.
 
 ## Related records and icons
 

@@ -247,6 +247,7 @@ await WriteCompatibilityChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 RecurrenceWireFormatChecks.Run(Check);
 await RecurrenceAndSyncChecks.RunAsync(Check);
+await RecurrenceEditingChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);
 SignInTroubleshootingChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);

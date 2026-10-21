@@ -168,6 +168,7 @@ internal sealed partial class ICloudClient : IDisposable
     public async Task<JsonObject> Update(string id, JsonObject patch, string? baseTag, CancellationToken token)
     {
         var original = (await Cloud.Lookup(id, token)).FirstOrDefault() ?? throw CoreException.Bad($"No such reminder: {id}"); var remoteTag = original.Text("recordChangeTag");
+        if (patch.ContainsKey("recurrence")) return await ChangeRecurrence(original, patch, baseTag, token);
         if (patch.Flag("completed") && CloudKit.Field(original, "RecurrenceRuleIDs") is JsonArray { Count: > 0 })
             return await CompleteRecurring(original, patch, baseTag, token);
         if (baseTag is not null && baseTag != remoteTag) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", ToReminder(original)?.ToJsonString() ?? "{}");

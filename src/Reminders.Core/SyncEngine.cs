@@ -96,6 +96,11 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 payload["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
                 cache.Execute("UPDATE outbox SET payload=@p0 WHERE seq=@p1", payload.ToJsonString(), seq);
             }
+            if (item.Text("op") == "update" && payload.ContainsKey("recurrence") && payload.Text("recurrence_id") is null)
+            {
+                payload["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
+                cache.Execute("UPDATE outbox SET payload=@p0 WHERE seq=@p1", payload.ToJsonString(), seq);
+            }
             try
             {
                 JsonObject remote;
@@ -105,12 +110,15 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 else { cache.Execute("DELETE FROM outbox WHERE seq=@p0", seq); continue; }
                 if (item.Text("op") == "create") cache.ReplaceId(id, remote.Required("id"));
                 cache.Acknowledge(seq, remote.Required("id"), remote.Text("change_tag")); cache.Upsert(remote); pushed++;
-                if (remote["cloud_record"] is JsonObject savedRecord) cache.ApplyRecords(new JsonArray(savedRecord.DeepClone()));
+                var savedRecords = (JsonArray)remote.Array("related_records").DeepClone();
+                if (remote["cloud_record"] is JsonObject savedRecord) savedRecords.Add(savedRecord.DeepClone());
+                if (savedRecords.Count > 0) cache.ApplyRecords(savedRecords);
                 if (remote["completed_occurrence"] is JsonObject occurrence) cache.Upsert(occurrence);
             }
             catch (CoreException ex) when (ex.Code == "CONFLICT")
             {
                 var local = cache.Reminder(id) ?? new(); var remote = J.Parse(ex.Detail) ?? new JsonObject();
+                local["recurrence_edit"] = payload.ContainsKey("recurrence");
                 if (remote["recordName"] is not null) remote = ICloudClient.ToReminder(remote) ?? remote;
                 cache.Transaction(() =>
                 {

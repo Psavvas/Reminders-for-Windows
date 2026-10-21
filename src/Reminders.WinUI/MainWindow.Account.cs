@@ -9,7 +9,7 @@ public sealed partial class MainWindow
     private async Task SignOutAsync()
     {
         if (_accountBusy || _dialogOpen || _updateBusy) return;
-        if (_selected is not null && SaveButton.IsEnabled)
+        if (_selected is not null && _detailDirty)
         {
             _dialogOpen = true;
             try
@@ -78,7 +78,7 @@ public sealed partial class MainWindow
             var panel = new StackPanel { Spacing = 14, MaxWidth = 460 };
             panel.Children.Add(new TextBlock { Text = "Remove downloaded reminders and sync history from this PC, then download a fresh copy from iCloud. Your sign-in and app preferences are kept.", TextWrapping = TextWrapping.Wrap });
             panel.Children.Add(new TextBlock { Text = "Reminders already saved in iCloud will remain there. Changes saved only on this PC will be lost.", TextWrapping = TextWrapping.Wrap });
-            if (_selected is not null && SaveButton.IsEnabled)
+            if (_selected is not null && _detailDirty)
                 panel.Children.Add(new TextBlock { Text = "The unsaved edits in the open reminder will also be discarded.", TextWrapping = TextWrapping.Wrap });
             var discard = new CheckBox { Content = "Discard unsynced changes and conflicts", IsChecked = false, Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed };
             if (pending > 0)

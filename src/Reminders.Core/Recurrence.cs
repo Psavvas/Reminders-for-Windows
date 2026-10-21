@@ -7,10 +7,11 @@ internal static class Recurrence
     public static JsonObject? Validate(JsonNode? value, string? due)
     {
         if (value is null) return null;
-        if (value is not JsonObject || value.Number("frequency") is < 1 or > 4 || value.Number("interval", 1) is < 1 or > 999)
+        var interval = value.Property("interval") is null ? 1 : value.Number("interval", -1);
+        if (value is not JsonObject || value.Number("frequency") is < 1 or > 4 || interval is < 1 or > 999)
             throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat with an interval from 1 to 999.");
         if (due is null) throw CoreException.Bad("A repeating reminder needs a due date.");
-        return new JsonObject { ["frequency"] = value.Number("frequency"), ["interval"] = value.Number("interval", 1) };
+        return new JsonObject { ["frequency"] = value.Number("frequency"), ["interval"] = interval };
     }
 
     public static JsonObject Describe(JsonNode rule)

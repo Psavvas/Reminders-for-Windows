@@ -38,6 +38,7 @@ public sealed partial class MainWindow
             var stacked = sizes.Details < 420;
             ArrangeDetailPair(DetailListPriority, DetailPriority, stacked);
             ArrangeDetailPair(DetailDateTime, DetailTime, stacked);
+            ArrangeDetailPair(DetailRecurrence, DetailRepeatInterval, stacked);
             ArrangeDetailPair(DetailToggles, DetailFlagged, stacked);
         }
         finally { _updatingLayout = false; }
