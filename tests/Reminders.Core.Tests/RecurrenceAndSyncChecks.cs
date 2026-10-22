@@ -69,27 +69,23 @@ internal static class RecurrenceAndSyncChecks
         check(records["RecurrenceRule/rule"]["parent"].Text("recordName") == "Reminder/recurring", "repeat record has CloudKit parent");
         check(CloudKit.Int(records["RecurrenceRule/rule"], "Frequency") == 0, "created daily repeat sends Apple's zero-based frequency");
         var beforeRetry = writes; await client.Create(payload, default); check(writes == beforeRetry, "create retry recovers existing stable identity");
-        // An iPhone-created tag must survive adding a new Windows tag.
-        records["Reminder/recurring"]["fields"]!["HashtagIDs"] = J.Node(new { type = "STRING_LIST", value = new[] { "existing" } });
-        var tagged = await client.AddTag("Reminder/recurring", J.Node(new { name = "aviation", tag_id = "new-tag" }).AsObject(), created.Text("change_tag"), default);
-        check(CloudKit.Field(records["Reminder/recurring"], "HashtagIDs")!.AsArray().Count == 2, "adding tags preserves existing tag IDs");
-        check(CloudKit.Text(records["Hashtag/new-tag"], "Name") == "aviation", "tag name round trips");
-        check(records["Hashtag/new-tag"]["parent"].Text("recordName") == "Reminder/recurring", "tag has parent and reminder back-reference");
+        // Existing Apple tags remain linked when a repeating task completes.
+        records["Reminder/recurring"]["fields"]!["HashtagIDs"] = J.Node(new { type = "STRING_LIST", value = new[] { "existing", "another" } });
         var completion = J.Node(new { completed = true, completion_id = "Reminder/history" }).AsObject();
         var previousDue = CloudKit.Field(records["Reminder/recurring"], "DueDate")!.GetValue<long>();
         records["Reminder/recurring"]["fields"]!["StartDate"] = CloudKit.Timestamp(previousDue - 3600000);
-        var active = await client.Update("Reminder/recurring", completion, tagged.Text("change_tag"), default);
+        var active = await client.Update("Reminder/recurring", completion, created.Text("change_tag"), default);
         check(!active.Flag("completed") && TimeUtil.Parse(active.Required("due_date")) > DateTimeOffset.UtcNow, "completion advances active repeat to a future date");
         check(CloudKit.Field(records["Reminder/recurring"], "DueDate")!.GetValue<long>() - CloudKit.Field(records["Reminder/recurring"], "StartDate")!.GetValue<long>() == 3600000, "completion advances the start date with the same wall-clock offset");
         check(active.Array("recurrence_ids").Count == 1 && CloudKit.Field(records["Reminder/recurring"], "HashtagIDs")!.AsArray().Count == 2, "completion retains repeat and tag associations");
         check(active["completed_occurrence"].Flag("completed") && CloudKit.Field(records["Reminder/history"], "RecurrenceRuleIDs")!.AsArray().Count == 0, "completed history cannot spawn another repeat");
-        beforeRetry = writes; await client.Update("Reminder/recurring", completion, tagged.Text("change_tag"), default); check(writes == beforeRetry, "completion retry does not advance schedule twice");
+        beforeRetry = writes; await client.Update("Reminder/recurring", completion, created.Text("change_tag"), default); check(writes == beforeRetry, "completion retry does not advance schedule twice");
         var second = J.Node(new { completed = true, completion_id = "Reminder/history-2" }).AsObject();
         loseReply = true;
         try { await client.Update("Reminder/recurring", second, active.Text("change_tag"), default); check(false, "lost reply is reported"); }
         catch (CoreException error) { check(error.Code == "NETWORK", "lost reply leaves operation retryable"); }
         beforeRetry = writes; await client.Update("Reminder/recurring", second, active.Text("change_tag"), default); check(writes == beforeRetry, "ambiguous completion retry recovers committed history");
-        check(linkedWrites >= 3, "recurrence, tags and completion use linked atomic writes");
+        check(linkedWrites >= 3, "recurrence and completion use linked atomic writes");
 
         foreach (var (appFrequency, wireFrequency) in new[] { (1, 0), (2, 1), (3, 2), (4, 3) })
         {
@@ -132,9 +128,6 @@ internal static class RecurrenceAndSyncChecks
             var lists = await Call("lists", new { });
             var local = await Call("create_reminder", new { list_id = lists[0].Text("id"), title = "Daily", due_date = TimeUtil.Iso(DateTimeOffset.UtcNow), recurrence = new { frequency = 1, interval = 1 } });
             var localId = local.Required("id");
-            await Call("create_tag", new { id = localId, name = "#STEM" });
-            await Call("create_tag", new { id = localId, name = "stem" });
-            check((await Call("reminder", new { id = localId })).Array("tags").Count == 1, "tag creation deduplicates names ignoring case");
             var rolled = await Call("update_reminder", new { id = localId, completed = true });
             check(!rolled.Flag("completed") && rolled["recurrence"] is not null, "local account repeats use the same calendar behavior");
             try { await Call("create_reminder", new { list_id = "a", title = "invalid", recurrence = new { frequency = 1 } }); check(false, "repeat needs a date"); }

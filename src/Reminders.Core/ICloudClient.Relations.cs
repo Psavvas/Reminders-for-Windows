@@ -32,31 +32,6 @@ internal sealed partial class ICloudClient
         return Snapshot(copy);
     }
 
-    public async Task<JsonObject> AddTag(string id, JsonObject payload, string? baseTag, CancellationToken token)
-    {
-        var original = (await Cloud.Lookup(id, token)).FirstOrDefault() ?? throw CoreException.Bad("No such reminder.");
-        var identity = payload.Required("tag_id");
-        var ids = CloudKit.Field(original, "HashtagIDs")?.DeepClone() as JsonArray ?? new();
-        if (ids.Any(v => v?.ToString() == identity || v?.ToString() == "Hashtag/" + identity))
-            return await EditTags(id, new() { ["repair_only"] = true }, baseTag, token);
-        if (baseTag is not null && baseTag != original.Text("recordChangeTag"))
-            throw new CoreException("CONFLICT", "This reminder changed on another device while you were adding a tag.", ToReminder(original)!.ToJsonString());
-        ids.Add(identity);
-        var fields = UpdateFields(original, new());
-        fields["HashtagIDs"] = new JsonObject { ["type"] = "STRING_LIST", ["value"] = ids };
-        var tagFields = TagFields(id, payload.Required("name"));
-        var result = await Cloud.Modify(new JsonArray(
-            CloudKit.Operation("update", id, original.Text("recordChangeTag"), fields),
-            CloudKit.Operation("create", "Hashtag/" + identity, null, tagFields, "Hashtag", id)), token);
-        var combined = original.DeepClone();
-        foreach (var pair in fields) combined["fields"]![pair.Key] = pair.Value?.DeepClone();
-        await VerifyTags(id, ids.Select(v => ReminderTags.RecordName(v!.ToString())).ToHashSet(),
-            [new JsonObject { ["recordName"] = "Hashtag/" + identity, ["fields"] = tagFields.DeepClone() }], token);
-        var saved = MergeResult(combined, result);
-        saved["related_records"] = new JsonArray(result.First(r => r.Text("recordName") == "Hashtag/" + identity)!.DeepClone());
-        return saved;
-    }
-
     private async Task<JsonObject> CompleteRecurring(JsonNode original, JsonObject patch, string? baseTag, CancellationToken token)
     {
         var id = original.Required("recordName");

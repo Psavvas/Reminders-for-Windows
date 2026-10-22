@@ -26,6 +26,7 @@ internal sealed class Cache : IDisposable
         if (Meta("schema_version") != "3" && Settings.Number("sync_minutes") == 10)
             SetSettings(new() { ["sync_minutes"] = 1 });
         SetMeta("schema_version", "3");
+        RetireTagWrites();
     }
     private SqliteCommand Command(string sql, object?[] args)
     {
@@ -161,7 +162,7 @@ internal sealed class Cache : IDisposable
             {
                 Execute("DELETE FROM related_records WHERE id=@p0", id);
                 if (type == "List") Execute("DELETE FROM lists WHERE id=@p0", id);
-                else if (type == "Hashtag") Execute("DELETE FROM tags WHERE id=@p0 AND NOT EXISTS (SELECT 1 FROM outbox WHERE reminder_id=tags.reminder_id AND op IN ('tag','tags'))", id);
+                else if (type == "Hashtag") Execute("DELETE FROM tags WHERE id=@p0", id);
                 else if (type == "Reminder" && Reminder(id).Number("dirty") == 0) Edit(id, new() { ["deleted"] = true }, false);
                 continue;
             }
@@ -174,7 +175,7 @@ internal sealed class Cache : IDisposable
             }
             Execute("INSERT INTO related_records(id,record_type,json) VALUES(@p0,@p1,@p2) ON CONFLICT(id) DO UPDATE SET json=excluded.json", id, type, combined.ToJsonString());
             if (type == "Reminder" && ICloudClient.ToReminder(combined) is { } reminder) Upsert(reminder);
-            else if (type == "Hashtag" && CloudKit.Text(combined, "Name") is { } name && CloudKit.Field(combined, "Reminder").Text("recordName") is { } parent && !HasPendingTags(parent))
+            else if (type == "Hashtag" && CloudKit.Text(combined, "Name") is { } name && CloudKit.Field(combined, "Reminder").Text("recordName") is { } parent)
                 Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", id, name, parent);
             else if (type == "List")
             {
@@ -185,28 +186,46 @@ internal sealed class Cache : IDisposable
         }
         return true;
     });
-    internal bool HasPendingTags(string id) => Query("SELECT 1 FROM outbox WHERE reminder_id=@p0 AND op IN ('tag','tags') LIMIT 1", id).Count > 0;
     public void ReplaceTags(string id, JsonArray tags) => Transaction(() => { ReplaceTagsInTransaction(id, tags); return true; });
     internal void ReplaceTagsInTransaction(string id, JsonArray tags)
     {
         Execute("DELETE FROM tags WHERE reminder_id=@p0", id);
         foreach (var tag in tags) Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", tag.Text("id"), tag.Text("name"), id);
     }
-    internal void QueueTagRepairs(HashSet<string> attempted) => Transaction(() =>
+    // Older builds may leave failed tag uploads ahead of ordinary task edits.
+    // Retain their requests locally, but never send them or guess a cloud repair.
+    internal void RetireTagWrites() => Transaction(() =>
     {
-        foreach (var row in Query("SELECT json FROM related_records WHERE record_type='Hashtag'"))
+        var pending = Query("SELECT * FROM outbox WHERE op IN ('tag','tags','repair_tags') ORDER BY seq");
+        var conflicts = Query("SELECT * FROM conflicts WHERE resolved=0").Where(row => J.Parse(row.Text("local_json")).Flag("tags_edit")).ToArray();
+        if (pending.Count == 0 && conflicts.Length == 0) return true;
+        var archive = J.Parse(Meta("disabled_tag_writes")) as JsonArray ?? new();
+        var affected = new HashSet<string>();
+        foreach (var row in pending)
         {
-            var record = J.Parse(row.Text("json"));
-            if (record is null || !ReminderTags.IsLegacy(record)) continue;
-            var id = CloudKit.Field(record, "Reminder").Text("recordName")!;
-            var parent = Reminder(id);
-            if (parent is null || parent.Flag("deleted") || parent.Number("dirty") != 0
-                || Query("SELECT 1 FROM outbox WHERE reminder_id=@p0 UNION ALL SELECT 1 FROM conflicts WHERE reminder_id=@p0 AND resolved=0", id).Count > 0) continue;
-            var raw = J.Parse(Query("SELECT json FROM related_records WHERE id=@p0", id).FirstOrDefault().Text("json"));
-            if (raw is null || CloudKit.Field(raw, "HashtagIDs") is not JsonArray ids || !ids.Any(v => ReminderTags.RecordName(v!.ToString()) == record.Text("recordName"))) continue;
-            if (!attempted.Add(id)) continue;
-            Enqueue(id, "repair_tags", new JsonObject { ["repair_only"] = true }, parent.Text("change_tag"));
-            Execute("UPDATE reminders SET dirty=1 WHERE id=@p0", id);
+            archive.Add(new JsonObject { ["kind"] = "upload", ["data"] = row!.DeepClone() });
+            affected.Add(row.Required("reminder_id"));
+            Execute("DELETE FROM outbox WHERE seq=@p0", row.Number("seq"));
+        }
+        foreach (var row in conflicts)
+        {
+            archive.Add(new JsonObject { ["kind"] = "conflict", ["data"] = row!.DeepClone() });
+            affected.Add(row.Required("reminder_id"));
+            Execute("UPDATE conflicts SET resolved=1 WHERE id=@p0", row.Number("id"));
+        }
+        SetMeta("disabled_tag_writes", archive.ToJsonString());
+        var cloudTags = Query("SELECT json FROM related_records WHERE record_type='Hashtag'")
+            .Select(row => J.Parse(row.Text("json"))).OfType<JsonObject>().ToArray();
+        foreach (var id in affected)
+        {
+            // Replace speculative local additions/removals with the last cloud
+            // snapshot. The next download remains authoritative for display.
+            Execute("DELETE FROM tags WHERE reminder_id=@p0", id);
+            foreach (var tag in cloudTags.Where(tag => !tag.Flag("deleted") && tag.Text("reason") != "deleted"
+                && CloudKit.Int(tag, "Deleted") == 0 && CloudKit.Field(tag, "Reminder").Text("recordName") == id))
+                if (CloudKit.Text(tag, "Name") is { } name)
+                    Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", tag.Required("recordName"), name, id);
+            Execute("UPDATE reminders SET dirty=EXISTS(SELECT 1 FROM outbox WHERE reminder_id=@p0) WHERE id=@p0", id);
         }
         return true;
     });
@@ -246,6 +265,7 @@ internal sealed class Cache : IDisposable
         foreach (var table in new[] { "lists", "reminders", "tags", "outbox", "conflicts", "related_records" }) Execute($"DELETE FROM {table}");
         foreach (var key in new[] { "sync_cursor", "last_sync", "last_full_sync", "cloudkit_read_protocol" }) SetMeta(key, null);
         Execute("DELETE FROM meta WHERE key GLOB 'id_alias:*'");
+        SetMeta("disabled_tag_writes", null);
     }
     public void Purge() => Transaction(() => { PurgeData(); return true; });
     public JsonNode Clear(bool discardPending) => Transaction(() =>

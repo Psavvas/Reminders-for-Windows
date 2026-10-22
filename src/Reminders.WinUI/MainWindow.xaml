@@ -105,9 +105,9 @@
            <TextBlock x:Name="DetailRepeatHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed"/>
           </StackPanel>
          </Border>
-         <Expander x:Name="DetailMore" Header="Tags &amp; priority" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+         <Expander x:Name="DetailMore" Header="More options" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
           <StackPanel Spacing="16">
-           <StackPanel Spacing="6"><TextBox x:Name="DetailTags" Header="Tags" PlaceholderText="#school, #aviation" TextWrapping="Wrap" TextChanged="Detail_Changed"/><TextBlock x:Name="DetailTagsHint" Text="Separate tags with spaces or commas. Remove a name to remove its tag." TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
+           <StackPanel x:Name="DetailTagsSection" Spacing="6" Visibility="Collapsed"><TextBlock Text="Tags" Style="{StaticResource BodyStrongTextBlockStyle}"/><TextBlock x:Name="DetailTags" TextWrapping="Wrap" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/><TextBlock Text="Manage tags in Apple Reminders." TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
            <Grid x:Name="DetailOptions" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailPriority" Header="Priority" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="None" Tag="0"/><ComboBoxItem Content="Low" Tag="9"/><ComboBoxItem Content="Medium" Tag="5"/><ComboBoxItem Content="High" Tag="1"/></ComboBox><ToggleSwitch x:Name="DetailFlagged" Grid.Column="1" Header="Flagged" Toggled="Detail_Changed"/></Grid>
           </StackPanel>
          </Expander>

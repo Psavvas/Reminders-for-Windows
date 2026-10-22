@@ -2,6 +2,11 @@
 
 Research date: 2026-10-22.
 
+Current product status: tag editing and automatic repair have been removed at
+the user's request. Existing tags remain visible and filterable. Old queued tag
+writes are retained in a local archive and retired from the active upload queue;
+no existing iCloud tag is deleted by this migration.
+
 ## Conclusion
 
 Direct Windows-to-iPhone tag writes remain **unverified and currently fail in
@@ -9,7 +14,7 @@ the user's testing**. They are not established by the passing account-free
 suite, an HTTP acknowledgement, or a successful readback from iCloud. The
 previous description of the schema change as a tag-sync fix was premature.
 
-This is not proof that direct writes are impossible. It means the current
+This is not proof that direct writes are impossible. It means the attempted
 implementation and public examples do not establish a compatible write path.
 Native tags can be written through Apple's private ReminderKit framework on a
 Mac. A Mac helper is therefore a plausible alternative architecture; it has
@@ -70,7 +75,6 @@ browser includes the reminder, a later date edit propagates, and another Apple
 edit does not discard the tag. Repeat with removal, restart and a reused tag.
 Cloud readback alone cannot satisfy these acceptance criteria.
 
-Until that succeeds, tag writes and automatic tag repairs should be treated as
-experimental and should not be advertised as working native tag sync. Reading
-and filtering existing Apple tags are separate capabilities. This research
-change does not alter runtime behavior or perform any cloud writes.
+Until that succeeds, do not reintroduce tag writes or automatic tag repairs as
+working native tag sync. Reading and filtering existing Apple tags remain
+available. The research itself performed no cloud writes.

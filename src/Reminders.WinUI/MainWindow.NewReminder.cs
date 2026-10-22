@@ -66,13 +66,8 @@ public sealed partial class MainWindow
             var priority = new ComboBox { Header = "Priority", ItemsSource = new[] { "None", "Low", "Medium", "High" },
                 SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
             var flagged = new ToggleSwitch { Header = "Flagged" };
-            var tags = new TextBox { Header = "Tags", PlaceholderText = "#school, #aviation", TextWrapping = TextWrapping.Wrap };
-            var tagHint = new TextBlock { Text = Reminders.Core.ReminderTags.Hint, TextWrapping = TextWrapping.Wrap,
-                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
-            var options = new StackPanel { Spacing = 12 };
-            options.Children.Add(tags); options.Children.Add(tagHint); options.Children.Add(EditorPair(priority, flagged));
-            var more = new Expander { Header = "Tags & priority", HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = options };
+            var more = new Expander { Header = "More options", HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = EditorPair(priority, flagged) };
             var panel = new StackPanel { Spacing = 16 };
             panel.Children.Add(title); panel.Children.Add(notes); panel.Children.Add(list);
             panel.Children.Add(new Border { Style = (Style)Application.Current.Resources["EditorSectionStyle"], Child = schedule });
@@ -92,7 +87,7 @@ public sealed partial class MainWindow
             }
             resize = (_, _) => Resize(); Root.SizeChanged += resize; Resize();
 
-            void Validate() => dialog.IsPrimaryButtonEnabled = ValidateTagText(tags.Text, tagHint) && !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string
+            void Validate() => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string
                 && (!scheduled.IsOn || date.Date is not null)
                 && (repeat.SelectedIndex == 0 || double.IsFinite(interval.Value) && interval.Value is >= 1 and <= 999 && interval.Value == Math.Truncate(interval.Value));
             void UpdateSchedule()
@@ -117,25 +112,21 @@ public sealed partial class MainWindow
                 UpdateSchedule();
             };
             date.DateChanged += (_, _) => UpdateSchedule(); allDay.Toggled += (_, _) => UpdateSchedule();
-            tags.TextChanged += (_, _) => Validate();
             title.TextChanged += (_, _) => Validate(); list.SelectionChanged += (_, _) => Validate();
             interval.ValueChanged += (_, _) => Validate();
             dialog.Opened += (_, _) => title.Focus(FocusState.Programmatic);
             UpdateSchedule();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedValue is not string listId) return;
-            var tagNames = Reminders.Core.ReminderTags.Parse(tags.Text);
             var due = FormatDueDate(scheduled.IsOn ? date.Date : null, allDay.IsOn, time.Time);
             var priorityValue = priority.SelectedIndex switch { 1 => 9, 2 => 5, 3 => 1, _ => 0 };
             var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
             if (_demo)
             {
                 _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text,
-                DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence, Tags = tagNames.ToList() });
-                _tags = _demoRows.SelectMany(r => r.Tags).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
-                RebuildListNavigation();
+                DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence });
             }
             else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text,
-                due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn, recurrence, tags = tagNames });
+                due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn, recurrence });
             await RefreshAllAsync();
         }
         catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }

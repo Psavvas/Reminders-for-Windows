@@ -112,7 +112,7 @@ without the vertical line. A later dark preview confirmed resizing to both
 new pane limits; light-mode appearance still needs visual checks.
 
 The task editor has a compact title/notes area, a grouped Schedule card and an
-expandable Tags & priority section. List context is text in the header instead
+expandable More options section; existing tags are read-only. List context is text in the header instead
 of a disabled list picker. Delete is in Task actions; Save changes stays in a
 fixed footer outside the scrolling fields. Time appears for timed tasks, the
 all-day switch appears when a date is set, and the interval appears only for a
@@ -203,41 +203,33 @@ checks passed again.
 
 ## Related records and icons
 
-**Tag writes are not verified and still fail to propagate in the user's latest
-testing (2026-10-22).** The implementation and tests described below establish
-client/server behavior, not native Apple tag recognition. See
-[the tag-sync research](tag-sync-research.md). Reading existing tags is separate
-from writing compatible ones; automatic repair is also experimental.
+Tag editing is removed from New reminder and Task details. Details can display
+existing tags with the instruction to manage them in Apple Reminders, and the
+sidebar can still filter by downloaded tags. The backend rejects tag creation
+and tag fields on reminder create/update requests before saving any changes.
+There is no tag writer or automatic tag-repair path.
 
-Tag compatibility is based on the Apple-created record shape described in
-`docs/protocol-findings.md`, not the older third-party example that encoded
-`Name` as `ENCRYPTED_BYTES`. Tags use STRING names, Type/Imported metadata,
-validated parent references and atomic child/parent relationship changes. The
-Windows-only `hashtagIDs` resolution token is removed from subsequent edits.
-The sync engine repairs only the identifiable incomplete shape written by the
-earlier Windows build; existing Apple tag types and unrelated metadata remain.
-It verifies tag writes by reading back the changed records before acknowledging
-the queue entry. Neither HTTP success nor a matching server readback establishes
-that Apple's apps recognize the tag.
+On opening an older cache, and before syncing, pending `tag`, `tags` and
+`repair_tags` operations and tag-only conflicts are archived in the local cache's
+`disabled_tag_writes` metadata. Those operations are retired from the upload
+queue so ordinary task edits can continue. Speculative local tags are replaced
+with the last downloaded tag snapshot; the next cloud download remains
+authoritative. Ordinary queued changes and unrelated conflicts are preserved.
+The archive remains on this PC until the app cache is cleared. This migration
+does not delete or change any iCloud tag records.
 
-Both New reminder and Task details have an editable **Tags** field under
-**Tags & priority**. Separate names with spaces or commas, with optional `#`.
-Removing a name removes that task's tag on Save; a blank field removes all tags.
-Tag edits commit to the local cache and upload queue together with other form
-changes. Task fields upload first, then the tag relationships, in per-task order.
-Stable child identities survive a restart or a lost response. A download cannot
-resurrect locally removed tags while their upload is pending. Conflict recovery
-preserves tag intent only when the conflicting operation edited tags.
+The account-free suite passes 809 checks. Read-only tag coverage includes
+rejecting tag requests without partial writes, viewing/filtering downloaded tags,
+upgrading failed tag queues without blocking later dates or task creation,
+retaining archived requests across restart, preserving unrelated conflicts,
+handling old requests encountered at sync time, and downloading subsequent Apple
+tag changes without uploading tag writes or repairs. Existing recurring
+completion checks confirm that active reminders retain their tag associations.
 
-The account-free suite passes 890 checks. Tag checks cover an independent Apple
-record fixture, correct field types, retained Type=1 records, subsequent date
-edits, offline creation/removal/restart with repeats, lost removal replies,
-last-tag removal, old-record repair, conflict recovery and successful HTTP replies
-whose changes were not persisted. Downloads have their own event; completion is
-emitted only when uploads have drained and no conflicts remain. These checks do
-not establish real iPhone rendering or propagation; the latest user test fails.
-Isolated dark previews confirmed tag fields in both forms, wrapping help text,
-the fixed footer, and saving sample tags into the task row and sidebar.
+The earlier write implementation did not produce native iPhone tags in the
+user's testing. Server round trips and fixture tests were insufficient proof.
+See [the research findings](tag-sync-research.md) before considering tag writing
+again. No real-account data was changed to validate this removal.
 
 Repeat records follow the structure of the
 [public recurrence implementation](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_recurrence_request.go),

@@ -717,7 +717,7 @@ public sealed partial class MainWindow : Window
             DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
             UpdateRepeatControls();
             DetailTags.Text = string.Join(", ", reminder.Tags.Select(t => "#" + t));
-            DetailTagsHint.Text = Reminders.Core.ReminderTags.Hint;
+            DetailTagsSection.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
         UpdatePaneLayout();
@@ -757,8 +757,7 @@ public sealed partial class MainWindow : Window
         _detailDirty = true;
         UpdateRepeatControls();
         var repeats = DetailRepeatChoice.SelectedIndex > 0 || _selected.Recurrence?.Supported == false;
-        var validTags = ValidateTagText(DetailTags.Text, DetailTagsHint);
-        SaveButton.IsEnabled = validTags && (!repeats || DetailDate.Date is not null)
+        SaveButton.IsEnabled = (!repeats || DetailDate.Date is not null)
             && (!DetailRepeatInterval.IsEnabled || double.IsFinite(DetailRepeatInterval.Value) && DetailRepeatInterval.Value is >= 1 and <= 999 && DetailRepeatInterval.Value == Math.Truncate(DetailRepeatInterval.Value));
     }
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -768,7 +767,6 @@ public sealed partial class MainWindow : Window
         var priority = long.Parse(((ComboBoxItem?)DetailPriority.SelectedItem)?.Tag?.ToString() ?? "0");
         try
         {
-            var tags = Reminders.Core.ReminderTags.Parse(DetailTags.Text);
             var recurrence = DetailRepeatChoice.SelectedIndex <= 0 ? null : new RepeatSchedule { Frequency = DetailRepeatChoice.SelectedIndex, Interval = (long)DetailRepeatInterval.Value };
             var repeatChanged = DetailRepeatChoice.IsEnabled && (recurrence?.Frequency != _selected.Recurrence?.Frequency || recurrence?.Interval != _selected.Recurrence?.Interval);
             if (_demo)
@@ -777,15 +775,11 @@ public sealed partial class MainWindow : Window
                 _selected.DueDate = due; _selected.AllDay = DetailAllDay.IsOn;
                 _selected.Flagged = DetailFlagged.IsOn; _selected.Priority = priority;
                 if (repeatChanged) _selected.Recurrence = recurrence;
-                _selected.Tags = tags.ToList();
-                _tags = _demoRows.SelectMany(r => r.Tags).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
-                RebuildListNavigation();
             }
             else
             {
                 var patch = new Dictionary<string, object?> { ["id"] = _selected.Id, ["title"] = DetailTitle.Text.Trim(), ["description"] = DetailNotes.Text, ["due_date"] = due, ["all_day"] = DetailAllDay.IsOn, ["flagged"] = DetailFlagged.IsOn, ["priority"] = priority };
                 if (repeatChanged) patch["recurrence"] = recurrence;
-                if (!tags.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(_selected.Tags)) patch["tags"] = tags;
                 await _sync.CallAsync("update_reminder", patch);
             }
             SaveButton.IsEnabled = false; _detailDirty = false; await RefreshAllAsync();
@@ -799,12 +793,6 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         if (_demo) _selected.Deleted = true; else await _sync.CallAsync("delete_reminder", new { id = _selected.Id }); ShowDetail(null); await LoadRemindersAsync();
     }
-    private static bool ValidateTagText(string text, TextBlock hint)
-    {
-        try { Reminders.Core.ReminderTags.Parse(text); hint.Text = Reminders.Core.ReminderTags.Hint; return true; }
-        catch (Reminders.Core.CoreException error) { hint.Text = error.Message; return false; }
-    }
-
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
     private async void NewAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowNewReminderAsync(); }
     private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed) SearchBox.Focus(FocusState.Programmatic); }

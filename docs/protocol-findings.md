@@ -3,10 +3,10 @@
 These observations came from the repository's original live-account probes and
 define the behavior the native C# connector must preserve.
 
-**Tag-write status (2026-10-22): the user still reports that Windows-created tags
-do not sync.** The schema changes below are experimental and do not establish
-native Apple compatibility. See [tag-sync-research.md](tag-sync-research.md)
-for the evidence, limitations and required device-level experiment.
+**Tag-write status (2026-10-22): editing and automatic repair are removed.**
+Existing tags remain readable and filterable. The prior Windows writer did not
+produce native tags on the user's iPhone. See [tag-sync-research.md](tag-sync-research.md)
+for the evidence and required device-level experiment.
 
 - Reminders use the private `com.apple.reminders` CloudKit container and the
   `Reminders` custom zone. The API is undocumented and may change.
@@ -19,18 +19,14 @@ for the evidence, limitations and required device-level experiment.
   zone stream. Full reads and delta reads apply those records together in a
   SQLite transaction; tag changes do not trigger another full history read.
 - List colors are JSON blobs; `daHexString` is the preferred display value.
-- Tag creation atomically updates the parent's `HashtagIDs` (raw UUIDs) and
-  creates a `Hashtag/<UUID>` child with a CloudKit parent and validated `Reminder`
-  reference. Apple-created records inspected on 2026-10-21 use a `STRING` name,
-  `Type` (`INT64`, normally 0; preserve existing 1), `Imported` (`INT64`),
-  `CreationDate` and `Deleted`. The earlier Windows writer encoded the name as
-  `ENCRYPTED_BYTES` and omitted Type/Imported; accepted responses did not establish
-  Apple-client compatibility. The current writer changes that shape and omits a
-  `hashtagIDs` resolution token: Apple's published Reminders model does not define
-  one. Normal edits remove that earlier Windows token while preserving others.
-  Tag writes now read back the parent and changed children before acknowledgement.
-  This still does not make the tag appear on the user's iPhone; matching stored
-  fields and successful readback are insufficient compatibility criteria.
+- Tags are read-only. Apple-created records inspected on 2026-10-21 use a
+  STRING name, Type (INT64, usually 0; an existing 1 was also observed), Imported,
+  CreationDate, Deleted and a Reminder reference. Earlier Windows writers sent
+  different child formats and an unsupported hashtagIDs resolution token.
+  Matching the observed fields and reading them back did not establish native
+  compatibility. No tag child writes or automatic repairs are now performed.
+  Ordinary reminder edits still remove that earlier Windows token while
+  preserving the other field-resolution tokens.
 - List creates, renames, and deletes accepted by CloudKit did not propagate to
   Apple devices. This app does not expose those operations.
 - A phone may replace linked field collections wholesale. Local writes carry a
