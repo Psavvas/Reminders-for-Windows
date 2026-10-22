@@ -90,12 +90,7 @@ use **Publish → Create App Packages → Microsoft Store**. The wizard can crea
 
 ## Submit and publish
 
-### Launch-crash regression in 0.5.0 and 0.5.1
-
-The 0.5.1 certification report identified `Microsoft.UI.Xaml.dll` 3.2.1.0,
-exception `0xc000027b`, offset `0x3ace5d`. A local packaged launch reproduced
-those same values. Both 0.5.0 and 0.5.1 used the affected packaging path; 0.5.1
-only changed the icon and version.
+### Resource identity and packaged launch
 
 The portable build contains `Reminders.pri`, whose primary resource map is named
 `Reminders`. Giving that executable package identity changes WinUI/MRT resource
@@ -104,14 +99,14 @@ lookup. The MSIX needs a package-level `resources.pri` with a primary map matchi
 that index can crash while initializing application XAML, before showing a window.
 Renaming the file alone does not correct the primary map.
 
-Starting with 0.5.2, `build-msix.ps1` uses the Windows SDK's MakePri tool to import
+`build-msix.ps1` uses the Windows SDK's MakePri tool to import
 the portable index into `resources.pri` under the final package identity, preserving
 embedded XAML and framework resources. It verifies the identity and startup XAML
 before packing. See [Microsoft's MRT packaging guidance](https://learn.microsoft.com/en-us/windows/uwp/app-resources/using-mrt-for-converted-desktop-apps-and-games)
 and the [WinUI identity-dependent PRI lookup report](https://github.com/microsoft/microsoft-ui-xaml/issues/10856).
 
-Build fresh packages after merging; do not resubmit the old 0.5.1 artifacts or use
-`-SkipBuild` with an older publish directory. Test the actual submission payload
+Build fresh packages from the release commit; do not use `-SkipBuild` with an
+older publish directory. Test the actual submission payload
 in a clean Windows user or VM with Developer Mode enabled:
 
 ```powershell

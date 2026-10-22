@@ -43,10 +43,9 @@ jobs:
       release: true
 
   # Tagging v* publishes a draft release carrying both architectures. It is
-  # left as a draft on purpose: the MSIX is unsigned, so a human has to decide
-  # what to say about sideloading before anyone can install it. This replaces
-  # the tag-release path that shipped with the Tauri bundle. The native updater
-  # sees a release only after the draft is published as a stable release.
+  # left as a draft for release-note and asset review. Unsigned MSIX inputs are
+  # separated from installable downloads in a Store-submission archive. The
+  # updater sees a release only after the draft is published as stable.
   release:
     name: Draft release
     cache-mode: none

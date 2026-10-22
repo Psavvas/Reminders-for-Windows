@@ -1,220 +1,124 @@
-# iCloud Reminders protocol findings
+# iCloud protocol implementation notes
 
-These observations came from the repository's original live-account probes and
-define the behavior the native C# connector must preserve.
+Current for v1.0.0, reviewed October 22, 2026. These are observed implementation
+details of private Apple interfaces, not a supported Apple service contract.
 
-**Tag-write status (2026-10-22): editing and automatic repair are removed.**
-Existing tags remain readable and filterable. The prior Windows writer did not
-produce native tags on the user's iPhone. See [tag-sync-research.md](tag-sync-research.md)
-for the evidence and required device-level experiment.
+## Records and synchronization
 
-- Reminders use the private `com.apple.reminders` CloudKit container and the
-  `Reminders` custom zone. The API is undocumented and may change.
-- Due dates are wall-clock fields encoded in a CloudKit timestamp as though the
-  fields were UTC. `TimeZone` optionally anchors them; a missing zone floats in
-  the device's current zone. Creation, modification, and completion dates are
-  ordinary instants.
-- Deletion is a soft `Deleted = 1` field update.
-- Sync requests the combined `Reminder`, `List`, `Hashtag` and `RecurrenceRule`
-  zone stream. Full reads and delta reads apply those records together in a
-  SQLite transaction; tag changes do not trigger another full history read.
-- List colors are JSON blobs; `daHexString` is the preferred display value.
-- Tags are read-only. Apple-created records inspected on 2026-10-21 use a
-  STRING name, Type (INT64, usually 0; an existing 1 was also observed), Imported,
-  CreationDate, Deleted and a Reminder reference. Earlier Windows writers sent
-  different child formats and an unsupported hashtagIDs resolution token.
-  Matching the observed fields and reading them back did not establish native
-  compatibility. No tag child writes or automatic repairs are now performed.
-  Ordinary reminder edits still remove that earlier Windows token while
-  preserving the other field-resolution tokens.
-- List creates, renames, and deletes accepted by CloudKit did not propagate to
-  Apple devices. This app does not expose those operations.
-- A phone may replace linked field collections wholesale. Local writes carry a
-  base `recordChangeTag`; mismatches become user-visible conflicts rather than
-  last-write-wins overwrites.
+- Reminders use the private `com.apple.reminders` CloudKit container. Titles and
+  notes use Apple's document encoding; dates preserve floating wall-clock values
+  and the reminder's time zone.
+- Sync requests Reminder, List, Hashtag and RecurrenceRule records in one paginated
+  zone-change stream. Batch application and cursor updates are transactional.
+- Mutations use current revision tags and preserve fields outside the requested
+  change. Outbox entries retain stable operation/record identities so retry can
+  recognize a write committed before its response was lost.
+- Known rejected uploads remain queued while unrelated tasks can sync. Later
+  changes to the same task retain their order. A conflict preserves local and
+  remote versions for review.
+- Optional lookups recognize both `NOT_FOUND` and `UNKNOWN_ITEM`. A missing reply
+  is not evidence of deletion. Recovery requires explicit acknowledgement of
+  every requested record, including related tags and repeat rules.
 
-## Two-factor sign-in
+### Repeats
 
-The optional Apple-device sign-in window lets Apple's own website implement the
-current HSA2 bridge. It uses a separate InPrivate WebView2 profile, observes only
-successful account-login/validation responses from `setup.icloud.com` and Apple
-auth headers, and imports tokens when exposed, the stable client ID, browser user
-agent and Apple cookies. The backend independently validates browser cookies with
-`/validate`, checks pending verification and the returned account, then saves and switches the
-session. A browser sign-in does not require a token-bearing `accountLogin` POST
-body to be exposed. Responses are processed in order so a trusted validation is
-not dropped while a previous response is being read. No JavaScript bridge or
-password interception is installed. The native SMS path remains available. Cookies and rotated tokens are saved in the
-existing chunked Windows Credential Manager entries, including after sync and
-normal shutdown; startup resumes before attempting a password handshake.
+The UI/RPC uses daily=1, weekly=2, monthly=3, yearly=4. Apple's stored Frequency
+uses 0/1/2/3 for those units. Other frequencies and unsupported constraints must
+not be interpreted as one of these four schedules.
 
-Apple popups use separate WebViews in the same environment/profile. The host
-assigns `NewWindow` while holding a deferral and preserves the original page and
-its `window.opener` relationship. Simply setting `Handled = true` and navigating
-the original view creates a closed dummy popup; see
-[Microsoft's NewWindowRequested contract](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/winrt/microsoft_web_webview2_core/corewebview2newwindowrequestedeventargs).
-The popup host has an account-free integration fixture. This verifies the
-cross-window handoff, not Apple's delivery of an actual device prompt.
+The mapping was inspected in Apple's publicly served
+[Reminders 2638Build16 script](https://www.icloud.com/applications/reminders2/2638Build16/en-us/main.js)
+on October 20, 2026. Inspected SHA-256:
+`cb1097a325a50c37e8d3e9f5b1395c0551e34744bd857c7dc243dde78951d8b8`.
+Independent fixtures pin the numeric mapping rather than deriving expected values
+from the application's converter.
 
-A completed web sign-in can expose Reminders while `hsaTrustedBrowser` is false
-and `hsaChallengeRequired` is false. Requiring remembered browser trust here left
-the authenticated website open indefinitely. The native handoff accepts this
-combination only after server-side cookie validation, account matching, and a
-read-only Reminders access check. The saved trust value is preserved, not changed
-to true. An unfinished challenge or rejected data access still prevents import.
+Completing a supported repeat retains the active task and rule, advances its due
+date and creates a separate completed history record without a repeat link.
+Linked writes are atomic. Schedule editing also updates parent/rule links
+atomically and preserves supported end conditions. A retry must not create a
+second history record or advance twice.
 
-The following findings describe the native verification endpoints:
+### Tags and lists
 
-- **Apple has three verifiers; this connector implements two.** Trusted-device
-  verification has moved to Apple's HSA2 **bridge**: the client opens a
-  websocket to `websocket.push.apple.com`, takes an APNs push token, posts
-  `auth/bridge/step/0`, waits for a pushed challenge, and answers it with an
-  SRP-style prover exchange. pyicloud implements that in about 2,300 lines
-  (`hsa2_bridge.py`, `hsa2_bridge_prover.py`) and selects it whenever Apple's
-  boot data says `authInitialRoute == "auth/bridge/step"`, falling back to
-  `POST verify/trusteddevice/securitycode` only for accounts Apple has left on
-  the old verifier.
+Tags remain readable and filterable. Windows tag writing and automatic repair
+are removed because the attempted writes did not produce native iPhone tags.
+An acknowledgement or server readback does not establish Apple-device propagation.
+See [tag-sync research](tag-sync-research.md) for evidence and acceptance criteria.
 
-  For an account Apple has moved, that legacy endpoint answers **409** -- while
-  Apple still displays the prompt on the user's devices, which is what makes it
-  look like a code problem. It is not. No six digits will ever be accepted
-  there. This was misdiagnosed three times as a header problem, a delivery
-  problem, and a routing problem before the missing verifier was the answer.
+Old queued tag writes/tag-only conflicts are archived locally and retired from the
+active queue. They do not trigger another repair or delete actual iCloud tags.
+List creation, rename and deletion remain unsupported for the same requirement
+to establish device-side propagation before offering a write feature.
 
-  `POST verify/phone/securitycode` is a different endpoint, plain HTTP, and
-  needs no bridge -- so a texted code is the only route this connector can
-  currently complete directly, and `request_2fa` prefers it whenever Apple lists a
-  trusted number. The Apple-hosted sign-in option handles the newer bridge.
-- The `phoneNumber` payload is `{"id": <id>}` plus `"nonFTEU"` only when Apple
-  included it. Both `PUT verify/phone` and `POST verify/phone/securitycode`
-  take the same shape.
-- **Apple's auth server must not be sent the headers its own responses hand
-  back for setup.icloud.com.** `X-Apple-Webauth-Token` and
-  `X-Apple-ID-Account-Country` are values Apple returns for a client to store
-  and replay to `setup.icloud.com`; replaying them to `idmsa.apple.com` makes it
-  answer **409** to every verification request. Neither exists until
-  `signin/complete` has returned a session token, so a client that does this
-  signs in normally right up to the moment a code is involved and then fails at
-  everything -- which reads as "the code is invalid", "Apple would not send a
-  code", and a bare HTTP 409, all from one cause. The header set that works is
-  exactly pyicloud's `_get_auth_headers`: the OAuth/widget headers, the FD
-  client info, `X-Apple-OAuth-State` and `X-Apple-Frame-Id` (both the client
-  id), and whichever of `scnt`, `X-Apple-ID-Session-Id` and
-  `X-Apple-Auth-Attributes` the session holds. Nothing else.
-- `Referer` on auth requests is the idmsa **host** (`https://idmsa.apple.com`),
-  not the auth path. `Origin` stays `https://www.icloud.com`.
-- `Accept` varies per endpoint: `application/json, text/javascript` for the SRP
-  requests, `application/json` for the verification requests, and
-  `application/json, plain/text` for the SMS verifier.
-- `signin/complete` answers **409** when Apple wants a second factor. That
-  response also carries the challenge options: `trustedDeviceCount` and
-  `trustedPhoneNumbers`. Keep them -- they decide where a code can be sent, and
-  the challenge is thrown away by the next sign-in attempt.
-- **Apple rotates `scnt` on every response from the auth endpoint** and refuses
-  any later request that echoes a stale one. Every `idmsa` response must be read
-  for a new `scnt`, `X-Apple-ID-Session-Id` and `X-Apple-Session-Token`,
-  including the ones for requesting and submitting a code. A stale `scnt` is
-  refused in a way that is indistinguishable from a wrong code.
-- There are two delivery routes and they do not interoperate. A code pushed to a
-  trusted device is requested with `GET verify/trusteddevice` and validated at
-  `POST verify/trusteddevice/securitycode`; a texted code is requested with
-  `PUT verify/phone` and validated at `POST verify/phone/securitycode`. Sending
-  on one route and validating on the other is rejected, again exactly as a wrong
-  code is. An account with no trusted device only has the phone route.
-- **Both delivery endpoints answer with a non-2xx status and send the code
-  anyway.** Observed on a live account: the app reported "Apple would not send a
-  verification code" while the prompt was on the user's phone and two texts had
-  arrived. The session is still unauthenticated at that point and Apple says so;
-  that is not a refusal. Never infer "no code was sent" from the status of these
-  two requests -- only a dead session (401/403/421) is a real failure.
-- Only `service_errors[0].code == "-21669"` means the digits were wrong. Every
-  other refusal is ambiguous -- it can equally mean the code was fine and the
-  challenge or the route was not -- so it must not be reported as a typing
-  mistake, and it is the signal that another route is worth trying.
-- Apple's own `service_errors[0].message` is user-grade text ("Incorrect
-  verification code.", "Enter the verification code displayed on your other
-  devices."). Prefer it over anything inferred from a status code.
-- Requesting a *text* mints a new code and retires the previous one, so a text
-  must only ever follow the user asking for one. Re-requesting the trusted-device
-  push re-serves the same challenge and is safe.
-- Whether the 409 pushes the device code on its own is not observable from the
-  client, so the app requests one and tracks which routes have actually
-  delivered. That also means a user can legitimately hold two live codes at
-  once, and verification tries every route that sent one before blaming the
-  typing.
-- Rebuilding the session re-runs SRP and voids any outstanding challenge. The
-  background sync must not do that while a code is in flight.
-- The exact statuses Apple returns here are undocumented. Verify behavior with
-  account-free HTTP mocks and a disposable account before changing classifications.
+## Apple-hosted sign-in
 
-The authentication and record formats need live Windows/account validation
-whenever Apple changes the private service. Tests must use a dedicated account
-and must never log passwords, verification codes, session tokens, record
-contents, or credential-vault values.
+WebView2 hosts Apple's own page in an isolated InPrivate profile. Popup windows
+use the same environment/profile and retain opener/message relationships. The
+host does not inject password interception or bypass Apple's verification.
 
-## Account-free backend tests
+Successful `accountLogin` or `/validate` responses can trigger handoff. The native
+client independently validates the browser cookies with the same user agent,
+checks the account/challenge and saves rotated cookies. Browser-cookie restoration
+does not require an exposed token-bearing `accountLogin` request body.
 
-The production C# backend uses Windows Credential Manager. Account-free tests
-inject a memory vault and mocked HTTP handlers.
+`hsaTrustedBrowser` expresses remembered browser trust, not whether the current
+verification finished. A completed browser session can have that flag false while
+`hsaChallengeRequired` is false. Before accepting that session, the app also requires
+a successful read-only Reminders access check. The saved trust flag is preserved;
+the client does not manufacture trust. Pending challenges are always rejected.
 
-## Authentication lifecycle regression checks
+Cookies and session/trust tokens are stored in Windows Credential Manager and
+retained on normal shutdown. Browser sessions resume through `/validate`; native
+sessions resume through saved tokens and `accountLogin`. A network failure keeps
+the saved state for retry. Explicit sign-out removes it and persists that choice.
 
-The C# connector prepares the challenge without requesting delivery. The
-code-entry screen requests one SMS; only an explicit resend requests another.
-Verification and delivery controls are disabled together while either request
-is in flight. The previous priming step sent an untracked SMS before the UI
-requested a second one, creating a code-invalidation risk.
+## Native password and SMS flow
 
-Startup restores browser-originated sessions through `/validate` with their saved
-cookies and user agent. Native sessions exchange saved session and trust tokens
-through `accountLogin`, which recreates service cookies. Only rejected or limited
-sessions fall back to sign-in. A network failure retains the saved session for retry.
-Session data stays in Windows Credential Manager; closing the window does not
-invoke sign-out. An explicit hsaChallengeRequired response is honored even when
-hsaTrustedBrowser is true.
+Native sign-in uses Apple's SRP challenge/proof flow. A fresh password handshake
+starts with a clean cookie container/native user agent while retaining an existing
+trust token. It must not inherit browser-only restoration metadata. See
+[SRP reference vectors](srp-reference-vectors.md) for cryptographic evidence/limits.
 
-Mocked HTTP tests in tests/Reminders.Core.Tests/Program.cs cover the preparation,
-delivery, verification and trust sequence, rotated headers, token restoration,
-response limits and malformed/rejected verification responses. These checks
-validate client behavior; a real Apple account must still confirm successful
-sign-in followed by closing and reopening the built application.
+Important invariants in `AppleAuth` and the authentication tests:
 
-### Accepted verification responses with HTTP 409
+- Rotate `scnt`, session identifiers and auth attributes from every applicable
+  response before sending the next request.
+- Auth headers for `idmsa.apple.com` differ from account/service headers for
+  `setup.icloud.com`. Do not replay setup-only webauth/country headers to auth.
+- Keep the challenge's available routes. A trusted-device code and an SMS code
+  use different delivery/verifier endpoints and cannot be interchanged.
+- Native SMS delivery and verification both use the requested `sms` mode, even
+  when Apple's phone metadata contains another `pushMode`.
+- Code delivery is user initiated; only explicit resend requests another SMS.
+  Background restoration must not restart SRP while verification is pending.
+- Do not decide code acceptance from HTTP status alone. Accepted verification
+  can return 409 with a fresh session token or `securityCode.valid=true`.
+  Explicit rejection still wins; successful trust and account validation are
+  required before considering native sign-in complete.
+- Preserve Apple's useful error text and distinguish delivery, verification,
+  account-login and transport failures. An ambiguous error is not proof that the
+  user typed the wrong code or selected an incorrect account setting.
 
-Do not classify a security-code response from its status alone. rclone's fix
-https://github.com/rclone/rclone/commit/731f2a6 documents accepted verification
-responses carrying HTTP 409 and an X-Apple-Session-Token. Issue 9730 also reports
-securityCode.valid=true without that response header. The connector now proceeds
-to trust when a 409 carries either positive signal, unless the body explicitly
-rejects the code. A previously saved token does not qualify. Successful trust
-and accountLogin confirming a trusted browser without an outstanding challenge
-are still required before the UI is authenticated.
+Apple's current device-verification bridge is handled by the hosted Apple page.
+The native form supports SMS. App-specific passwords are not a verified
+authentication route for this Reminders service; see [sign-in options](authentication.md).
 
-Verification diagnostics log the acceptance decision and token-presence boolean.
-They do not log the code or token. Existing field-name-only logs cannot establish
-whether an earlier 409 contained either acceptance signal.
+The accepted-409 behavior is also described in
+[rclone's authentication fix](https://github.com/rclone/rclone/commit/731f2a6).
+Apple can change these private endpoints and statuses; HTTP mocks establish
+client behavior, not universal live compatibility.
 
-### SMS mode and failures after verification
+## Recovery and diagnostics
 
-The verification payload must use the same `mode` as the delivery request. The
-connector explicitly requests `sms`, so it must verify with `sms` even if Apple's
-phone metadata has a different `pushMode`. Mocked checks cover this mismatch.
+Selective recovery reads fresh cloud snapshots and atomically removes only
+reviewed local changes. It must not issue cloud mutations. Queue/conflict version
+checks run before and after lookup and inside the transaction; missing/denied
+lookup results and cancellation cannot partially discard the selected tasks.
 
-After an accepted code and successful trust request, accountLogin can still fail.
-Network errors at this stage now identify that the code was accepted and include
-the HTTP status when available. Verification diagnostics record the acceptance
-decision and whether a token was issued, without recording either secret.
-The certification screenshot alone cannot establish the reviewer's failure:
-capture the tested package version and the app.log endpoint/status sequence.
+Sign-in diagnostics record stages, statuses and acceptance/token-presence flags.
+They must not log passwords, verification codes, token values, credential-vault
+contents or reminder contents. Review local logs before sharing them.
 
-### Fresh native sign-in versus browser restoration
-
-Compared with released v0.5.5, saved-cookie support had also changed fresh
-password sign-in: recreating its HTTP client reused the browser cookie container
-and browser user agent. A new native password handshake now starts with a fresh
-cookie container and the same native user agent as v0.5.5. It removes browser-only
-restoration metadata while retaining the remembered trust token. Normal session
-restoration and importing an Apple-hosted sign-in still preserve their cookies
-and user agent. Account-free checks cover this separation and the existing SMS
-delivery/verification flow. This is a concrete compatibility correction; live SMS
-verification for the updated build still needs a result.
+See [feature validation](feature-validation.md) for current test results and
+remaining live-account/device checks, and [CI](ci.md) for packaging validation.

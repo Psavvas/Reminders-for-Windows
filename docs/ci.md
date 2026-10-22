@@ -30,6 +30,6 @@ Checkout does not persist credentials. Release jobs consume only their own run's
 artifacts and cannot check out/build code with write permissions.
 
 `scripts/test_ci_policy.py` includes mutation tests for these boundaries. Python is
-a CI utility; the application is C#. Rust tooling/caches/audits were retired with
-the port. Review NuGet lockfiles and dependency advisories alongside changes.
+a CI utility; application builds use .NET and Windows packaging tools. Review
+NuGet lockfiles and dependency advisories alongside changes.
 Live Apple interoperability is outside account-free CI and needs a disposable account.
