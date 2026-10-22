@@ -128,7 +128,7 @@ the updater. Committing code alone does not distribute an update.
 | Titles, notes, due dates, priorities, completion and flags | Read and write |
 | Smart lists | Today, Upcoming, All, Completed and Deleted |
 | Search and sorting | Local SQLite queries |
-| Tags | Read, filter, add at creation, and add/remove tags in the task editor |
+| Tags | Read/filter existing Apple tags; tag editing is experimental and device propagation is currently failing ([research](docs/tag-sync-research.md)) |
 | Repeated reminders | Create daily/weekly/monthly/yearly schedules; preserve supported repeats when completing |
 | Sidebar list order | Saved on this PC across refreshes and restarts |
 | Offline use | Cached reads; edits queue for upload |

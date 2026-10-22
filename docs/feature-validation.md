@@ -203,6 +203,12 @@ checks passed again.
 
 ## Related records and icons
 
+**Tag writes are not verified and still fail to propagate in the user's latest
+testing (2026-10-22).** The implementation and tests described below establish
+client/server behavior, not native Apple tag recognition. See
+[the tag-sync research](tag-sync-research.md). Reading existing tags is separate
+from writing compatible ones; automatic repair is also experimental.
+
 Tag compatibility is based on the Apple-created record shape described in
 `docs/protocol-findings.md`, not the older third-party example that encoded
 `Name` as `ENCRYPTED_BYTES`. Tags use STRING names, Type/Imported metadata,
@@ -211,7 +217,8 @@ Windows-only `hashtagIDs` resolution token is removed from subsequent edits.
 The sync engine repairs only the identifiable incomplete shape written by the
 earlier Windows build; existing Apple tag types and unrelated metadata remain.
 It verifies tag writes by reading back the changed records before acknowledging
-the queue entry. HTTP success alone is not a successful tag save.
+the queue entry. Neither HTTP success nor a matching server readback establishes
+that Apple's apps recognize the tag.
 
 Both New reminder and Task details have an editable **Tags** field under
 **Tags & priority**. Separate names with spaces or commas, with optional `#`.
@@ -228,7 +235,7 @@ edits, offline creation/removal/restart with repeats, lost removal replies,
 last-tag removal, old-record repair, conflict recovery and successful HTTP replies
 whose changes were not persisted. Downloads have their own event; completion is
 emitted only when uploads have drained and no conflicts remain. These checks do
-not establish real iPhone rendering or propagation; that remains a live check.
+not establish real iPhone rendering or propagation; the latest user test fails.
 Isolated dark previews confirmed tag fields in both forms, wrapping help text,
 the fixed footer, and saving sample tags into the task row and sidebar.
 

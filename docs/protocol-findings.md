@@ -3,6 +3,11 @@
 These observations came from the repository's original live-account probes and
 define the behavior the native C# connector must preserve.
 
+**Tag-write status (2026-10-22): the user still reports that Windows-created tags
+do not sync.** The schema changes below are experimental and do not establish
+native Apple compatibility. See [tag-sync-research.md](tag-sync-research.md)
+for the evidence, limitations and required device-level experiment.
+
 - Reminders use the private `com.apple.reminders` CloudKit container and the
   `Reminders` custom zone. The API is undocumented and may change.
 - Due dates are wall-clock fields encoded in a CloudKit timestamp as though the
@@ -20,11 +25,12 @@ define the behavior the native C# connector must preserve.
   `Type` (`INT64`, normally 0; preserve existing 1), `Imported` (`INT64`),
   `CreationDate` and `Deleted`. The earlier Windows writer encoded the name as
   `ENCRYPTED_BYTES` and omitted Type/Imported; accepted responses did not establish
-  Apple-client compatibility. Correct the child shape and do not emit a
+  Apple-client compatibility. The current writer changes that shape and omits a
   `hashtagIDs` resolution token: Apple's published Reminders model does not define
   one. Normal edits remove that earlier Windows token while preserving others.
   Tag writes now read back the parent and changed children before acknowledgement.
-  Real iPhone rendering still needs live confirmation; fixture tests cannot prove it.
+  This still does not make the tag appear on the user's iPhone; matching stored
+  fields and successful readback are insufficient compatibility criteria.
 - List creates, renames, and deletes accepted by CloudKit did not propagate to
   Apple devices. This app does not expose those operations.
 - A phone may replace linked field collections wholesale. Local writes carry a
