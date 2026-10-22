@@ -43,6 +43,8 @@ internal static class DemoAccountChecks
                 var auth = await Call(demo, "auth_status");
                 check(demo.IsLocalDemo && auth.Flag("authenticated") && auth.Flag("local_only") && !auth.Flag("needs_2fa"), "local demo authenticates without two factor");
                 check((await Call(demo, "lists")).AsArray().Count == 3, "demo seeds three lists");
+                try { await Call(demo, "clear_cache", new { discard_pending = true }); check(false, "local-only data cannot be cleared as a cache"); }
+                catch (CoreException error) { check(error.Code == "BAD_REQUEST" && (await Call(demo, "lists")).AsArray().Count == 3, "cache reset refuses to erase a local-only account"); }
                 check(await Call(demo, "reminder", new { id = "real" }) is null, "demo cannot read cloud reminders");
                 foreach (var scope in new[] { "today", "upcoming", "completed", "deleted" })
                     check((await Call(demo, "reminders", new { scope })).AsArray().Count > 0, "sample data covers " + scope);

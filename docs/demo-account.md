@@ -1,6 +1,6 @@
 # Local test account
 
-In version 0.5.5 or newer, use the normal sign-in form with:
+In v1.0.0, use the normal sign-in form with:
 
 - Username: `demo`
 - Password: `dBZz35hzY99ATPt8VWQ6ol6k`
@@ -18,7 +18,7 @@ the normal app controls. Settings and reminders persist on this PC in
 `%LOCALAPPDATA%\RemindersSync\demo\cache.db` (Windows may virtualize this path
 for packaged installations). They never enter the iCloud cache or upload queue.
 
-Use **Settings → Leave local account** to return to sign-in. Local test data is
+Use **Settings → Account → Leave local account** to return to sign-in. Local test data is
 retained. Sign in again with the same credentials after restarting the app to
 continue testing. Cloud synchronization and conflicts require a real iCloud
 account; Sync now only confirms that this account's changes are saved locally.

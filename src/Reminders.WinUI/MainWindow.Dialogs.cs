@@ -43,8 +43,13 @@ public sealed partial class MainWindow
         catch (Exception error) { ShowInfo("Couldn't complete action", error.Message, InfoBarSeverity.Error); }
     }
 
-    private List<ReminderList> OrderedLists() => _lists.Where(list => !list.IsGroup)
-        .OrderBy(list => { var index = _uiPreferences.ListOrder.IndexOf(list.Id); return index < 0 ? int.MaxValue : index; }).ToList();
+    private List<ReminderList> OrderedLists()
+    {
+        var saved = _settings.Property("list_order");
+        var order = saved.ValueKind == JsonValueKind.Array && saved.GetArrayLength() > 0
+            ? saved.EnumerateArray().Select(v => v.GetString() ?? "").ToList() : _uiPreferences.ListOrder;
+        return _lists.Where(list => !list.IsGroup).OrderBy(list => { var index = order.IndexOf(list.Id); return index < 0 ? int.MaxValue : index; }).ToList();
+    }
 
     private static Brush ColorBrush(string? hex)
     {
@@ -68,9 +73,9 @@ public sealed partial class MainWindow
             customize.Click += async (_, _) => await CustomizeListAsync(list);
             menu.Items.Add(customize);
             var up = new MenuFlyoutItem { Text = "Move up", IsEnabled = ordered.IndexOf(list) > 0 };
-            up.Click += (_, _) => MoveList(list.Id, -1);
+            up.Click += async (_, _) => await MoveListAsync(list.Id, -1);
             var down = new MenuFlyoutItem { Text = "Move down", IsEnabled = ordered.IndexOf(list) < ordered.Count - 1 };
-            down.Click += (_, _) => MoveList(list.Id, 1);
+            down.Click += async (_, _) => await MoveListAsync(list.Id, 1);
             menu.Items.Add(up); menu.Items.Add(down); item.ContextFlyout = menu;
             Navigation.MenuItems.Add(item);
         }
@@ -90,13 +95,18 @@ public sealed partial class MainWindow
         UiPreferences.Save(_uiPreferences, localDemo: _sync.IsLocalDemo);
     }
 
-    private void MoveList(string id, int direction)
+    private async Task MoveListAsync(string id, int direction)
     {
         var order = OrderedLists().Select(list => list.Id).ToList();
         var index = order.IndexOf(id); var target = index + direction;
         if (index < 0 || target < 0 || target >= order.Count) return;
         (order[index], order[target]) = (order[target], order[index]);
-        _uiPreferences.ListOrder = order; SaveUiPreferences(); RebuildListNavigation();
+        try
+        {
+            if (!_demo) _settings = await _sync.CallAsync("set_settings", new { list_order = order });
+            _uiPreferences.ListOrder = order; SaveUiPreferences(); RebuildListNavigation();
+        }
+        catch (Exception error) { ShowInfo("Couldn't save list order", error.Message, InfoBarSeverity.Error); }
     }
 
     private async Task CustomizeListAsync(ReminderList list)
@@ -143,170 +153,9 @@ public sealed partial class MainWindow
         PrimaryButtonText = action, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary
     };
 
-    private async Task ShowNewReminderAsync()
-    {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
-        _dialogOpen = true;
-        try
-        {
-            var title = new TextBox { Header = "Title", PlaceholderText = "What needs doing?" };
-            var notes = new TextBox { Header = "Notes", AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 80 };
-            var list = new ComboBox { Header = "List", ItemsSource = OrderedLists(), DisplayMemberPath = "Title", SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
-            list.SelectedValue = _view.Kind == NavKind.List ? _view.Key : _settings.Text("default_list_id", "");
-            if (list.SelectedIndex < 0) list.SelectedIndex = 0;
-            var date = new CalendarDatePicker { Header = "Due date (optional)", HorizontalAlignment = HorizontalAlignment.Stretch };
-            if (_view.Kind == NavKind.Smart && _view.Key == "today") date.Date = DateTimeOffset.Now;
-            var scheduled = new ToggleSwitch { Header = "Set due date", IsOn = date.Date is not null };
-            date.IsEnabled = scheduled.IsOn;
-            var allDay = new ToggleSwitch { Header = "All day", IsOn = true, IsEnabled = scheduled.IsOn };
-            var time = new TimePicker { Header = "Time", Time = new TimeSpan(9, 0, 0), IsEnabled = false };
-            scheduled.Toggled += (_, _) =>
-            {
-                date.IsEnabled = scheduled.IsOn; allDay.IsEnabled = scheduled.IsOn;
-                if (scheduled.IsOn && date.Date is null) date.Date = DateTimeOffset.Now;
-                time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            };
-            allDay.Toggled += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            date.DateChanged += (_, _) => time.IsEnabled = scheduled.IsOn && !allDay.IsOn && date.Date is not null;
-            var priority = new ComboBox { Header = "Priority", ItemsSource = new[] { "None", "Low", "Medium", "High" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var flagged = new ToggleSwitch { Header = "Flagged" };
-            var panel = new StackPanel { Spacing = 12, MinWidth = 360 };
-            foreach (var control in new UIElement[] { title, notes, list, scheduled, date, allDay, time, priority, flagged }) panel.Children.Add(control);
-            var dialog = MakeDialog("New reminder", panel, "Add");
-            dialog.IsPrimaryButtonEnabled = false;
-            void Validate() => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(title.Text) && list.SelectedValue is string;
-            title.TextChanged += (_, _) => Validate(); list.SelectionChanged += (_, _) => Validate();
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedValue is not string listId) return;
-            var due = FormatDueDate(scheduled.IsOn ? date.Date : null, allDay.IsOn, time.Time);
-            var priorityValue = priority.SelectedIndex switch { 1 => 9, 2 => 5, 3 => 1, _ => 0 };
-            if (_demo) _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text, DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn });
-            else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text, due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn });
-            await RefreshAllAsync();
-        }
-        catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }
-        finally { _dialogOpen = false; }
-    }
-
     private static string? FormatDueDate(DateTimeOffset? date, bool allDay, TimeSpan time) => date is not DateTimeOffset value ? null
         : allDay ? value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
         : value.Date.Add(time).ToString("yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
-
-    private async Task ShowSettingsAsync()
-    {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
-        _dialogOpen = true;
-        try
-        {
-            var themeValue = _settings.Text("theme", "system");
-            var theme = new ComboBox { Header = "App theme", ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = themeValue switch { "light" => 1, "dark" => 2, _ => 0 }, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var paneSizing = new ComboBox { Header = "Reminder detail sizing", ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var detailWidth = new Slider { Header = "Detail pane share (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? 0.5, 0, 1) * 100, IsEnabled = paneSizing.SelectedIndex == 1 };
-            paneSizing.SelectionChanged += (_, _) => detailWidth.IsEnabled = paneSizing.SelectedIndex == 1;
-            var animation = new ToggleSwitch { Header = "Animate completed reminders", IsOn = _uiPreferences.CompletionAnimation };
-            var sync = new NumberBox { Header = "Sync interval (minutes)", Minimum = 5, Maximum = 60, Value = _settings.Number("sync_minutes") is 0 ? 10 : _settings.Number("sync_minutes"), SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
-            var notifications = new ToggleSwitch { Header = "Due-date notifications", IsOn = _settings.Flag("notifications_enabled") };
-            var defaultList = new ComboBox { Header = "Default list for new reminders", DisplayMemberPath = "Title", SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
-            defaultList.ItemsSource = new[] { new ReminderList { Id = "", Title = "First list in sidebar" } }.Concat(OrderedLists()).ToList();
-            defaultList.SelectedValue = _settings.Text("default_list_id", "");
-            if (defaultList.SelectedIndex < 0) defaultList.SelectedIndex = 0;
-            var panel = new StackPanel { Spacing = 14, MinWidth = 360 };
-            void Heading(string text) => panel.Children.Add(new TextBlock { Text = text, FontSize = 18, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-            Heading("Appearance"); panel.Children.Add(theme); panel.Children.Add(animation); panel.Children.Add(paneSizing); panel.Children.Add(detailWidth);
-            panel.Children.Add(new TextBlock { Text = "Hover between the panes to reveal the divider. Drag it all the way to either edge to close a pane, and drag from that edge to reopen it. Double-click to restore automatic sizing. Automatic sizing shows one pane at a time in smaller windows.", TextWrapping = TextWrapping.Wrap });
-            Heading("Reminders"); panel.Children.Add(defaultList); panel.Children.Add(notifications);
-            Heading(_sync.IsLocalDemo ? "Local storage" : "iCloud sync");
-            if (!_sync.IsLocalDemo) panel.Children.Add(sync);
-            panel.Children.Add(new TextBlock { Text = _sync.IsLocalDemo ? "Changes are saved on this PC and are never uploaded to iCloud." : "Changes save locally and upload automatically. Use Sync now to check for changes immediately.", TextWrapping = TextWrapping.Wrap });
-            Heading("My lists");
-            panel.Children.Add(new TextBlock { Text = "Right-click a list in the sidebar to change its icon and color or move it up and down. These preferences stay on this PC.", TextWrapping = TextWrapping.Wrap });
-            var dialog = MakeDialog("Settings", panel, "Save");
-            Heading("App updates");
-            panel.Children.Add(new TextBlock { Text = $"Version {AppUpdater.CurrentVersion.ToString(3)}" });
-            var checkUpdates = new Button { Content = "Check for updates", IsEnabled = !_demo && !_updateBusy };
-            var requestedUpdateCheck = false;
-            var requestedSetupGuide = false;
-            var requestedLeaveLocal = false;
-            if (_sync.IsLocalDemo)
-            {
-                var leaveLocal = new Button { Content = "Leave local account" };
-                leaveLocal.Click += (_, _) => { requestedLeaveLocal = true; dialog.Hide(); };
-                panel.Children.Add(leaveLocal);
-            }
-            checkUpdates.Click += (_, _) => { requestedUpdateCheck = true; dialog.Hide(); };
-            panel.Children.Add(checkUpdates);
-            var setupGuide = new Button { Content = "iCloud setup and troubleshooting" };
-            setupGuide.Click += (_, _) => { requestedSetupGuide = true; dialog.Hide(); };
-            panel.Children.Add(setupGuide);
-            Heading("About Reminders for Windows");
-            panel.Children.Add(new TextBlock
-            {
-                Text = "Reminders for Windows is an independent app and is not affiliated with, endorsed by, or sponsored by Apple Inc. or Microsoft Corporation. iCloud is a trademark of Apple Inc. Windows is a trademark of Microsoft Corporation. Sync uses unofficial iCloud interfaces that may change or stop working without notice.",
-                TextWrapping = TextWrapping.Wrap
-            });
-            panel.Children.Add(new HyperlinkButton
-            {
-                Content = "View source on GitHub",
-                NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(0)
-            });
-            var privacy = new Button { Content = "Privacy policy" };
-            var settingsContent = dialog.Content;
-            var privacyContent = CreatePrivacyPolicyContent();
-            var showingPrivacy = false;
-            privacy.Click += (_, _) =>
-            {
-                dialog.Content = privacyContent;
-                dialog.Title = "Privacy policy";
-                dialog.PrimaryButtonText = "";
-                dialog.CloseButtonText = "Back";
-                dialog.DefaultButton = ContentDialogButton.Close;
-                showingPrivacy = true;
-            };
-            dialog.CloseButtonClick += (_, args) =>
-            {
-                if (!showingPrivacy) return;
-                // Return to the existing form so unsaved settings survive.
-                args.Cancel = true;
-                dialog.Content = settingsContent;
-                dialog.Title = "Settings";
-                dialog.PrimaryButtonText = "Save";
-                dialog.CloseButtonText = "Cancel";
-                dialog.DefaultButton = ContentDialogButton.Primary;
-                showingPrivacy = false;
-            };
-            panel.Children.Add(privacy);
-            sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 5 && sync.Value <= 60;
-            var settingsResult = await dialog.ShowAsync();
-            if (requestedLeaveLocal)
-            {
-                _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop();
-                ShowDetail(null); _reminders.Clear(); _lists.Clear(); _tags.Clear();
-                _view = new("Today", "", NavKind.Smart, "today");
-                ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = "";
-                AppleIdBox.Text = ""; PasswordBox.Password = ""; AppInfoBar.IsOpen = false;
-                _uiPreferences = UiPreferences.Load();
-                SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
-                UpdatePaneLayout();
-                RebuildListNavigation();
-                await _sync.DisposeAsync();
-                await BootAsync();
-                return;
-            }
-            if (requestedSetupGuide) { _dialogOpen = false; ShowSetupGuide(); return; }
-            if (requestedUpdateCheck) { await CheckForUpdatesAsync(true); return; }
-            if (settingsResult != ContentDialogResult.Primary) return;
-            if (!double.IsFinite(sync.Value)) { ShowInfo("Settings weren't saved", "Enter a sync interval from 5 to 60 minutes.", InfoBarSeverity.Warning); return; }
-            themeValue = theme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
-            var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 5, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
-            _settings = _demo ? JsonSerializer.SerializeToElement(values) : await _sync.CallAsync("set_settings", values);
-            _uiPreferences.CompletionAnimation = animation.IsOn;
-            _uiPreferences.DetailPaneFraction = paneSizing.SelectedIndex == 0 ? null : detailWidth.Value / 100;
-            SaveUiPreferences(); UpdatePaneLayout(); ApplyTheme(themeValue);
-        }
-        catch (Exception error) { ShowInfo("Couldn't save settings", error.Message, InfoBarSeverity.Error); }
-        finally { _dialogOpen = false; }
-    }
 
     private async Task AnimateCompletionAsync(ReminderItem reminder)
     {

@@ -12,22 +12,51 @@ internal sealed class AppleAuth : IDisposable
     private const string Widget = "d39ba9916b7251055b22c7f910e2ea796ee65e98b2ddecea8f5dde8d9d1a815d";
     private const string UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15";
     private readonly Func<HttpMessageHandler> handlerFactory;
+    private CookieContainer cookies = new();
     internal HttpClient Http { get; private set; }
     internal event Action<string>? Diagnostic;
+    internal void ReportCloudKitError(string operation, string code)
+    {
+        var safeCode = code.Length is > 0 and <= 64 && code.All(c => c is >= 'A' and <= 'Z' or '_') ? code : "UNKNOWN";
+        Diagnostic?.Invoke($"icloud: {operation} server_error={safeCode}");
+    }
     internal JsonObject State { get; private set; }
     private readonly List<JsonNode> phones = [];
     private readonly List<(string Method, long Id, string Mode)> sent = [];
     private (string Method, long Id, string Mode) route = ("unknown", 0, "sms");
     private bool optionsLoaded;
+    private bool browserSessionVerified;
     private string? notice;
     public AppleAuth(JsonObject? state = null, Func<HttpMessageHandler>? handlerFactory = null)
     {
         State = state ?? new(); State["client_id"] ??= Guid.NewGuid().ToString();
-        this.handlerFactory = handlerFactory ?? (() => new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = true, CookieContainer = new(), ConnectTimeout = TimeSpan.FromSeconds(15), AutomaticDecompression = DecompressionMethods.All });
+        foreach (var saved in State.Array("cookies").OfType<JsonObject>())
+        {
+            var domain = saved.Text("domain")?.TrimStart('.');
+            if (domain is null || !AppleDomain(domain)) continue;
+            try
+            {
+                var cookie = new Cookie(saved.Required("name"), saved.Required("value", 16384), saved.Text("path") ?? "/", saved.Required("domain")) { Secure = true, HttpOnly = saved.Flag("http_only") };
+                if (saved.Number("expires") > 0) cookie.Expires = DateTimeOffset.FromUnixTimeSeconds(saved.Number("expires")).UtcDateTime;
+                if (!cookie.Expired) cookies.Add(cookie);
+            }
+            catch (Exception ex) when (ex is CookieException or CoreException or ArgumentException) { }
+        }
+        this.handlerFactory = handlerFactory ?? (() => new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, UseCookies = true, CookieContainer = cookies, ConnectTimeout = TimeSpan.FromSeconds(15), AutomaticDecompression = DecompressionMethods.All });
         Http = CreateHttp();
     }
-    private HttpClient CreateHttp() { var c = new HttpClient(handlerFactory()) { Timeout = TimeSpan.FromSeconds(60) }; c.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent); return c; }
-    public bool RequiresTwoFactor => State.Number("hsa_version") >= 2 && (State.Flag("challenge_required") || !State.Flag("trusted_session"));
+    internal static bool AppleDomain(string host) => host == "apple.com" || host.EndsWith(".apple.com", StringComparison.OrdinalIgnoreCase) || host == "icloud.com" || host.EndsWith(".icloud.com", StringComparison.OrdinalIgnoreCase);
+    internal void SaveCookies() => State["cookies"] = new JsonArray(cookies.GetAllCookies().Cast<Cookie>().Where(c => !c.Expired && AppleDomain(c.Domain.TrimStart('.')))
+        .Select(c => J.Node(new { name = c.Name, value = c.Value, domain = c.Domain, path = c.Path, http_only = c.HttpOnly, expires = c.Expires == DateTime.MinValue ? 0 : new DateTimeOffset(c.Expires.ToUniversalTime()).ToUnixTimeSeconds() })).ToArray());
+    private HttpClient CreateHttp()
+    {
+        var c = new HttpClient(handlerFactory()) { Timeout = TimeSpan.FromSeconds(60) };
+        var browserAgent = State.Text("user_agent");
+        if (browserAgent is not { Length: > 0 and <= 2048 } || browserAgent.Contains('\r') || browserAgent.Contains('\n') || !c.DefaultRequestHeaders.UserAgent.TryParseAdd(browserAgent))
+            c.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+        return c;
+    }
+    public bool RequiresTwoFactor => State.Number("hsa_version") >= 2 && (State.Flag("challenge_required") || !State.Flag("trusted_session") && !browserSessionVerified);
     public JsonNode TwoFactorStatus => J.Node(new { method = route.Method, number = phones.FirstOrDefault(p => p.Number("id") == route.Id).Text("numberWithDialCode") ?? phones.FirstOrDefault(p => p.Number("id") == route.Id).Text("obfuscatedNumber"), notice, can_sms = phones.Count > 0, sent = sent.Count > 0 });
     internal string Query => string.Join("&", new Dictionary<string, string?> { ["clientBuildNumber"] = "2534Project66", ["clientMasteringNumber"] = "2534B22", ["ckjsBuildVersion"] = "17DProjectDev77", ["clientId"] = State.Text("client_id"), ["dsid"] = State.Text("dsid") }.Where(p => p.Value is not null).Select(p => Uri.EscapeDataString(p.Key) + "=" + Uri.EscapeDataString(p.Value!)));
     internal HttpRequestMessage Request(HttpMethod method, string url, JsonNode? body, bool auth, string accept = "application/json, text/javascript")
@@ -83,7 +112,12 @@ internal sealed class AppleAuth : IDisposable
     }
     public async Task SignIn(string account, string password, bool acceptTerms, CancellationToken token)
     {
-        Http.Dispose(); Http = CreateHttp(); State["session_id"] = null; State["scnt"] = null; State["auth_attributes"] = null;
+        browserSessionVerified = false;
+        // A new password handshake must behave like the released native flow,
+        // without cookies or a user agent inherited from a browser session.
+        Http.Dispose(); cookies = new();
+        State.Remove("cookies"); State.Remove("browser_cookie_session"); State.Remove("user_agent");
+        Http = CreateHttp(); State["session_id"] = null; State["scnt"] = null; State["auth_attributes"] = null;
         var id = Uri.EscapeDataString(State.Required("client_id"));
         var bootstrap = await Auth(HttpMethod.Get, $"/authorize/signin?frame_id={id}&skVersion=7&iframeid={id}&client_id={Widget}&response_type=code&redirect_uri=https%3A%2F%2Fwww.icloud.com&response_mode=web_message&state={id}&authVersion=latest", null, token);
         if (bootstrap.Status is < 200 or >= 300) throw Classify(bootstrap.Status, bootstrap.Text);
@@ -116,6 +150,22 @@ internal sealed class AppleAuth : IDisposable
     }
     public async Task<bool> Resume(CancellationToken token)
     {
+        if (State.Flag("browser_cookie_session") && State.Array("cookies").Count > 0)
+        {
+            browserSessionVerified = false;
+            try
+            {
+                var request = Request(HttpMethod.Post, SetupEndpoint + "/validate?" + Query, null, false);
+                request.Content = new StringContent("null", Encoding.UTF8, "application/json");
+                var response = await SendAsync(request, 2 * 1024 * 1024, token);
+                if (response.Status is < 200 or >= 300) throw Classify(response.Status, response.Text);
+                NoteAccount(JsonNode.Parse(response.Text)!);
+                browserSessionVerified = !State.Flag("challenge_required") &&
+                    !string.IsNullOrWhiteSpace(State.Text("apple_id")) && !string.IsNullOrWhiteSpace(State.Text("dsid"));
+                return browserSessionVerified;
+            }
+            catch (CoreException ex) when (ex.Code is "AUTH_REQUIRED" or "2FA_REQUIRED") { }
+        }
         if (State.Text("session_token") is null) return false;
         try { await AccountLogin(token); return !RequiresTwoFactor; } catch (CoreException ex) when (ex.Code is "AUTH_REQUIRED" or "2FA_REQUIRED") { return false; }
     }
@@ -126,7 +176,11 @@ internal sealed class AppleAuth : IDisposable
         if (State.Text("trust_token") is { } trust) body["trustToken"] = trust;
         var response = await SendAsync(Request(HttpMethod.Post, SetupEndpoint + "/accountLogin?" + Query, body, false), 2 * 1024 * 1024, token);
         if (response.Status is < 200 or >= 300) throw Classify(response.Status, response.Text);
-        var v = JsonNode.Parse(response.Text)!;
+        NoteAccount(JsonNode.Parse(response.Text)!);
+    }
+    private void NoteAccount(JsonNode v)
+    {
+        State["apple_id"] = v["dsInfo"].Text("appleId") ?? v["dsInfo"].Text("primaryEmail");
         State["dsid"] = v["dsInfo"]?["dsid"]?.ToString(); State["hsa_version"] = v["dsInfo"].Number("hsaVersion"); State["challenge_required"] = v.Flag("hsaChallengeRequired"); State["trusted_session"] = v.Flag("hsaTrustedBrowser"); State["webservices"] = v["webservices"]?.DeepClone() ?? new JsonObject();
         if (v.Flag("termsUpdateNeeded") || v["dsInfo"].Flag("termsUpdateNeeded")) throw new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.");
     }

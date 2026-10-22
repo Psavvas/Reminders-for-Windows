@@ -5,8 +5,10 @@ shell is composed from Windows controls including `NavigationView`, `InfoBar`,
 `CommandBar`, `ListView`, `ContentDialog`, `CalendarDatePicker`, `TimePicker`,
 `ToggleSwitch`, `InfoBadge`, and the platform theme resources.
 
-No web frontend is built or shipped. The interface is implemented entirely with
-Windows UI controls and verified through Windows UI Automation.
+The reminder interface uses native Windows controls. Apple-device sign-in opens
+Apple's own page in an isolated Microsoft Edge WebView2 window and hands the
+verified session back to the native app. The WebView2 Runtime is needed for that
+sign-in route; native SMS sign-in remains available.
 
 ## Integrated C# backend
 
@@ -41,25 +43,36 @@ list metadata in iCloud. The existing sidebar open/collapsed preference is
 preserved when customization is saved.
 
 Sync now acts as a command and leaves the active list selected. Settings is a
-scrollable dialog grouped into appearance, reminder defaults, sync, and list
-customization guidance. It remembers the saved theme and offers a default
-creation list and a completion-animation toggle.
+scrollable dialog with General, Sync & storage, Account, and About pages. General
+includes theme, default list, notifications, animation and pane sizing. Sync &
+storage includes status, sync interval, setup help, selective unsynced-change
+recovery and full cache reset. Account contains Sign out; About contains update
+checks and the offline privacy policy. Update checks and recovery review remain
+inside Settings, preserving unsaved preferences when returning.
 
 The New reminder popup accepts notes, list, optional due date, all-day/time,
-priority, and flag before saving. Opening it from Today defaults the due date
-to today; opening it from a list uses that list. Completion holds the checked
+priority, flag, and a repeating schedule before saving. Details uses the same
+grouped layout and allows daily/weekly/monthly/yearly recurrence changes after
+creation. Tags remain visible and filterable, but are edited in Apple Reminders.
+Opening New reminder from Today defaults the due date to today; opening it from
+a list uses that list. Completion holds the checked
 row for 180 ms, then fades it over 420 ms before refreshing. Windows' reduced
 motion preference and the app's animation toggle disable that delay.
 
 Demo mode includes an overdue reminder and supports filtering, creation,
 completion, customization, settings, and deletion in memory.
 
-Drag the divider all the way right to collapse reminder details. Selecting a
-reminder then opens its details across the content area with **Back to reminders**,
-just as automatic sizing does in a narrow window. Back restores the list and
-collapsed divider. Drag the divider left, double-click it, or choose Automatic
-detail sizing in Settings to restore a split view. A custom detail share of 0%
-uses the same behavior, including after restarting the app.
+Drag the divider to either extreme to use the full-width reminder list. Selecting
+a reminder then opens full-width details with **Back to reminders**, as in a
+narrow window. Back restores the list. Intermediate splits keep both panes
+readable; double-click the divider, press Home, or choose automatic detail sizing
+in Settings to restore automatic layout. Saved custom endpoint sizes use the
+same navigation after restarting.
+
+Sync notices float above content with an opaque background and a drop-down
+animation that respects reduced motion. The title bar and divider match the
+selected theme. The Completed page hides the completed-reminders switch and
+retains the reminder count; other views retain the switch.
 
 ### Manual UI verification
 
@@ -71,16 +84,20 @@ Run `scripts\run-windows.ps1 -Demo`, then check:
 - Right-click a list, change its icon/color, and move it up/down; tags and the
   active list remain available.
 - The add popup validates an empty title, allows an undated reminder, and saves
-  due date, time, priority, and flag together.
+  due date, time, priority, flag, and recurrence together. Tags are read-only.
 - Settings opens on the current theme; Save applies changes and Cancel keeps
   the prior settings. Reopening shows the saved values.
 - Completing a reminder visibly checks it before it leaves the list; disabling
   animation removes the pause.
-- Collapse details while a reminder is selected, then select that same reminder:
+- Drag the divider to either endpoint, then select a reminder:
   full-width details and Back must be available. Back returns to the list with
   the divider still collapsed. Reopen the divider and check split-view editing.
-- Repeat with Settings' Custom detail share set to 0%, then check automatic
-  detail sizing in a narrow window and a nonzero custom split.
+- Repeat with Settings' Custom detail share at both endpoints, then check
+  automatic detail sizing in a narrow window and an intermediate custom split.
+- Completed hides the completed-reminders switch; returning to All or a list
+  shows it again. The reminder count stays visible.
+- About checks for updates without closing Settings. Sync & storage keeps the
+  unsynced-task review and Back navigation within the same dialog.
 
 For persistence checks, run the regular app and restart after customizing a
 list. Demo mode intentionally does not write preferences.

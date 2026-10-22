@@ -18,15 +18,18 @@ internal sealed class CloudKit(AppleAuth auth)
     internal static JsonNode Number(long value) => J.Node(new { type = "INT64", value });
     internal static JsonNode Timestamp(long? value) => J.Node(new { type = "TIMESTAMP", value });
     internal static JsonNode Reference(string name) => J.Node(new { type = "REFERENCE", value = new { recordName = name, action = "VALIDATE" } });
-    internal static JsonNode Operation(string kind, string name, string? tag, JsonObject fields)
+    internal static JsonNode Operation(string kind, string name, string? tag, JsonObject fields, string type = "Reminder", string? parent = null)
     {
-        var record = new JsonObject { ["recordName"] = name, ["recordType"] = "Reminder", ["fields"] = fields };
+        var record = new JsonObject { ["recordName"] = name, ["recordType"] = type, ["fields"] = fields };
+        if (parent is not null) record["parent"] = J.Node(new { recordName = parent });
         if (tag is not null) record["recordChangeTag"] = tag;
         return new JsonObject { ["operationType"] = kind, ["record"] = record };
     }
-    internal static JsonNode ResolutionTokens(IEnumerable<string> names)
+    internal static JsonNode ResolutionTokens(IEnumerable<string> names, JsonNode? record = null)
     {
-        var map = new JsonObject(); foreach (var name in names.Distinct()) map[name] = J.Node(new { counter = 1, modificationTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 - 978307200, replicaID = Guid.NewGuid().ToString().ToUpperInvariant() }); return String(new JsonObject { ["map"] = map }.ToJsonString());
+        var map = J.Parse(record is null ? null : Text(record, "ResolutionTokenMap"))?["map"]?.DeepClone() as JsonObject ?? new();
+        foreach (var name in names.Distinct()) map[name] = J.Node(new { counter = map[name].Number("counter") + 1, modificationTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0 - 978307200, replicaID = Guid.NewGuid().ToString().ToUpperInvariant() });
+        return String(new JsonObject { ["map"] = map }.ToJsonString());
     }
     internal static void Reject(IEnumerable<JsonNode?> items)
     {
@@ -34,6 +37,10 @@ internal sealed class CloudKit(AppleAuth auth)
         var code = error.Text("serverErrorCode");
         if (code is "CONFLICT" or "SERVER_RECORD_CHANGED") throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", error.ToJsonString());
         if (code is "AUTHENTICATION_FAILED" or "AUTHENTICATION_REQUIRED") throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.");
+        if (code is "UNKNOWN_ITEM" or "NOT_FOUND" or "INVALID_ARGUMENTS" or "ACCESS_DENIED" or "PERMISSION_FAILURE" or "VALIDATION_FAILED" or "ZONE_NOT_FOUND" or "QUOTA_EXCEEDED")
+            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review unsynced changes under Sync & storage in Settings.", code + ": " + error.Text("reason"));
+        // Keep transient/unknown service failures retryable, including during
+        // restoration. They do not establish a rejected local edit.
         throw new CoreException("NETWORK", "iCloud rejected a reminder operation", code + ": " + error.Text("reason"));
     }
     private async Task<JsonNode> Post(string operation, JsonNode body, CancellationToken token)
@@ -52,7 +59,15 @@ internal sealed class CloudKit(AppleAuth auth)
                 throw new CoreException("ERROR", $"iCloud rejected the sync request (HTTP {response.Status}).", AppleAuth.Detail(J.Parse(response.Text)));
             throw new CoreException("NETWORK", "Could not reach iCloud", $"HTTP {response.Status}: {AppleAuth.Detail(J.Parse(response.Text))}");
         }
-        return JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response");
+        var result = JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response");
+        // HTTP 200 can still carry a per-record CloudKit failure. Log only the
+        // endpoint and bounded error enum, never the record or server reason.
+        var statuses = new[] { result }.Concat(result.Array("records"))
+            .Concat(result.Array("zones")).Concat(result.Array("zones").SelectMany(z => z.Array("records")));
+        foreach (var status in statuses)
+            if (status.Text("serverErrorCode") is { } code) auth.ReportCloudKitError(operation, code);
+        Reject([result]);
+        return result;
     }
     private static void Advance(HashSet<string> seen, string? next)
     {
@@ -89,12 +104,34 @@ internal sealed class CloudKit(AppleAuth auth)
         var response = await Post("records/query", new JsonObject { ["query"] = J.Node(new { recordType = "reminderList" }), ["zoneID"] = Zone, ["resultsLimit"] = 1 }, token); Reject([response]);
         return response.Text("syncToken") is { Length: > 0 } cursor ? cursor : (await Changes(null, [], token)).Cursor;
     }
+    public async Task CheckAccess(CancellationToken token)
+    {
+        // Validate access without writes or downloading the full change history.
+        var response = await Post("records/query", new JsonObject { ["query"] = J.Node(new { recordType = "reminderList" }), ["zoneID"] = Zone, ["resultsLimit"] = 1 }, token);
+        Reject([response]); Reject(response.Array("records"));
+    }
     public async Task<JsonArray> Lookup(string id, CancellationToken token)
     {
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(J.Node(new { recordName = id })), ["zoneID"] = Zone }, token); var rows = response.Array("records"); Reject(rows); return rows;
     }
+    public async Task<JsonArray> LookupMany(IEnumerable<string> ids, CancellationToken token, bool allowMissing = false, bool requireAcknowledgement = false)
+    {
+        var requested = ids.Distinct().ToArray();
+        var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(requested.Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
+        var rows = response.Array("records");
+        if (requireAcknowledgement && requested.Any(id => !rows.Any(row => row.Text("recordName") == id)))
+            throw new CoreException("NETWORK", "iCloud did not return every requested reminder. No local changes were discarded.");
+        // Web Services reports NOT_FOUND; some responses use the native error
+        // name UNKNOWN_ITEM. Only optional per-record misses are expected here.
+        var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") is not ("NOT_FOUND" or "UNKNOWN_ITEM")).Select(r => r?.DeepClone()).ToArray());
+        Reject(found); return found;
+    }
     public async Task<JsonArray> Modify(JsonNode operation, CancellationToken token)
     {
-        var response = await Post("records/modify", new JsonObject { ["operations"] = new JsonArray(operation), ["zoneID"] = Zone, ["atomic"] = true }, token); var rows = response.Array("records"); Reject(rows); return rows;
+        var operations = operation as JsonArray ?? new JsonArray(operation);
+        var response = await Post("records/modify", new JsonObject { ["operations"] = operations, ["zoneID"] = Zone, ["atomic"] = true }, token); var rows = response.Array("records"); Reject(rows);
+        if (operations.Any(op => !rows.Any(r => r.Text("recordName") == op?["record"].Text("recordName"))))
+            throw new CoreException("NETWORK", "iCloud did not acknowledge every changed record. The operation will be retried.");
+        return rows;
     }
 }

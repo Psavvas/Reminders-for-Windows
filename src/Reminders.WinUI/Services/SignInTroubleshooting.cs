@@ -24,7 +24,7 @@ internal static class SignInTroubleshooting
                 "Open iCloud.com with the same account, review and accept Apple's updated terms, then sign in here again.", 4);
         if (message.Contains("no trusted phone number", StringComparison.OrdinalIgnoreCase))
             return Result("A trusted phone number is needed",
-                "Add a trusted phone number that can receive SMS in your Apple Account's two-factor authentication settings. This app cannot verify codes from Apple device notifications.", 1);
+                "Choose Use Apple-device verification to finish on Apple's sign-in page, or add a trusted phone number that can receive SMS in your Apple Account settings.", 1);
         if (code == "NETWORK")
             return Result("Could not finish connecting to iCloud",
                 "Check your internet connection and try again. If iCloud.com works but this app still fails, review the setup guide and open the diagnostic-log folder. This error does not confirm that your password or account settings are wrong.", 4);
@@ -33,7 +33,7 @@ internal static class SignInTroubleshooting
                 "Check the Apple Account and regular password on iCloud.com. A verification session may also have expired; start a new sign-in if needed. Review the account setup before trying again.", 4);
         if (code == "2FA_REQUIRED" || stage == SignInStage.Verification)
             return Result("Verification did not finish",
-                "Enter the six digits from the most recent SMS, rather than an Apple device notification. If needed, request one new code and wait for that text. If Apple did not give a specific reason, review the setup guide; receiving a text does not guarantee the rest of sign-in will succeed.", 1);
+                "For text verification, enter the six digits from the most recent SMS. To use a code from another Apple device, choose Use Apple-device verification and finish on Apple's page. Review the setup guide if verification still fails.", 1);
         if (stage == SignInStage.Delivery)
             return Result("Could not request a verification code",
                 "Check that your trusted phone number can receive SMS, then try again. Review the setup guide if a text arrives but verification still fails.", 1);

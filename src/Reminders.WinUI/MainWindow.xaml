@@ -4,16 +4,21 @@
  xmlns:local="using:Reminders.Windows"
  xmlns:primitives="using:Microsoft.UI.Xaml.Controls.Primitives"
  Title="Reminders for Windows">
- <Grid x:Name="Root" SizeChanged="Root_SizeChanged">
+ <Grid x:Name="Root" SizeChanged="Root_SizeChanged" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
   <Grid.KeyboardAccelerators>
    <KeyboardAccelerator Key="N" Modifiers="Control" Invoked="NewAccelerator_Invoked"/>
    <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="SearchAccelerator_Invoked"/>
   </Grid.KeyboardAccelerators>
   <NavigationView x:Name="Navigation" PaneTitle="Reminders for Windows" IsBackButtonVisible="Collapsed"
                   PaneDisplayMode="LeftCompact" IsPaneOpen="True" OpenPaneLength="260" CompactPaneLength="48"
-                  IsSettingsVisible="True" IsPaneToggleButtonVisible="True" AlwaysShowHeader="False"
+                  IsSettingsVisible="True" IsPaneToggleButtonVisible="True" AlwaysShowHeader="False" IsTitleBarAutoPaddingEnabled="False"
                   PaneOpening="Navigation_PaneOpening" PaneClosing="Navigation_PaneClosing"
                   ItemInvoked="Navigation_ItemInvoked" SelectionChanged="Navigation_SelectionChanged">
+   <NavigationView.Resources>
+    <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
+    <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0</Thickness>
+    <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
+   </NavigationView.Resources>
    <NavigationView.MenuItems>
     <NavigationViewItem Content="Today" Tag="smart:today"><NavigationViewItem.Icon><FontIcon Glyph="&#xE823;"/></NavigationViewItem.Icon></NavigationViewItem>
     <NavigationViewItem Content="Upcoming" Tag="smart:upcoming"><NavigationViewItem.Icon><FontIcon Glyph="&#xE787;"/></NavigationViewItem.Icon></NavigationViewItem>
@@ -28,23 +33,16 @@
     <NavigationViewItem SelectsOnInvoked="False" Content="Sync now" Tag="sync"><NavigationViewItem.Icon><FontIcon Glyph="&#xE895;"/></NavigationViewItem.Icon></NavigationViewItem>
    </NavigationView.FooterMenuItems>
    <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
-    <StackPanel Grid.Row="0">
-     <InfoBar x:Name="UpdateInfoBar" IsOpen="False" IsClosable="True" Severity="Informational" Margin="12,8,12,0">
-      <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
-     </InfoBar>
-     <InfoBar x:Name="AppInfoBar" IsOpen="False" IsClosable="True" Margin="12,8,12,0"/>
-    </StackPanel>
-    <Grid x:Name="ReminderLayout" Grid.Row="1" SizeChanged="ReminderLayout_SizeChanged">
+    <Grid x:Name="ReminderLayout" SizeChanged="ReminderLayout_SizeChanged" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
      <Grid.ColumnDefinitions><ColumnDefinition x:Name="ReminderColumn"/><ColumnDefinition x:Name="SplitterColumn" Width="8"/><ColumnDefinition x:Name="DetailsColumn"/></Grid.ColumnDefinitions>
      <Grid x:Name="ReminderHost" Background="{ThemeResource LayerFillColorDefaultBrush}">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <Grid Margin="24,20,20,8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <StackPanel><TextBlock x:Name="ViewTitle" Text="Today" TextTrimming="CharacterEllipsis" Style="{ThemeResource TitleTextBlockStyle}"/><TextBlock x:Name="ViewSubtitle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,3,0,0"/></StackPanel>
-       <Button x:Name="AddButton" Grid.Column="1" Style="{ThemeResource AccentButtonStyle}" AutomationProperties.Name="Add reminder" ToolTipService.ToolTip="Add reminder (Ctrl+N)" Click="Add_Click"><StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE710;" FontSize="14"/><TextBlock x:Name="AddLabel" Text="Add reminder"/></StackPanel></Button>
+      <Grid Margin="24,0,24,12" MinHeight="64" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel VerticalAlignment="Center"><TextBlock x:Name="ViewTitle" Text="Today" TextTrimming="CharacterEllipsis" Style="{ThemeResource TitleTextBlockStyle}"/><TextBlock x:Name="ViewSubtitle" Visibility="Collapsed" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,2,0,0"/></StackPanel>
+       <Button x:Name="AddButton" Grid.Column="1" Height="36" MinWidth="36" VerticalAlignment="Center" Style="{ThemeResource AccentButtonStyle}" AutomationProperties.Name="Add reminder" ToolTipService.ToolTip="Add reminder (Ctrl+N)" Click="Add_Click"><StackPanel Orientation="Horizontal" Spacing="8"><FontIcon Glyph="&#xE710;" FontSize="14"/><TextBlock x:Name="AddLabel" Text="Add reminder"/></StackPanel></Button>
       </Grid>
-      <Grid Grid.Row="1" Padding="24,0,20,8" ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search reminders" QueryIcon="Find" TextChanged="SearchBox_TextChanged" VerticalAlignment="Center"/>
+      <Grid Grid.Row="1" Padding="24,0,24,12" ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search reminders" AutomationProperties.Name="Search reminders" QueryIcon="Find" TextChanged="SearchBox_TextChanged" MinHeight="40" VerticalAlignment="Center"/>
        <Button Grid.Column="1" Width="40" Height="40" AutomationProperties.Name="Sort" ToolTipService.ToolTip="Sort reminders"><Button.Flyout><MenuFlyout><RadioMenuFlyoutItem Text="Manual" Tag="manual" GroupName="sort" IsChecked="True" Click="Sort_Click"/><RadioMenuFlyoutItem Text="Due date" Tag="due" GroupName="sort" Click="Sort_Click"/><RadioMenuFlyoutItem Text="Priority" Tag="priority" GroupName="sort" Click="Sort_Click"/><RadioMenuFlyoutItem Text="Title" Tag="title" GroupName="sort" Click="Sort_Click"/></MenuFlyout></Button.Flyout><FontIcon Glyph="&#xE8CB;" FontSize="18"/></Button>
       </Grid>
       <ListView x:Name="ReminderList" Grid.Row="2" SelectionChanged="ReminderList_SelectionChanged" IsItemClickEnabled="False" Padding="8,0">
@@ -53,17 +51,18 @@
         <GroupStyle.HeaderTemplate><DataTemplate x:DataType="local:ReminderSection"><TextBlock Text="{x:Bind Title}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="14,10,14,2"/></DataTemplate></GroupStyle.HeaderTemplate>
        </GroupStyle></ListView.GroupStyle>
        <ListView.ItemContainerTransitions><TransitionCollection><AddDeleteThemeTransition/><ReorderThemeTransition/></TransitionCollection></ListView.ItemContainerTransitions>
-       <ListView.ItemTemplate><DataTemplate x:DataType="local:ReminderItem"><Grid Padding="10,10"><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,2"/><Setter Property="MinHeight" Value="52"/><Setter Property="CornerRadius" Value="6"/></Style></ListView.ItemContainerStyle>
+       <ListView.ItemTemplate><DataTemplate x:DataType="local:ReminderItem"><Grid Padding="12,10"><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/></Grid.ColumnDefinitions>
         <CheckBox IsChecked="{x:Bind Completed, Mode=TwoWay}" Click="Complete_Click" VerticalAlignment="Top" AutomationProperties.Name="Mark reminder complete"/>
-        <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Metadata, Mode=OneWay}" Foreground="{x:Bind MetadataBrush, Mode=OneWay}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Description, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/></StackPanel>
+        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center"><TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Metadata, Mode=OneWay}" Visibility="{x:Bind MetadataVisibility, Mode=OneWay}" Foreground="{x:Bind MetadataBrush, Mode=OneWay}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Description, Mode=OneWay}" Visibility="{x:Bind DescriptionVisibility, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/></StackPanel>
        </Grid></DataTemplate></ListView.ItemTemplate>
       </ListView>
-      <Grid x:Name="EmptyState" Grid.Row="2" Visibility="Collapsed" IsHitTestVisible="False"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8"><FontIcon Glyph="&#xE90C;" FontSize="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/><TextBlock Text="Nothing here" Style="{ThemeResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"/><TextBlock Text="Enjoy the quiet—or add a reminder." Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel></Grid>
-      <Grid Grid.Row="3" Padding="24,10,20,16"><ToggleSwitch x:Name="ShowCompleted" Header="Show completed" Toggled="ShowCompleted_Toggled"/><TextBlock x:Name="RowCount" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></Grid>
+      <Grid x:Name="EmptyState" Grid.Row="2" Visibility="Collapsed" IsHitTestVisible="False"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Margin="24" MaxWidth="320"><FontIcon Glyph="&#xE90C;" FontSize="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,4"/><TextBlock x:Name="EmptyStateTitle" Text="No reminders yet" TextWrapping="Wrap" TextAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}"/><TextBlock x:Name="EmptyStateMessage" Text="Add a reminder to get started." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel></Grid>
+      <Grid Grid.Row="3" Padding="24,12,24,16" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ToggleSwitch x:Name="ShowCompleted" MinWidth="0" OnContent="Completed" OffContent="Completed" AutomationProperties.Name="Show completed reminders" ToolTipService.ToolTip="Show completed reminders" VerticalAlignment="Center" Toggled="ShowCompleted_Toggled"/><TextBlock x:Name="RowCount" Grid.Column="1" Style="{ThemeResource CaptionTextBlockStyle}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></Grid>
      </Grid>
      <primitives:Thumb x:Name="PaneDivider" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
        AutomationProperties.Name="Resize reminder details" IsTabStop="True" UseSystemFocusVisuals="True"
-       ToolTipService.ToolTip="Drag to resize or close either pane. Drag from the edge to reopen. Double-click or press Home for automatic sizing. Arrow keys resize."
+       ToolTipService.ToolTip="Drag to resize. At either edge, selecting a task opens full-width details. Double-click or press Home for automatic sizing. Arrow keys resize."
        DragStarted="PaneDivider_DragStarted" DragDelta="PaneDivider_DragDelta" DragCompleted="PaneDivider_DragCompleted"
        KeyDown="PaneDivider_KeyDown" DoubleTapped="PaneDivider_DoubleTapped">
       <primitives:Thumb.ContextFlyout><MenuFlyout><MenuFlyoutItem Text="Size panes automatically" Click="AutomaticPaneSizing_Click"/></MenuFlyout></primitives:Thumb.ContextFlyout>
@@ -77,31 +76,60 @@
         <VisualStateGroup x:Name="FocusStates">
          <VisualState x:Name="Unfocused"/>
          <VisualState x:Name="PointerFocused"/>
-         <VisualState x:Name="Focused"><VisualState.Setters><Setter Target="KeyboardFocusLine.Opacity" Value="1"/></VisualState.Setters></VisualState>
+         <VisualState x:Name="Focused"><VisualState.Setters><Setter Target="DividerVisual.Opacity" Value="1"/></VisualState.Setters></VisualState>
         </VisualStateGroup>
        </VisualStateManager.VisualStateGroups>
-       <Grid x:Name="DividerVisual" Opacity="0">
-        <Border Width="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
-        <Border Width="4" Height="40" CornerRadius="2" Background="{ThemeResource AccentFillColorDefaultBrush}"/>
-       </Grid>
-       <Border x:Name="KeyboardFocusLine" Width="2" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0"/>
+       <Border x:Name="DividerVisual" Width="4" Height="40" CornerRadius="2" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0"/>
       </Grid></ControlTemplate></primitives:Thumb.Template>
      </primitives:Thumb>
-     <Grid x:Name="DetailsHost" Grid.Column="2">
+     <Grid x:Name="DetailsHost" Grid.Column="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
       <StackPanel x:Name="NoSelection" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Margin="24" MaxWidth="320"><FontIcon Glyph="&#xE8A5;" FontSize="36" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/><TextBlock Text="Select a reminder" TextWrapping="Wrap" TextAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}"/><TextBlock Text="Its details will appear here." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
-      <ScrollViewer x:Name="DetailPane" Visibility="Collapsed"><StackPanel Padding="24,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="10">
-       <StackPanel.Transitions><TransitionCollection><EntranceThemeTransition FromHorizontalOffset="20"/></TransitionCollection></StackPanel.Transitions>
-       <Button x:Name="BackToReminders" Content="Back to reminders" Click="BackToReminders_Click" Visibility="Collapsed"/>
-       <TextBlock Text="Details" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,0,0,4"/>
-       <TextBox x:Name="DetailTitle" Header="Title" TextChanged="Detail_Changed"/>
-       <TextBox x:Name="DetailNotes" Header="Notes" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="110" TextChanged="Detail_Changed"/>
-       <Grid x:Name="DetailListPriority" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailList" Header="List" DisplayMemberPath="Title" SelectedValuePath="Id" IsEnabled="False"/><ComboBox x:Name="DetailPriority" Grid.Column="1" Header="Priority" SelectionChanged="Detail_Changed"><ComboBoxItem Content="None" Tag="0"/><ComboBoxItem Content="Low" Tag="9"/><ComboBoxItem Content="Medium" Tag="5"/><ComboBoxItem Content="High" Tag="1"/></ComboBox></Grid>
-       <Grid x:Name="DetailDateTime" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><CalendarDatePicker x:Name="DetailDate" Header="Due date" DateChanged="Detail_Changed"/><TimePicker x:Name="DetailTime" Grid.Column="1" Header="Time" TimeChanged="Detail_Changed"/></Grid>
-       <Grid x:Name="DetailToggles" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ToggleSwitch x:Name="DetailAllDay" Header="All day" Toggled="Detail_Changed"/><ToggleSwitch x:Name="DetailFlagged" Grid.Column="1" Header="Flagged" Toggled="Detail_Changed"/></Grid>
-       <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0"><Button x:Name="SaveButton" Content="Save changes" Style="{ThemeResource AccentButtonStyle}" IsEnabled="False" Click="Save_Click"/><Button Content="Delete" AutomationProperties.Name="Delete reminder" Click="Delete_Click"/></StackPanel>
-      </StackPanel></ScrollViewer>
+      <Grid x:Name="DetailPane" Visibility="Collapsed">
+       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid Padding="20,12" MaxWidth="620" HorizontalAlignment="Stretch" MinHeight="64">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <Button x:Name="BackToReminders" Margin="0,0,12,0" AutomationProperties.Name="Back to reminders" ToolTipService.ToolTip="Back to reminders" Click="BackToReminders_Click" Visibility="Collapsed" VerticalAlignment="Center"><FontIcon Glyph="&#xE72B;" FontSize="14"/></Button>
+        <StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="Task details" Style="{ThemeResource BodyStrongTextBlockStyle}"/><TextBlock x:Name="DetailListName" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/></StackPanel>
+        <Button Grid.Column="2" Margin="12,0,0,0" AutomationProperties.Name="Task actions" ToolTipService.ToolTip="Task actions" VerticalAlignment="Center"><FontIcon Glyph="&#xE712;" FontSize="16"/><Button.Flyout><MenuFlyout><MenuFlyoutItem Text="Delete task" Click="Delete_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon></MenuFlyoutItem></MenuFlyout></Button.Flyout></Button>
+       </Grid>
+       <ScrollViewer x:Name="DetailScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+        <StackPanel Padding="20,0,20,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="16">
+         <TextBox x:Name="DetailTitle" PlaceholderText="Task title" AutomationProperties.Name="Task title" Style="{StaticResource TaskTitleEditorStyle}" TextChanged="Detail_Changed"/>
+         <TextBox x:Name="DetailNotes" Style="{StaticResource TaskNotesEditorStyle}" TextChanged="Detail_Changed"/>
+         <Border Style="{StaticResource EditorSectionStyle}">
+          <StackPanel Spacing="10">
+           <TextBlock Text="Schedule" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+           <Grid x:Name="DetailDateTime" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><CalendarDatePicker x:Name="DetailDate" Header="Due date" PlaceholderText="No date" HorizontalAlignment="Stretch" DateChanged="Detail_Changed"/><TimePicker x:Name="DetailTime" Grid.Column="1" Header="Time" HorizontalAlignment="Stretch" TimeChanged="Detail_Changed"/></Grid>
+           <Grid x:Name="DetailAllDayRow"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="All day" VerticalAlignment="Center"/><ToggleSwitch x:Name="DetailAllDay" Grid.Column="1" OnContent="" OffContent="" MinWidth="0" AutomationProperties.Name="All day" Toggled="Detail_Changed"/></Grid>
+           <Grid x:Name="DetailRecurrence" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailRepeatChoice" Header="Repeat" PlaceholderText="Custom repeat" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="Never"/><ComboBoxItem Content="Daily"/><ComboBoxItem Content="Weekly"/><ComboBoxItem Content="Monthly"/><ComboBoxItem Content="Yearly"/></ComboBox><NumberBox x:Name="DetailRepeatInterval" Grid.Column="1" Header="Every" Minimum="1" Maximum="999" Value="1" SpinButtonPlacementMode="Compact" ValueChanged="Detail_Changed"/></Grid>
+           <TextBlock x:Name="DetailRepeatHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed"/>
+          </StackPanel>
+         </Border>
+         <Expander x:Name="DetailMore" Header="More options" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+          <StackPanel Spacing="16">
+           <StackPanel x:Name="DetailTagsSection" Spacing="6" Visibility="Collapsed"><TextBlock Text="Tags" Style="{StaticResource BodyStrongTextBlockStyle}"/><TextBlock x:Name="DetailTags" TextWrapping="Wrap" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/><TextBlock Text="Manage tags in Apple Reminders." TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel>
+           <Grid x:Name="DetailOptions" ColumnSpacing="12"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions><ComboBox x:Name="DetailPriority" Header="Priority" HorizontalAlignment="Stretch" SelectionChanged="Detail_Changed"><ComboBoxItem Content="None" Tag="0"/><ComboBoxItem Content="Low" Tag="9"/><ComboBoxItem Content="Medium" Tag="5"/><ComboBoxItem Content="High" Tag="1"/></ComboBox><ToggleSwitch x:Name="DetailFlagged" Grid.Column="1" Header="Flagged" Toggled="Detail_Changed"/></Grid>
+          </StackPanel>
+         </Expander>
+        </StackPanel>
+       </ScrollViewer>
+       <Border Grid.Row="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"><Grid Padding="20,12" MaxWidth="620" HorizontalAlignment="Stretch"><Button x:Name="SaveButton" Content="Save changes" MinWidth="140" Height="36" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Right" IsEnabled="False" Click="Save_Click"/></Grid></Border>
+      </Grid>
      </Grid>
     </Grid>
+    <StackPanel x:Name="StatusBanners" Visibility="Collapsed" VerticalAlignment="Top" Canvas.ZIndex="10">
+     <StackPanel.Resources><x:Double x:Key="InfoBarMinHeight">64</x:Double></StackPanel.Resources>
+     <Border x:Name="UpdateBannerSurface" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Translation="0,0,16">
+      <Border.Shadow><ThemeShadow/></Border.Shadow>
+      <InfoBar x:Name="UpdateInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" Severity="Informational" CornerRadius="0" BorderThickness="0">
+       <InfoBar.ActionButton><Button x:Name="UpdateButton" Content="Install and restart" Click="Update_Click"/></InfoBar.ActionButton>
+      </InfoBar>
+     </Border>
+     <Border x:Name="AppBannerSurface" Visibility="Collapsed" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Translation="0,0,16">
+      <Border.Shadow><ThemeShadow/></Border.Shadow>
+      <InfoBar x:Name="AppInfoBar" IsOpen="False" Visibility="Collapsed" IsClosable="True" CornerRadius="0" BorderThickness="0"/>
+     </Border>
+    </StackPanel>
    </Grid>
   </NavigationView>
 
@@ -119,12 +147,21 @@
           card width. Unwrapped, the text is clipped on both sides and widens
           the panel enough to clip the fields below it too. -->
      <TextBlock x:Name="GateStatus" Text="Starting the sync service…" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Stretch" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-     <StackPanel x:Name="LoginFields" Spacing="12" Visibility="Collapsed"><TextBox x:Name="AppleIdBox" Header="Apple ID" PlaceholderText="you@icloud.com"/><PasswordBox x:Name="PasswordBox" Header="Password"/><Button Content="Sign in" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="SignIn_Click"/></StackPanel>
-     <StackPanel x:Name="CodeFields" Spacing="12" Visibility="Collapsed"><TextBox x:Name="CodeBox" Header="Verification code" MaxLength="16"/><Button x:Name="VerifyCode" Content="Verify" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="Verify_Click"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4"><HyperlinkButton x:Name="ResendCode" Content="Send a new code" Click="ResendCode_Click"/><HyperlinkButton x:Name="TextCode" Content="Text me a code" Visibility="Collapsed" Click="TextCode_Click"/></StackPanel><HyperlinkButton x:Name="RestartSignIn" Content="Start a new sign-in" HorizontalAlignment="Center" Click="RestartSignIn_Click"/></StackPanel>
+     <StackPanel x:Name="LoginFields" Spacing="12" Visibility="Collapsed">
+      <Button x:Name="AppleDeviceSignIn" Content="Sign in with an Apple device" HorizontalAlignment="Stretch" Click="BrowserSignIn_Click"/>
+      <TextBlock Text="Continue on Apple's sign-in page." TextWrapping="Wrap" HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <TextBlock Text="Or enter your account for text verification" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <TextBox x:Name="AppleIdBox" Header="Apple ID" PlaceholderText="you@icloud.com"/>
+      <PasswordBox x:Name="PasswordBox" Header="Password"/>
+      <Button Content="Sign in with text verification" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="SignIn_Click"/>
+      <TextBlock Text="This PC remembers your trusted session. Apple may occasionally require verification again." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+     </StackPanel>
+     <StackPanel x:Name="CodeFields" Spacing="12" Visibility="Collapsed"><TextBox x:Name="CodeBox" Header="Verification code" MaxLength="16"/><Button x:Name="VerifyCode" Content="Verify" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="Verify_Click"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4"><HyperlinkButton x:Name="ResendCode" Content="Send a new code" Click="ResendCode_Click"/><HyperlinkButton x:Name="TextCode" Content="Text me a code" Visibility="Collapsed" Click="TextCode_Click"/></StackPanel><HyperlinkButton Content="Use Apple-device verification" HorizontalAlignment="Center" Click="BrowserSignIn_Click"/><HyperlinkButton x:Name="RestartSignIn" Content="Start a new sign-in" HorizontalAlignment="Center" Click="RestartSignIn_Click"/></StackPanel>
      <InfoBar x:Name="GateError" IsOpen="False" Severity="Error" IsClosable="False">
       <InfoBar.ActionButton><Button Content="Review iCloud setup" Click="ReviewICloudSetup_Click"/></InfoBar.ActionButton>
      </InfoBar>
      <HyperlinkButton x:Name="SetupHelpLink" Content="iCloud setup and troubleshooting" HorizontalAlignment="Center" Click="ReviewICloudSetup_Click"/>
+     <HyperlinkButton Content="Settings and storage" HorizontalAlignment="Center" Click="Settings_Click"/>
      <HyperlinkButton Content="Privacy policy" HorizontalAlignment="Center" Click="PrivacyPolicy_Click"/>
      <Button Content="Explore the UI with sample data" HorizontalAlignment="Center" Click="Demo_Click"/>
     </StackPanel>
@@ -133,40 +170,56 @@
   </ContentControl>
 
   <Grid x:Name="SetupGuide" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-    <Border x:Name="SetupCard" MaxWidth="640" Margin="24" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="12">
-     <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <ScrollViewer x:Name="SetupGuideScroll" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
-     <StackPanel Spacing="12">
-      <TextBlock x:Name="SetupGuideHeading" Text="Before you sign in" Style="{ThemeResource SubtitleTextBlockStyle}" TextWrapping="Wrap"/>
-      <TextBlock Text="A few checks on your Apple Account will help Reminders feel at home on Windows." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+    <Border x:Name="SetupCard" MaxWidth="560" Margin="24" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16">
+     <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Spacing="12" Margin="0,0,0,24">
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <TextBlock x:Name="SetupGuideHeading" Text="iCloud setup" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+       <TextBlock x:Name="SetupStepCount" Grid.Column="1" FontSize="12" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite"/>
+       <Button x:Name="SetupReturn" Grid.Column="2" Width="32" Height="32" Padding="0" Visibility="Collapsed" Click="SetupReturn_Click" AutomationProperties.Name="Close setup"><FontIcon Glyph="&#xE8BB;" FontSize="12"/></Button>
+      </Grid>
+      <ProgressBar x:Name="SetupProgress" Height="4" Minimum="0" Maximum="5" IsTabStop="False"/>
+     </StackPanel>
+     <ScrollViewer x:Name="SetupGuideScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top">
+     <StackPanel Spacing="16">
       <InfoBar x:Name="SetupFailure" IsOpen="False" Severity="Warning" IsClosable="False"/>
-      <TextBlock x:Name="SetupStepCount" Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite"/>
-      <ProgressBar x:Name="SetupProgress" Minimum="0" Maximum="5" IsTabStop="False"/>
-      <FontIcon x:Name="SetupStepIcon" FontSize="30" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-      <TextBlock x:Name="SetupStepTitle" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="Wrap" IsTabStop="True" AutomationProperties.HeadingLevel="Level1"/>
-      <TextBlock x:Name="SetupStepSummary" TextWrapping="Wrap" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-      <TextBlock x:Name="SetupStepInstructions" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
-      <Border Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="14">
-       <TextBlock x:Name="SetupStepNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <Border Width="42" Height="42" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Top">
+        <FontIcon x:Name="SetupStepIcon" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+       </Border>
+       <TextBlock x:Name="SetupStepTitle" Grid.Column="1" FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" IsTabStop="True" AutomationProperties.HeadingLevel="Level1"/>
+      </Grid>
+      <TextBlock x:Name="SetupStepSummary" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+      <Border Background="{ThemeResource ControlFillColorSecondaryBrush}" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+       <TextBlock x:Name="SetupStepInstructions" TextWrapping="Wrap" LineHeight="22" IsTextSelectionEnabled="True"/>
       </Border>
+      <InfoBar x:Name="SetupImportantNote" Title="Before you change this" IsOpen="False" IsClosable="False" Severity="Warning"/>
       <HyperlinkButton x:Name="SetupStepLink" HorizontalAlignment="Left" Padding="0" Click="SetupStepLink_Click"/>
-      <InfoBar x:Name="SetupGuideNotice" IsOpen="False" Severity="Informational" IsClosable="True"/>
-      <StackPanel x:Name="SetupSupportActions" Spacing="8" Visibility="Collapsed">
-       <TextBlock Text="Still stuck? Copy the error and share it with support along with app.log. Do not send passwords or verification codes." TextWrapping="Wrap"/>
-       <Button Content="Copy error details" Click="CopySignInError_Click" HorizontalAlignment="Stretch"/>
-       <Button Content="Open diagnostic-log folder" Click="OpenAuthLogs_Click" HorizontalAlignment="Stretch"/>
-      </StackPanel>
+      <Expander x:Name="SetupDetails" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+       <Expander.Header><TextBlock x:Name="SetupDetailsHeading" TextWrapping="Wrap"/></Expander.Header>
+       <StackPanel Spacing="12">
+        <TextBlock x:Name="SetupStepDetails" TextWrapping="Wrap" IsTextSelectionEnabled="True"/>
+        <TextBlock x:Name="SetupStepNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+       </StackPanel>
+      </Expander>
+      <InfoBar x:Name="SetupGuideNotice" IsOpen="False" Severity="Informational" IsClosable="True" Closed="SetupGuideNotice_Closed"/>
+      <Expander x:Name="SetupSupportActions" Header="Get help with this error" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="Collapsed">
+       <StackPanel Spacing="12">
+        <TextBlock Text="Share the error and app.log with support. Do not send passwords or verification codes." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <Button Content="Copy error details" Click="CopySignInError_Click" HorizontalAlignment="Stretch"/>
+        <Button Content="Open diagnostic-log folder" Click="OpenAuthLogs_Click" HorizontalAlignment="Stretch"/>
+       </StackPanel>
+      </Expander>
      </StackPanel>
      </ScrollViewer>
-     <StackPanel Grid.Row="1" Spacing="8" Margin="0,18,0,0">
-      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-       <Button x:Name="SetupBack" Content="Back" Click="SetupBack_Click"/>
-       <Button x:Name="SetupNext" Grid.Column="2" Content="Next" Style="{ThemeResource AccentButtonStyle}" Click="SetupNext_Click"/>
+     <Border Grid.Row="2" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,20,0,0">
+      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Button x:Name="SetupBack" Content="Back" Click="SetupBack_Click" HorizontalAlignment="Left"/>
+       <HyperlinkButton x:Name="SetupDemo" Content="Try sample data" Padding="0" HorizontalAlignment="Left" VerticalAlignment="Center" Click="SetupDemo_Click"/>
+       <Button x:Name="SetupNext" Grid.Column="1" MinWidth="96" Content="Next" Style="{ThemeResource AccentButtonStyle}" Click="SetupNext_Click"/>
       </Grid>
-      <HyperlinkButton x:Name="SetupReturn" Content="Return to sign-in" HorizontalAlignment="Center" Click="SetupReturn_Click" Visibility="Collapsed"/>
-      <Button x:Name="SetupDemo" Content="Explore with sample data" HorizontalAlignment="Center" Click="SetupDemo_Click"/>
-     </StackPanel>
+     </Border>
      </Grid>
     </Border>
   </Grid>

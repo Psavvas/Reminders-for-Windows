@@ -10,6 +10,18 @@ removes the test registration. ARM64 packages receive the resource checks; a nat
 ARM64 launch still needs an ARM64 machine.
 Tags create a draft release only after all checks pass. Publishing a stable draft is
 a separate decision. MSIX artifacts require signing or Store ingestion to install.
+Public releases contain x64/ARM64 EXE installers and portable ZIPs, plus a clearly
+labeled `Reminders-for-Windows-Store-submission.zip` containing both unsigned
+MSIX packages and an explanatory README. Raw unsigned MSIX files are not exposed
+as end-user release downloads.
+
+For v1.0.0, the WinUI project version is `1.0.0` and the package manifest version
+is `1.0.0.0`. Merge the release changes into `main`, then push `v1.0.0` at that
+merged commit. CI rejects a tag/version mismatch or a tag outside `main`.
+After the tag workflow finishes, review all five release assets, replace generated
+notes with the checked-in [release notes](releases/v1.0.0.md), and publish the draft
+as a stable release. Publishing on GitHub makes the update visible to the app's
+updater; it does not submit or publish a Microsoft Store update.
 
 NuGet restores use committed lockfiles. Cache access is read-only for PR/manual
 builds, writable only on main pushes, and disabled for tags. Keys include architecture,

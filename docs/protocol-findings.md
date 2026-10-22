@@ -3,6 +3,11 @@
 These observations came from the repository's original live-account probes and
 define the behavior the native C# connector must preserve.
 
+**Tag-write status (2026-10-22): editing and automatic repair are removed.**
+Existing tags remain readable and filterable. The prior Windows writer did not
+produce native tags on the user's iPhone. See [tag-sync-research.md](tag-sync-research.md)
+for the evidence and required device-level experiment.
+
 - Reminders use the private `com.apple.reminders` CloudKit container and the
   `Reminders` custom zone. The API is undocumented and may change.
 - Due dates are wall-clock fields encoded in a CloudKit timestamp as though the
@@ -10,11 +15,18 @@ define the behavior the native C# connector must preserve.
   the device's current zone. Creation, modification, and completion dates are
   ordinary instants.
 - Deletion is a soft `Deleted = 1` field update.
-- List changes do not appear in the reminder delta stream, so every delta pass
-  also refreshes lists.
+- Sync requests the combined `Reminder`, `List`, `Hashtag` and `RecurrenceRule`
+  zone stream. Full reads and delta reads apply those records together in a
+  SQLite transaction; tag changes do not trigger another full history read.
 - List colors are JSON blobs; `daHexString` is the preferred display value.
-- Tags are readable but writes accepted by CloudKit were not rendered by Apple
-  clients. This app therefore keeps tags read-only.
+- Tags are read-only. Apple-created records inspected on 2026-10-21 use a
+  STRING name, Type (INT64, usually 0; an existing 1 was also observed), Imported,
+  CreationDate, Deleted and a Reminder reference. Earlier Windows writers sent
+  different child formats and an unsupported hashtagIDs resolution token.
+  Matching the observed fields and reading them back did not establish native
+  compatibility. No tag child writes or automatic repairs are now performed.
+  Ordinary reminder edits still remove that earlier Windows token while
+  preserving the other field-resolution tokens.
 - List creates, renames, and deletes accepted by CloudKit did not propagate to
   Apple devices. This app does not expose those operations.
 - A phone may replace linked field collections wholesale. Local writes carry a
@@ -22,6 +34,36 @@ define the behavior the native C# connector must preserve.
   last-write-wins overwrites.
 
 ## Two-factor sign-in
+
+The optional Apple-device sign-in window lets Apple's own website implement the
+current HSA2 bridge. It uses a separate InPrivate WebView2 profile, observes only
+successful account-login/validation responses from `setup.icloud.com` and Apple
+auth headers, and imports tokens when exposed, the stable client ID, browser user
+agent and Apple cookies. The backend independently validates browser cookies with
+`/validate`, checks pending verification and the returned account, then saves and switches the
+session. A browser sign-in does not require a token-bearing `accountLogin` POST
+body to be exposed. Responses are processed in order so a trusted validation is
+not dropped while a previous response is being read. No JavaScript bridge or
+password interception is installed. The native SMS path remains available. Cookies and rotated tokens are saved in the
+existing chunked Windows Credential Manager entries, including after sync and
+normal shutdown; startup resumes before attempting a password handshake.
+
+Apple popups use separate WebViews in the same environment/profile. The host
+assigns `NewWindow` while holding a deferral and preserves the original page and
+its `window.opener` relationship. Simply setting `Handled = true` and navigating
+the original view creates a closed dummy popup; see
+[Microsoft's NewWindowRequested contract](https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/winrt/microsoft_web_webview2_core/corewebview2newwindowrequestedeventargs).
+The popup host has an account-free integration fixture. This verifies the
+cross-window handoff, not Apple's delivery of an actual device prompt.
+
+A completed web sign-in can expose Reminders while `hsaTrustedBrowser` is false
+and `hsaChallengeRequired` is false. Requiring remembered browser trust here left
+the authenticated website open indefinitely. The native handoff accepts this
+combination only after server-side cookie validation, account matching, and a
+read-only Reminders access check. The saved trust value is preserved, not changed
+to true. An unfinished challenge or rejected data access still prevents import.
+
+The following findings describe the native verification endpoints:
 
 - **Apple has three verifiers; this connector implements two.** Trusted-device
   verification has moved to Apple's HSA2 **bridge**: the client opens a
@@ -41,8 +83,8 @@ define the behavior the native C# connector must preserve.
 
   `POST verify/phone/securitycode` is a different endpoint, plain HTTP, and
   needs no bridge -- so a texted code is the only route this connector can
-  currently complete, and `request_2fa` prefers it whenever Apple lists a
-  trusted number. Restoring the device prompt means porting the bridge.
+  currently complete directly, and `request_2fa` prefers it whenever Apple lists a
+  trusted number. The Apple-hosted sign-in option handles the newer bridge.
 - The `phoneNumber` payload is `{"id": <id>}` plus `"nonFTEU"` only when Apple
   included it. Both `PUT verify/phone` and `POST verify/phone/securitycode`
   take the same shape.
@@ -123,9 +165,10 @@ Verification and delivery controls are disabled together while either request
 is in flight. The previous priming step sent an untracked SMS before the UI
 requested a second one, creating a code-invalidation risk.
 
-Startup first exchanges the saved session and trust tokens through accountLogin,
-which recreates service cookies. Only a rejected or limited token falls back to
-a password handshake. A network failure retains the saved tokens for retry.
+Startup restores browser-originated sessions through `/validate` with their saved
+cookies and user agent. Native sessions exchange saved session and trust tokens
+through `accountLogin`, which recreates service cookies. Only rejected or limited
+sessions fall back to sign-in. A network failure retains the saved session for retry.
 Session data stays in Windows Credential Manager; closing the window does not
 invoke sign-out. An explicit hsaChallengeRequired response is honored even when
 hsaTrustedBrowser is true.
@@ -163,3 +206,15 @@ the HTTP status when available. Verification diagnostics record the acceptance
 decision and whether a token was issued, without recording either secret.
 The certification screenshot alone cannot establish the reviewer's failure:
 capture the tested package version and the app.log endpoint/status sequence.
+
+### Fresh native sign-in versus browser restoration
+
+Compared with released v0.5.5, saved-cookie support had also changed fresh
+password sign-in: recreating its HTTP client reused the browser cookie container
+and browser user agent. A new native password handshake now starts with a fresh
+cookie container and the same native user agent as v0.5.5. It removes browser-only
+restoration metadata while retaining the remembered trust token. Normal session
+restoration and importing an Apple-hosted sign-in still preserve their cookies
+and user agent. Account-free checks cover this separation and the existing SMS
+delivery/verification flow. This is a concrete compatibility correction; live SMS
+verification for the updated build still needs a result.

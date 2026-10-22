@@ -69,6 +69,20 @@ foreach ($asset in @(@('StoreLogo.png',50), @('Square44x44Logo.png',44), @('Squa
     $bitmap.Dispose()
 }
 # PNG-backed ICO frames preserve alpha and provide crisp small/large shell icons.
+foreach ($size in @(16,20,24,30,32,36,40,48,60,64,72,80,96,256)) {
+    $bitmap = New-TaskCardIcon $size
+    foreach ($variant in @('', '_altform-unplated', '_altform-lightunplated')) {
+        $bitmap.Save((Join-Path $packageAssets "Square44x44Logo.targetsize-$size$variant.png"), [Drawing.Imaging.ImageFormat]::Png)
+    }
+    $bitmap.Dispose()
+}
+foreach ($scale in @(200,400)) {
+    foreach ($baseSize in @(44,150)) {
+        $bitmap = New-TaskCardIcon ($baseSize * $scale / 100)
+        $bitmap.Save((Join-Path $packageAssets "Square$($baseSize)x$($baseSize)Logo.scale-$scale.png"), [Drawing.Imaging.ImageFormat]::Png)
+        $bitmap.Dispose()
+    }
+}
 $sizes = @(16,20,24,32,40,48,64,96,128,256)
 $frames = foreach ($size in $sizes) {
     $bitmap = New-TaskCardIcon $size

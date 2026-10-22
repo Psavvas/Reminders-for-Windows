@@ -8,8 +8,14 @@
 
 Apple does not ship Reminders for Windows. This project provides an offline-capable
 Windows client with background sync and due-date notifications. The UI and iCloud
-engine run in one process. Rust, a separate sidecar, Node.js, and a browser runtime
-are no longer required.
+engine run in one process. Apple-device verification opens Apple's sign-in page
+in Microsoft Edge WebView2; the reminder interface uses native Windows controls.
+
+Download [v1.0.0](https://github.com/Psavvas/Reminders-for-Windows/releases/tag/v1.0.0)
+for x64 or ARM64, or read the [release notes](docs/releases/v1.0.0.md).
+For GitHub installation, use the matching `Setup.exe`; the Store-submission ZIP
+contains unsigned MSIX files for the publisher. Install through the Microsoft
+Store listing for a Store-signed package. See [distribution details](docs/microsoft-store.md).
 
 > This independent project is not authorized, sponsored, endorsed, or otherwise
 > approved by Apple Inc. It uses private, undocumented iCloud interfaces that may
@@ -17,7 +23,7 @@ are no longer required.
 
 Read the [Privacy Policy](PRIVACY.md) for account data, iCloud syncing, local
 storage, notifications, update checks, and removal instructions. The same policy
-is available offline from the sign-in screen and **Settings → Privacy policy**.
+is available offline from the sign-in screen and **Settings → About → Privacy policy**.
 
 ## Develop in Visual Studio
 
@@ -36,7 +42,7 @@ Credential Manager entries retain their formats and names.
 - `src/`: WinUI application, C# backend, and MSIX packaging project.
 - `tests/`: account-free backend, layout, and updater checks.
 - `scripts/`: development, build, packaging, and CI verification tools.
-- `docs/`: setup, architecture, protocol findings, and historical reviews.
+- `docs/`: setup, architecture, protocol findings, research, and release notes.
 
 The retired Rust backend has been removed; its source remains in Git history.
 
@@ -59,15 +65,15 @@ to iCloud. For a normal unpackaged development launch, omit `-Demo`.
 ## Before signing in
 
 On first launch, a five-screen guide explains this version's account setup:
-iCloud Reminders enabled, two-factor authentication with a trusted phone number
-for SMS codes, Advanced Data Protection off, web data access allowed, and account
+iCloud Reminders enabled, two-factor authentication using an Apple device or a
+trusted phone number for SMS codes, Advanced Data Protection off, web data access allowed, and account
 setup/updated terms completed on iCloud.com. Turning Advanced Data Protection off
 changes encryption protection for the whole iCloud account; the guide explains
 that choice and links to Apple's help. The app does not inspect or change these
 settings for you.
 
 Completion is remembered on this PC. Reopen the guide from the sign-in screen,
-an error's **Review iCloud setup** button, or **Settings → iCloud setup and
+an error's **Review iCloud setup** button, or **Settings → Sync & storage → iCloud setup and
 troubleshooting**. Error guidance preserves Apple's message and offers next
 steps without guessing an unreported cause. Troubleshooting can copy the error
 and open the actual diagnostic-log folder, including in a Store installation.
@@ -104,7 +110,7 @@ MSIX and portable builds show a release link.
 
 Installer builds check GitHub for updates on launch and every six hours while
 running. A banner offers **Install and restart** when a newer stable release is
-available. You can also use **Settings → Check for updates**. The app downloads
+available. You can also use **Settings → About → Check for updates**. The app downloads
 the matching x64 or ARM64 installer, checks its size and GitHub SHA-256 digest,
 then upgrades the existing installation and reopens. Reminder data, queued
 changes, preferences and sign-in credentials are kept. Save unfinished edits
@@ -116,7 +122,8 @@ and MSIX builds offer a link to the release instead of running an installer.
 To ship an update, increase `<Version>` in the WinUI project and the MSIX version
 in `src/Reminders.Package/Package.appxmanifest` together, commit the changes,
 and push a matching tag (for
-example `v0.4.0`). CI creates a draft with both installers. Review and publish
+example `v1.0.0`). The tagged commit must be on `main`. CI creates a draft with
+installers, portable ZIPs, and Store submission packages for both architectures. Review and publish
 that draft as a stable GitHub release; drafts and prereleases are ignored by
 the updater. Committing code alone does not distribute an update.
 
@@ -128,17 +135,37 @@ the updater. Committing code alone does not distribute an update.
 | Titles, notes, due dates, priorities, completion and flags | Read and write |
 | Smart lists | Today, Upcoming, All, Completed and Deleted |
 | Search and sorting | Local SQLite queries |
-| Tags | Read and filter |
+| Tags | View and filter existing iCloud tags; manage tags in Apple Reminders ([research](docs/tag-sync-research.md)) |
+| Repeated reminders | Create daily/weekly/monthly/yearly schedules; preserve supported repeats when completing |
+| Sidebar list order | Saved on this PC across refreshes and restarts |
 | Offline use | Cached reads; edits queue for upload |
-| Automatic sync | Launch/return, after edits, and every 10 minutes by default |
-| Authentication | Apple ID, SMS 2FA, terms acceptance and session restoration |
-| Conflicts | Preserve local/remote versions for explicit resolution |
+| Automatic sync | Launch/return, after edits, and every minute by default; incremental list/tag/rule updates |
+| Authentication | Apple-hosted device verification or native SMS, terms acceptance, saved trust tokens and cookies |
+| Conflicts | Preserve local/remote versions; discard selected unsynced changes in Settings without clearing the cache |
 | Windows integration | Native controls, theme, badges and due notifications |
 
 Creating or changing lists is unsupported: CloudKit Web Services list records do
-not propagate to Apple devices. Two-factor sign-in requires a trusted phone number
-and a texted code. Apple's HSA2 device-prompt bridge is not implemented. See
-[protocol findings](docs/protocol-findings.md).
+not propagate to Apple devices. **Sign in with an Apple device** opens Apple's
+own sign-in page in an isolated WebView2 window, allowing Apple to handle its
+current device-verification flow. Choose **Trust** when Apple offers it. The
+trusted session is saved in Windows Credential Manager; Apple can still expire
+or revoke it. App-specific passwords do not authenticate this Reminders service.
+Custom repeat rules the app cannot safely advance must be completed on an Apple
+device. Live Apple interoperability still requires account validation. See
+[sign-in options](docs/authentication.md) and [protocol findings](docs/protocol-findings.md).
+
+## Recovering unsynced changes
+
+Open **Settings → Sync & storage → Discard unsynced changes** to review tasks
+with queued uploads or conflicts. Select only the tasks to recover: new tasks
+that never reached iCloud are removed locally, and existing tasks are restored
+from fresh iCloud copies. This does not delete tasks in iCloud or clear the rest
+of the cache. Unselected edits and saved sign-in are preserved.
+
+**Clear app cache** in the same section resets the entire local reminder cache
+and downloads it again. It requires confirmation when uploads or conflicts
+would be lost. **Settings → Account → Sign out** removes saved sign-in while
+retaining cached tasks and queued edits for a later sign-in.
 
 ## Architecture
 
