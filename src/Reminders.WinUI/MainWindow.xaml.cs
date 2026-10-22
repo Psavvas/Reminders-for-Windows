@@ -716,8 +716,8 @@ public sealed partial class MainWindow : Window
             DetailRepeatChoice.SelectedIndex = customRepeat ? -1 : (int)(reminder.Recurrence?.Frequency ?? 0);
             DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
             UpdateRepeatControls();
-            DetailTags.Text = string.Join("  ", reminder.Tags.Select(t => "#" + t)); NewTagName.Text = "";
-            DetailTags.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            DetailTags.Text = string.Join(", ", reminder.Tags.Select(t => "#" + t));
+            DetailTagsHint.Text = Reminders.Core.ReminderTags.Hint;
         }
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
         UpdatePaneLayout();
@@ -757,7 +757,8 @@ public sealed partial class MainWindow : Window
         _detailDirty = true;
         UpdateRepeatControls();
         var repeats = DetailRepeatChoice.SelectedIndex > 0 || _selected.Recurrence?.Supported == false;
-        SaveButton.IsEnabled = (!repeats || DetailDate.Date is not null)
+        var validTags = ValidateTagText(DetailTags.Text, DetailTagsHint);
+        SaveButton.IsEnabled = validTags && (!repeats || DetailDate.Date is not null)
             && (!DetailRepeatInterval.IsEnabled || double.IsFinite(DetailRepeatInterval.Value) && DetailRepeatInterval.Value is >= 1 and <= 999 && DetailRepeatInterval.Value == Math.Truncate(DetailRepeatInterval.Value));
     }
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -767,6 +768,7 @@ public sealed partial class MainWindow : Window
         var priority = long.Parse(((ComboBoxItem?)DetailPriority.SelectedItem)?.Tag?.ToString() ?? "0");
         try
         {
+            var tags = Reminders.Core.ReminderTags.Parse(DetailTags.Text);
             var recurrence = DetailRepeatChoice.SelectedIndex <= 0 ? null : new RepeatSchedule { Frequency = DetailRepeatChoice.SelectedIndex, Interval = (long)DetailRepeatInterval.Value };
             var repeatChanged = DetailRepeatChoice.IsEnabled && (recurrence?.Frequency != _selected.Recurrence?.Frequency || recurrence?.Interval != _selected.Recurrence?.Interval);
             if (_demo)
@@ -775,14 +777,18 @@ public sealed partial class MainWindow : Window
                 _selected.DueDate = due; _selected.AllDay = DetailAllDay.IsOn;
                 _selected.Flagged = DetailFlagged.IsOn; _selected.Priority = priority;
                 if (repeatChanged) _selected.Recurrence = recurrence;
+                _selected.Tags = tags.ToList();
+                _tags = _demoRows.SelectMany(r => r.Tags).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
+                RebuildListNavigation();
             }
             else
             {
                 var patch = new Dictionary<string, object?> { ["id"] = _selected.Id, ["title"] = DetailTitle.Text.Trim(), ["description"] = DetailNotes.Text, ["due_date"] = due, ["all_day"] = DetailAllDay.IsOn, ["flagged"] = DetailFlagged.IsOn, ["priority"] = priority };
                 if (repeatChanged) patch["recurrence"] = recurrence;
+                if (!tags.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(_selected.Tags)) patch["tags"] = tags;
                 await _sync.CallAsync("update_reminder", patch);
             }
-            SaveButton.IsEnabled = false; _detailDirty = false; await LoadRemindersAsync();
+            SaveButton.IsEnabled = false; _detailDirty = false; await RefreshAllAsync();
         }
         catch (Exception error) { ShowInfo("Couldn't save reminder", error.Message, InfoBarSeverity.Error); }
     }
@@ -793,23 +799,10 @@ public sealed partial class MainWindow : Window
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         if (_demo) _selected.Deleted = true; else await _sync.CallAsync("delete_reminder", new { id = _selected.Id }); ShowDetail(null); await LoadRemindersAsync();
     }
-    private async void AddTag_Click(object sender, RoutedEventArgs e)
+    private static bool ValidateTagText(string text, TextBlock hint)
     {
-        if (_selected is null || string.IsNullOrWhiteSpace(NewTagName.Text)) return;
-        AddTagButton.IsEnabled = false;
-        try
-        {
-            if (_demo)
-            {
-                var name = NewTagName.Text.Trim().TrimStart('#');
-                if (!_selected.Tags.Contains(name, StringComparer.OrdinalIgnoreCase)) _selected.Tags.Add(name);
-                _tags = _demoRows.SelectMany(r => r.Tags).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
-                RebuildListNavigation(); ShowDetail(_selected); UpdateRows();
-            }
-            else { await _sync.CallAsync("create_tag", new { id = _selected.Id, name = NewTagName.Text }); await RefreshAllAsync(); }
-        }
-        catch (Exception error) { ShowInfo("Couldn't add tag", error.Message, InfoBarSeverity.Error); }
-        finally { AddTagButton.IsEnabled = true; }
+        try { Reminders.Core.ReminderTags.Parse(text); hint.Text = Reminders.Core.ReminderTags.Hint; return true; }
+        catch (Reminders.Core.CoreException error) { hint.Text = error.Message; return false; }
     }
 
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
@@ -948,9 +941,10 @@ public sealed partial class MainWindow : Window
             case "sync_progress":
                 ShowInfo("Syncing", e.Data.Text("message", $"Processing {e.Data.Text("stage", "reminders")}..."), InfoBarSeverity.Informational);
                 break;
+            case "sync_downloaded": await RefreshAllAsync(); break;
             case "sync_finished": AppInfoBar.IsOpen = false; await RefreshAllAsync(); break;
             case "sync_warning":
-                ShowInfo("Some changes haven't synced", "iCloud refused a queued change. Your latest reminders were downloaded. Review Sync & storage to retry or clear the app cache.", InfoBarSeverity.Warning);
+                ShowInfo("Some changes haven't synced", e.Data.Text("code", "") == "CONFLICT" ? "Review sync conflicts to choose which version to keep." : "iCloud refused a queued change. Your edits are saved on this PC. Review Sync & storage for details.", InfoBarSeverity.Warning);
                 var recovery = new Button { Content = "Review sync settings" };
                 recovery.Click += async (_, _) => await ShowSettingsAsync(1);
                 AppInfoBar.ActionButton = recovery;

@@ -14,11 +14,17 @@ define the behavior the native C# connector must preserve.
   zone stream. Full reads and delta reads apply those records together in a
   SQLite transaction; tag changes do not trigger another full history read.
 - List colors are JSON blobs; `daHexString` is the preferred display value.
-- Early standalone tag writes were accepted without rendering on Apple clients.
-  Tag creation now atomically updates the parent's `HashtagIDs` (raw UUIDs) and
-  creates a `Hashtag/<UUID>` child with a CloudKit parent, validated `Reminder`
-  reference, and base64 UTF-8 `ENCRYPTED_BYTES` name. Live rendering must still
-  be verified on an Apple account.
+- Tag creation atomically updates the parent's `HashtagIDs` (raw UUIDs) and
+  creates a `Hashtag/<UUID>` child with a CloudKit parent and validated `Reminder`
+  reference. Apple-created records inspected on 2026-10-21 use a `STRING` name,
+  `Type` (`INT64`, normally 0; preserve existing 1), `Imported` (`INT64`),
+  `CreationDate` and `Deleted`. The earlier Windows writer encoded the name as
+  `ENCRYPTED_BYTES` and omitted Type/Imported; accepted responses did not establish
+  Apple-client compatibility. Correct the child shape and do not emit a
+  `hashtagIDs` resolution token: Apple's published Reminders model does not define
+  one. Normal edits remove that earlier Windows token while preserving others.
+  Tag writes now read back the parent and changed children before acknowledgement.
+  Real iPhone rendering still needs live confirmation; fixture tests cannot prove it.
 - List creates, renames, and deletes accepted by CloudKit did not propagate to
   Apple devices. This app does not expose those operations.
 - A phone may replace linked field collections wholesale. Local writes carry a

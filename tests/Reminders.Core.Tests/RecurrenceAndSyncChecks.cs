@@ -73,7 +73,7 @@ internal static class RecurrenceAndSyncChecks
         records["Reminder/recurring"]["fields"]!["HashtagIDs"] = J.Node(new { type = "STRING_LIST", value = new[] { "existing" } });
         var tagged = await client.AddTag("Reminder/recurring", J.Node(new { name = "aviation", tag_id = "new-tag" }).AsObject(), created.Text("change_tag"), default);
         check(CloudKit.Field(records["Reminder/recurring"], "HashtagIDs")!.AsArray().Count == 2, "adding tags preserves existing tag IDs");
-        check(CloudKit.Text(records["Hashtag/new-tag"], "Name") == "aviation", "tag name uses UTF-8 encrypted-bytes wrapper");
+        check(CloudKit.Text(records["Hashtag/new-tag"], "Name") == "aviation", "tag name round trips");
         check(records["Hashtag/new-tag"]["parent"].Text("recordName") == "Reminder/recurring", "tag has parent and reminder back-reference");
         var completion = J.Node(new { completed = true, completion_id = "Reminder/history" }).AsObject();
         var previousDue = CloudKit.Field(records["Reminder/recurring"], "DueDate")!.GetValue<long>();

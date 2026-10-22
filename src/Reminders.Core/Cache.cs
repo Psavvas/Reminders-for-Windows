@@ -161,7 +161,7 @@ internal sealed class Cache : IDisposable
             {
                 Execute("DELETE FROM related_records WHERE id=@p0", id);
                 if (type == "List") Execute("DELETE FROM lists WHERE id=@p0", id);
-                else if (type == "Hashtag") Execute("DELETE FROM tags WHERE id=@p0", id);
+                else if (type == "Hashtag") Execute("DELETE FROM tags WHERE id=@p0 AND NOT EXISTS (SELECT 1 FROM outbox WHERE reminder_id=tags.reminder_id AND op IN ('tag','tags'))", id);
                 else if (type == "Reminder" && Reminder(id).Number("dirty") == 0) Edit(id, new() { ["deleted"] = true }, false);
                 continue;
             }
@@ -174,7 +174,7 @@ internal sealed class Cache : IDisposable
             }
             Execute("INSERT INTO related_records(id,record_type,json) VALUES(@p0,@p1,@p2) ON CONFLICT(id) DO UPDATE SET json=excluded.json", id, type, combined.ToJsonString());
             if (type == "Reminder" && ICloudClient.ToReminder(combined) is { } reminder) Upsert(reminder);
-            else if (type == "Hashtag" && CloudKit.Text(combined, "Name") is { } name && CloudKit.Field(combined, "Reminder").Text("recordName") is { } parent)
+            else if (type == "Hashtag" && CloudKit.Text(combined, "Name") is { } name && CloudKit.Field(combined, "Reminder").Text("recordName") is { } parent && !HasPendingTags(parent))
                 Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", id, name, parent);
             else if (type == "List")
             {
@@ -185,7 +185,31 @@ internal sealed class Cache : IDisposable
         }
         return true;
     });
-    public void ReplaceTags(string id, JsonArray tags) => Transaction(() => { Execute("DELETE FROM tags WHERE reminder_id=@p0", id); foreach (var t in tags) Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", t.Text("id"), t.Text("name"), id); return true; });
+    internal bool HasPendingTags(string id) => Query("SELECT 1 FROM outbox WHERE reminder_id=@p0 AND op IN ('tag','tags') LIMIT 1", id).Count > 0;
+    public void ReplaceTags(string id, JsonArray tags) => Transaction(() => { ReplaceTagsInTransaction(id, tags); return true; });
+    internal void ReplaceTagsInTransaction(string id, JsonArray tags)
+    {
+        Execute("DELETE FROM tags WHERE reminder_id=@p0", id);
+        foreach (var tag in tags) Execute("INSERT OR REPLACE INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", tag.Text("id"), tag.Text("name"), id);
+    }
+    internal void QueueTagRepairs(HashSet<string> attempted) => Transaction(() =>
+    {
+        foreach (var row in Query("SELECT json FROM related_records WHERE record_type='Hashtag'"))
+        {
+            var record = J.Parse(row.Text("json"));
+            if (record is null || !ReminderTags.IsLegacy(record)) continue;
+            var id = CloudKit.Field(record, "Reminder").Text("recordName")!;
+            var parent = Reminder(id);
+            if (parent is null || parent.Flag("deleted") || parent.Number("dirty") != 0
+                || Query("SELECT 1 FROM outbox WHERE reminder_id=@p0 UNION ALL SELECT 1 FROM conflicts WHERE reminder_id=@p0 AND resolved=0", id).Count > 0) continue;
+            var raw = J.Parse(Query("SELECT json FROM related_records WHERE id=@p0", id).FirstOrDefault().Text("json"));
+            if (raw is null || CloudKit.Field(raw, "HashtagIDs") is not JsonArray ids || !ids.Any(v => ReminderTags.RecordName(v!.ToString()) == record.Text("recordName"))) continue;
+            if (!attempted.Add(id)) continue;
+            Enqueue(id, "repair_tags", new JsonObject { ["repair_only"] = true }, parent.Text("change_tag"));
+            Execute("UPDATE reminders SET dirty=1 WHERE id=@p0", id);
+        }
+        return true;
+    });
     public JsonNode Counts
     {
         get { lock (gate) { long Count(string where, params object?[] args) => Query("SELECT COUNT(*) AS n FROM reminders WHERE " + where, args)[0].Number("n"); return J.Node(new { today = Count("deleted=0 AND completed=0 AND due_date IS NOT NULL AND due_date<@p0", TimeUtil.Tomorrow), upcoming = Count("deleted=0 AND completed=0 AND due_date IS NOT NULL"), all = Count("deleted=0 AND completed=0"), completed = Count("deleted=0 AND completed=1"), deleted = Count("deleted=1") }); } }

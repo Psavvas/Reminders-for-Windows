@@ -203,13 +203,38 @@ checks passed again.
 
 ## Related records and icons
 
-Tag writes follow the linked-record shape described in the
-[public protocol implementation](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_hashtag_create.go).
-Repeat records follow its
-[recurrence write format](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_recurrence_request.go).
-That reference is used for record structure; its frequency numbers are not the
-service enum verified above. Those references describe an unofficial API, not
-an Apple compatibility guarantee.
+Tag compatibility is based on the Apple-created record shape described in
+`docs/protocol-findings.md`, not the older third-party example that encoded
+`Name` as `ENCRYPTED_BYTES`. Tags use STRING names, Type/Imported metadata,
+validated parent references and atomic child/parent relationship changes. The
+Windows-only `hashtagIDs` resolution token is removed from subsequent edits.
+The sync engine repairs only the identifiable incomplete shape written by the
+earlier Windows build; existing Apple tag types and unrelated metadata remain.
+It verifies tag writes by reading back the changed records before acknowledging
+the queue entry. HTTP success alone is not a successful tag save.
+
+Both New reminder and Task details have an editable **Tags** field under
+**Tags & priority**. Separate names with spaces or commas, with optional `#`.
+Removing a name removes that task's tag on Save; a blank field removes all tags.
+Tag edits commit to the local cache and upload queue together with other form
+changes. Task fields upload first, then the tag relationships, in per-task order.
+Stable child identities survive a restart or a lost response. A download cannot
+resurrect locally removed tags while their upload is pending. Conflict recovery
+preserves tag intent only when the conflicting operation edited tags.
+
+The account-free suite passes 890 checks. Tag checks cover an independent Apple
+record fixture, correct field types, retained Type=1 records, subsequent date
+edits, offline creation/removal/restart with repeats, lost removal replies,
+last-tag removal, old-record repair, conflict recovery and successful HTTP replies
+whose changes were not persisted. Downloads have their own event; completion is
+emitted only when uploads have drained and no conflicts remain. These checks do
+not establish real iPhone rendering or propagation; that remains a live check.
+Isolated dark previews confirmed tag fields in both forms, wrapping help text,
+the fixed footer, and saving sample tags into the task row and sidebar.
+
+Repeat records follow the structure of the
+[public recurrence implementation](https://github.com/portpowered/go-icloud/blob/main/pkg/icloud/reminder_recurrence_request.go),
+with the explicit Apple frequency conversion described above.
 Apple documents app-specific passwords for Mail, Calendar and Contacts;
 they do not authenticate this CloudKit Reminders client. See
 [Apple's explanation](https://support.apple.com/en-us/102654).
@@ -229,8 +254,10 @@ that Apple's other clients render a write or accept a trusted session.
    Repeat with a timed reminder, tags, notes and an end/count limit.
 2. Create each supported repeat in Windows and confirm the schedule on iPhone.
    Confirm a custom weekday/ordinal rule is protected by the app's guard.
-3. Add a tag to a reminder with existing iPhone tags. Confirm all tags render on
-   both devices. Repeat after creating a reminder while offline.
+3. Create a tagged task in Windows and confirm its tags on iPhone. Add a tag to
+   an existing task with iPhone tags, change its due date, then remove one tag
+   and finally all tags. Confirm each change on both devices and after restart.
+   Repeat offline, and check an old Windows-created malformed tag after sync.
 4. Use **Sign in with an Apple device**, finish Apple's verification and choose
    **Trust**. Close/reopen the app, then reboot Windows; confirm automatic restore.
    Repeat with native SMS sign-in. Check explicit sign-out removes the saved trust.

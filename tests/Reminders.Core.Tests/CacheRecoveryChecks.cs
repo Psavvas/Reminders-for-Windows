@@ -97,7 +97,7 @@ internal static class CacheRecoveryChecks
             await client.Restore(default);
             var events = new List<string>(); var sync = new SyncEngine(pushCache, client, new SemaphoreSlim(1), (name, _) => events.Add(name));
             var outcome = await sync.Sync(true, default).WaitAsync(TimeSpan.FromSeconds(5));
-            check(outcome.Property("push").Number("failed") == 1 && events.Contains("sync_finished") && events.Last() == "sync_warning", "a rejected upload still downloads and ends with an actionable warning");
+            check(outcome.Property("push").Number("failed") == 1 && events.Contains("sync_downloaded") && !events.Contains("sync_finished") && events.Last() == "sync_warning", "a rejected upload still downloads and ends with an actionable warning");
             check(pushCache.Reminder("fresh").Text("title") == "Fresh reminder", "a rejected queued edit does not block new iCloud reminders");
             check(pushCache.Pending().Count == 1 && pushCache.Reminder("dirty").Text("title") == "Keep this local edit", "rejected edits remain queued until explicitly discarded");
         }

@@ -100,7 +100,7 @@ internal static class WriteCompatibilityChecks
             check(CloudKit.Int(records["Reminder/good"], "Completed") == 1 && ICloudClient.ToReminder(records["Reminder/new"])!.Text("title") == "Edited before upload", "valid writes reach iCloud with creation aliases rebased");
             check(cache.Pending(1000).Count == 122 && cache.Pending(1000).All(row => row.Text("reminder_id") == "Reminder/rejected"), "rejected edits remain queued without starving unrelated writes behind more than 100 dependent edits");
             check(cache.Pending()[0].Number("attempts") == 1 && cache.Pending()[1].Number("attempts") == 0 && rejectedLookups == 1, "failed items retry once per sync and later edits on the same reminder do not overtake them");
-            check(events.Last() == "sync_warning" && events.Contains("sync_finished"), "partial upload reports a warning after downloading current data");
+            check(events.Last() == "sync_warning" && events.Contains("sync_downloaded") && !events.Contains("sync_finished"), "partial upload reports a warning after downloading current data");
             var retry = await sync.Sync(false, default).WaitAsync(TimeSpan.FromSeconds(5));
             check(retry["push"].Number("pushed") == 0 && rejectedLookups == 2 && writes == 3, "next sync retries retained edits without repeating successful writes or spinning");
         }

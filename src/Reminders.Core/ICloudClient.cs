@@ -144,7 +144,13 @@ internal sealed partial class ICloudClient : IDisposable
         foreach (var (json, cloud) in new[] { ("priority", "Priority"), ("completed", "Completed"), ("flagged", "Flagged"), ("deleted", "Deleted"), ("all_day", "AllDay") }) if (patch.ContainsKey(json)) { fields[cloud] = CloudKit.Number(patch.Number(json, patch.Flag(json) ? 1 : 0)); tokens.Add(json == "all_day" ? "allDay" : json); }
         if (patch.ContainsKey("completed")) { fields["CompletionDate"] = CloudKit.Timestamp(patch.Flag("completed") ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : null); tokens.Add("completionDate"); }
         if (patch.ContainsKey("due_date")) { fields["DueDate"] = CloudKit.Timestamp(patch.Text("due_date") is { } due ? TimeUtil.ToFloating(TimeUtil.Parse(due), CloudKit.Text(record, "TimeZone")) : null); tokens.Add("dueDate"); }
-        fields["LastModifiedDate"] = CloudKit.Timestamp(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); tokens.Add("lastModifiedDate"); fields["ResolutionTokenMap"] = CloudKit.ResolutionTokens(tokens, record); return fields;
+        fields["LastModifiedDate"] = CloudKit.Timestamp(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); tokens.Add("lastModifiedDate"); fields["ResolutionTokenMap"] = CloudKit.ResolutionTokens(tokens, record);
+        // The earlier tag writer invented a token that Apple's Reminders model
+        // does not define. Preserve all other field conflict-resolution tokens.
+        var map = J.Parse(fields["ResolutionTokenMap"].Text("value"));
+        if (map?["map"] is JsonObject entries && entries.Remove("hashtagIDs"))
+            fields["ResolutionTokenMap"] = CloudKit.String(map.ToJsonString());
+        return fields;
     }
     public async Task<JsonObject> Create(JsonObject payload, CancellationToken token)
     {

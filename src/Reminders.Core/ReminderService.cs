@@ -221,7 +221,8 @@ public sealed class ReminderService : IAsyncDisposable
                 r["recurrence"] = Recurrence.Validate(p["recurrence"], r.Text("due_date"));
                 r["cloud_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
                 r["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
-                cache.Transaction(() => { cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true; }); QueueSync(); return cache.Reminder(r.Required("id"));
+                var createTags = p.ContainsKey("tags") ? ReminderTags.Names(p["tags"]) : [];
+                cache.Transaction(() => { cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); SaveTags(r.Required("id"), createTags, null); return true; }); QueueSync(); return cache.Reminder(r.Required("id"));
             case "update_reminder": return LocalChange(p, "update");
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
@@ -236,6 +237,7 @@ public sealed class ReminderService : IAsyncDisposable
                     var patch = new JsonObject { ["id"] = conflict.Required("reminder_id") };
                     foreach (var f in Cache.EditFields)
                         if (local.ContainsKey(f) && (f != "recurrence" || local.Flag("recurrence_edit"))) patch[f] = local[f]?.DeepClone();
+                    if (local.Flag("tags_edit")) patch["tags"] = local["tags"]?.DeepClone();
                     LocalChange(patch, "update");
                 }
                 cache.Execute("UPDATE conflicts SET resolved=1 WHERE id=@p0", conflictId); return J.Node(new { resolved = conflictId });
@@ -250,6 +252,7 @@ public sealed class ReminderService : IAsyncDisposable
         cache.Transaction(() =>
         {
             var current = cache.Reminder(id) ?? throw CoreException.Bad($"No such reminder: {id}"); var fields = new JsonObject();
+            var tags = p.ContainsKey("tags") ? ReminderTags.Names(p["tags"]) : null;
             if (operation is "delete" or "restore") fields["deleted"] = operation == "delete";
             else
             {
@@ -293,7 +296,9 @@ public sealed class ReminderService : IAsyncDisposable
             }
             cache.Edit(id, fields, dirty: !IsLocalDemo);
             if (IsLocalDemo && fields.ContainsKey("completed")) cache.Execute("UPDATE reminders SET completed_date=@p0 WHERE id=@p1", fields.Flag("completed") ? TimeUtil.Now : null, id);
-            if (!IsLocalDemo) cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag")); result = cache.Reminder(id); return true;
+            if (!IsLocalDemo && fields.Count > 0) cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag"));
+            if (tags is not null) SaveTags(id, tags, current.Text("change_tag"));
+            result = cache.Reminder(id); return true;
         });
         QueueSync(); return operation == "delete" ? J.Node(new { deleted = id }) : result!;
     }
@@ -301,18 +306,27 @@ public sealed class ReminderService : IAsyncDisposable
     {
         id = cache.ResolveId(id);
         var current = cache.Reminder(id) ?? throw CoreException.Bad("Select a reminder before adding a tag.");
-        var name = rawName.Trim().TrimStart('#');
-        if (name.Length is 0 or > 128 || name.Any(c => !char.IsLetterOrDigit(c) && c is not '_' and not '-'))
-            throw CoreException.Bad("Use letters, numbers, hyphens or underscores for a tag (up to 128 characters).");
-        if (current.Array("tags").Any(t => string.Equals(t?.ToString(), name, StringComparison.OrdinalIgnoreCase))) return current;
-        var identity = Guid.NewGuid().ToString().ToUpperInvariant();
-        cache.Execute("INSERT INTO tags(id,name,reminder_id) VALUES(@p0,@p1,@p2)", "Hashtag/" + identity, name, id);
+        var names = ReminderTags.Names(new JsonArray(rawName));
+        SaveTags(id, current.Array("tags").Select(t => t!.ToString()).Concat(names).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), current.Text("change_tag"));
+        return cache.Reminder(id)!;
+    }
+    // Called inside the same SQLite transaction as the task edit. Each tag
+    // identity is allocated once and survives offline edits and lost replies.
+    private void SaveTags(string id, string[] names, string? baseTag)
+    {
+        var previous = cache.Query("SELECT id,name FROM tags WHERE reminder_id=@p0 ORDER BY name", id);
+        if (previous.Select(t => t!.Required("name")).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(names)) return;
+        var tags = new JsonArray(names.Select(name =>
+        {
+            var existing = previous.FirstOrDefault(t => string.Equals(t.Text("name"), name, StringComparison.OrdinalIgnoreCase));
+            return (JsonNode)new JsonObject { ["id"] = existing?.Required("id") ?? "Hashtag/" + Guid.NewGuid().ToString().ToUpperInvariant(), ["name"] = existing?.Required("name") ?? name };
+        }).ToArray());
+        cache.ReplaceTagsInTransaction(id, tags);
         if (!IsLocalDemo)
         {
             cache.Execute("UPDATE reminders SET dirty=1 WHERE id=@p0", id);
-            cache.Enqueue(id, "tag", J.Node(new { name, tag_id = identity }), current.Text("change_tag"));
+            cache.Enqueue(id, "tags", new JsonObject { ["tags"] = tags, ["previous_ids"] = new JsonArray(previous.Select(t => JsonValue.Create(t.Text("id"))).ToArray()) }, baseTag);
         }
-        return cache.Reminder(id)!;
     }
     private JsonNode Notifications(JsonObject p)
     {

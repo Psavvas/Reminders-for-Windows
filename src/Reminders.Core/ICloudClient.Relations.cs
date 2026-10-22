@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Reminders.Core;
@@ -38,24 +37,24 @@ internal sealed partial class ICloudClient
         var original = (await Cloud.Lookup(id, token)).FirstOrDefault() ?? throw CoreException.Bad("No such reminder.");
         var identity = payload.Required("tag_id");
         var ids = CloudKit.Field(original, "HashtagIDs")?.DeepClone() as JsonArray ?? new();
-        if (ids.Any(v => v?.ToString() == identity || v?.ToString() == "Hashtag/" + identity)) return Snapshot(original);
+        if (ids.Any(v => v?.ToString() == identity || v?.ToString() == "Hashtag/" + identity))
+            return await EditTags(id, new() { ["repair_only"] = true }, baseTag, token);
         if (baseTag is not null && baseTag != original.Text("recordChangeTag"))
             throw new CoreException("CONFLICT", "This reminder changed on another device while you were adding a tag.", ToReminder(original)!.ToJsonString());
         ids.Add(identity);
         var fields = UpdateFields(original, new());
         fields["HashtagIDs"] = new JsonObject { ["type"] = "STRING_LIST", ["value"] = ids };
-        AddTokens(fields, "hashtagIDs");
-        var tagFields = new JsonObject
-        {
-            ["Name"] = J.Node(new { type = "ENCRYPTED_BYTES", value = Convert.ToBase64String(Encoding.UTF8.GetBytes(payload.Required("name"))) }),
-            ["Reminder"] = CloudKit.Reference(id), ["CreationDate"] = CloudKit.Timestamp(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), ["Deleted"] = CloudKit.Number(0)
-        };
+        var tagFields = TagFields(id, payload.Required("name"));
         var result = await Cloud.Modify(new JsonArray(
             CloudKit.Operation("update", id, original.Text("recordChangeTag"), fields),
             CloudKit.Operation("create", "Hashtag/" + identity, null, tagFields, "Hashtag", id)), token);
         var combined = original.DeepClone();
         foreach (var pair in fields) combined["fields"]![pair.Key] = pair.Value?.DeepClone();
-        return MergeResult(combined, result);
+        await VerifyTags(id, ids.Select(v => ReminderTags.RecordName(v!.ToString())).ToHashSet(),
+            [new JsonObject { ["recordName"] = "Hashtag/" + identity, ["fields"] = tagFields.DeepClone() }], token);
+        var saved = MergeResult(combined, result);
+        saved["related_records"] = new JsonArray(result.First(r => r.Text("recordName") == "Hashtag/" + identity)!.DeepClone());
+        return saved;
     }
 
     private async Task<JsonObject> CompleteRecurring(JsonNode original, JsonObject patch, string? baseTag, CancellationToken token)
@@ -95,7 +94,7 @@ internal sealed partial class ICloudClient
         foreach (var link in new[] { "RecurrenceRuleIDs", "AlarmIDs", "HashtagIDs", "AttachmentIDs" })
             past[link] = J.Node(new { type = "STRING_LIST", value = Array.Empty<string>() });
         past["CreationDate"] = CloudKit.Timestamp(now.ToUnixTimeMilliseconds());
-        AddTokens(past, "recurrenceRuleIDs", "alarmIDs", "hashtagIDs", "attachmentIDs", "creationDate");
+        AddTokens(past, "recurrenceRuleIDs", "alarmIDs", "attachmentIDs", "creationDate");
         var operations = new JsonArray(
             CloudKit.Operation("update", id, original.Text("recordChangeTag"), active),
             CloudKit.Operation("create", historyId, null, past, parent: CloudKit.Field(original, "List").Text("recordName")));
