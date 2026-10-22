@@ -13,9 +13,9 @@ Current for Reminders for Windows v1.0.0.
 | [Privacy policy](../PRIVACY.md) | Data access, local storage and removal choices |
 
 Install from the Microsoft Store listing or use the GitHub release's matching
-x64/ARM64 `Setup.exe`. Portable ZIPs contain the complete app folder. The
-Store-submission ZIP is for publisher upload to Partner Center; its unsigned
-MSIX files are not directly installable downloads.
+x64/ARM64 `Setup.exe`. Portable ZIPs contain the complete app folder. The separate
+unsigned MSIX downloads are for publisher upload to Partner Center and require
+signing before direct installation.
 
 Tags are view/filter only. Repeating tasks can be created and edited for supported
 schedules. Selective unsynced-change recovery is under Settings → Sync & storage.

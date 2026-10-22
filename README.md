@@ -13,8 +13,8 @@ in Microsoft Edge WebView2; the reminder interface uses native Windows controls.
 
 Download [v1.0.0](https://github.com/Psavvas/Reminders-for-Windows/releases/tag/v1.0.0)
 for x64 or ARM64, or read the [release notes](docs/releases/v1.0.0.md).
-For GitHub installation, use the matching `Setup.exe`; the Store-submission ZIP
-contains unsigned MSIX files for the publisher. Install through the Microsoft
+For GitHub installation, use the matching `Setup.exe`; the separate `.msix`
+downloads are unsigned Store submission files for the publisher. Install through the Microsoft
 Store listing for a Store-signed package. See [distribution details](docs/microsoft-store.md).
 
 > This independent project is not authorized, sponsored, endorsed, or otherwise

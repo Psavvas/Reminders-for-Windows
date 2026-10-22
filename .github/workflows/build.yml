@@ -43,9 +43,9 @@ jobs:
       release: true
 
   # Tagging v* publishes a draft release carrying both architectures. It is
-  # left as a draft for release-note and asset review. Unsigned MSIX inputs are
-  # separated from installable downloads in a Store-submission archive. The
-  # updater sees a release only after the draft is published as stable.
+  # left as a draft for release-note and asset review. Notes distinguish unsigned
+  # Store submission MSIX files from installers. The updater sees a release only
+  # after the draft is published as stable.
   release:
     name: Draft release
     cache-mode: none
@@ -79,39 +79,15 @@ jobs:
             fi
           done
 
-      - name: Separate unsigned Store submission packages from installers
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          from zipfile import ZipFile, ZIP_STORED
-
-          artifacts = Path('artifacts')
-          packages = []
-          for name in ('Reminders-for-Windows-x64.msix', 'Reminders-for-Windows-ARM64.msix'):
-              matches = list(artifacts.rglob(name))
-              if len(matches) != 1 or matches[0].stat().st_size == 0:
-                  raise SystemExit(f'Expected exactly one nonempty Store package: {name}')
-              packages.append(matches[0])
-          with ZipFile(artifacts / 'Reminders-for-Windows-Store-submission.zip', 'w', ZIP_STORED) as archive:
-              archive.writestr('README.txt',
-                  'FOR MICROSOFT STORE SUBMISSION ONLY\n\n'
-                  'These MSIX packages are unsigned inputs for Partner Center certification.\n'
-                  'Windows will not install them directly. Publishing the app in the Store\n'
-                  'does not sign these separate GitHub downloads.\n\n'
-                  'To install the app, use the Microsoft Store listing or download the\n'
-                  'matching x64/arm64 Setup.exe from the GitHub release.\n'
-                  'To submit an update, extract and upload both MSIX files to Partner Center.\n')
-              for package in packages:
-                  archive.write(package, package.name)
-          PY
-
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          name: Reminders for Windows ${{ github.ref_name }}
           draft: true
           generate_release_notes: true
           files: |
             artifacts/**/*-Setup.exe
             artifacts/**/*.zip
+            artifacts/**/*.msix
           fail_on_unmatched_files: true
           body: |
             ## Signing in
@@ -139,8 +115,8 @@ jobs:
             application as a portable folder -- unzip it and run `Reminders.exe`.
             Keep the publish folder together, including `Reminders.Core.dll`.
 
-            **Reminders-for-Windows-Store-submission.zip** is for the publisher,
-            not for installing the app. Its unsigned MSIX packages use the Store
-            identity and are ready for Partner Center certification and signing.
-            Store publication does not sign the separate files on GitHub. For
-            a Store-signed installation, install from the Microsoft Store listing.
+            **Reminders-for-Windows-x64.msix** and
+            **Reminders-for-Windows-ARM64.msix** are unsigned Store submission
+            packages for Partner Center certification and signing. Store
+            publication does not sign these separate GitHub files. Install from
+            the Microsoft Store listing for a Store-signed package.
