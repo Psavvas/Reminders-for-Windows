@@ -44,7 +44,8 @@ Credential Manager entries retain their formats and names.
 - `scripts/`: development, build, packaging, and CI verification tools.
 - `docs/`: setup, architecture, protocol findings, research, and release notes.
 
-The retired Rust backend has been removed; its source remains in Git history.
+See the [documentation index](docs/README.md) for user guides, developer notes,
+validation and protocol research.
 
 ## Quick start: demo mode
 

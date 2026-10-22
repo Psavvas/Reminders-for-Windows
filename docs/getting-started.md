@@ -9,8 +9,7 @@
   Packaging Project tools for packaged debugging and the package designer.
 - Windows SDK with MakeAppx and SignTool for command-line MSIX packaging/signing.
 
-The backend is C#. Rust, Cargo, MSVC, Python, Node.js and npm are not needed to
-build or run the application. Python is used only by CI policy tests.
+The app and backend are C#. Python is used only by CI policy tests.
 
 ## Visual Studio
 
@@ -36,8 +35,7 @@ For unpackaged debugging, set `Reminders.WinUI` as the startup project. The
 
 Demo mode displays sample data without opening the real cache, reading credentials,
 or contacting iCloud. Debug builds accept `REMINDERS_DATA_DIR` for a separate test
-cache and UI-preferences directory. Release builds use the normal LocalAppData location. There is no
-executable override or sidecar process.
+cache and UI-preferences directory. Release builds use the normal LocalAppData location.
 
 To verify the first-run guide without using your normal preferences, launch a
 Debug build with `REMINDERS_DATA_DIR` set to an empty test directory. Complete

@@ -2,8 +2,7 @@
 
 The current application runs `src/Reminders.WinUI` and `src/Reminders.Core` in
 one process. This index describes checks for the current C# implementation; it is
-not an independent security audit. The obsolete audit of the removed Rust backend
-has been retired; Git history retains that document.
+not an independent security audit.
 
 ## Current checks
 

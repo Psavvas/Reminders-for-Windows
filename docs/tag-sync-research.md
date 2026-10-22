@@ -30,9 +30,9 @@ not been implemented or tested with this Windows app.
 | go-icloud | Implements similar parent/child operations. Its inspected tag replay tests use synthetic HTTP fixtures. | A real iPhone tag round trip. |
 | macOS ReminderKit integrations | Document tag writes through the framework used by Apple's app. | Availability of that framework on Windows or a tested Windows-to-Mac bridge. |
 
-The inspected Apple bundle is the public Reminders `2638Build16/en-us/main.js`
-copy already retained under `build/recurrence-protocol/`, not a claim about every
-currently served Apple build. It also contains attributed-text hashtag
+The inspected Apple bundle is public Reminders `2638Build16/en-us/main.js`,
+identified by the source URL and SHA-256 below. These findings do not describe
+every currently served Apple build. It also contains attributed-text hashtag
 identifiers, showing that inline tags have metadata beyond plain `#text`.
 This does not prove inline annotations are required for standalone tags.
 

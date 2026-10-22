@@ -1,10 +1,9 @@
 # SRP reference vectors
 
 The sign-in path in `src/Reminders.Core/Srp.cs` reimplements Apple's web SRP
-handshake in C#. The implementation it replaced delegated that handshake to
-[pyicloud], which in turn uses the [srp] package. pyicloud is the only version
-of this flow known to work against Apple in production, so it — not this
-codebase — is the reference.
+handshake in C#. Independent vectors are derived from [pyicloud] and its [srp]
+backend, rather than from this application's own output. They pin compatibility
+with that reference; they do not by themselves prove Apple's server behavior.
 
 The vectors in `tests/Reminders.Core.Tests/Program.cs` are generated from that reference rather
 than from our own output. A test that asserts an implementation's own result
@@ -52,9 +51,12 @@ symptom.
 The chosen salt starts with `0x01` on purpose, so the vectors exercise the
 common path both implementations agree on.
 
+These commands use a separate Unix-like reference environment. The Python tools
+reproduce cryptographic fixtures; they are not application runtime dependencies.
+
 ```bash
 pip install srp
-pip download pyicloud --no-deps --no-binary :all: -d /tmp/pyi
+pip download pyicloud==2.6.5 --no-deps --no-binary :all: -d /tmp/pyi
 tar xzf /tmp/pyi/pyicloud-*.tar.gz -C /tmp/pyi
 ```
 
@@ -96,9 +98,10 @@ for proto in (m.SrpProtocolType.S2K, m.SrpProtocolType.S2K_FO):
 
 These vectors validate the cryptography. They say nothing about the surrounding
 flow — cookie and header capture across `signin/init` and `signin/complete`,
-2FA and trust-token handling, or `accountLogin` session restoration. Those need
-a disposable Apple account, and remain the largest untested surface in the
-backend.
+2FA and trust-token handling, or session restoration. Separate mocked HTTP
+checks cover those flows, and Apple-hosted handoff/reopening was confirmed with
+the user. Live SMS, expiry, reboot and account variations still need dedicated
+account testing. See [feature validation](feature-validation.md).
 
 [pyicloud]: https://github.com/timlaing/pyicloud
 [srp]: https://pypi.org/project/srp/
