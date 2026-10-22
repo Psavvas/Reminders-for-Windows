@@ -291,6 +291,7 @@ public sealed partial class MainWindow : Window
 
     private async Task LoadRemindersAsync()
     {
+        ShowCompleted.Visibility = _view.Kind == NavKind.Smart && _view.Key == "completed" ? Visibility.Collapsed : Visibility.Visible;
         if (_demo) { LoadDemoRows(); return; }
         try
         {
