@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace Reminders.Core;
 
-internal sealed class Cache : IDisposable
+internal sealed partial class Cache : IDisposable
 {
     private readonly SqliteConnection connection;
     private readonly object gate = new();

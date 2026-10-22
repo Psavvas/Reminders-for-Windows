@@ -68,6 +68,8 @@ public sealed partial class MainWindow
         SizeChangedEventHandler? resize = null;
         using var updateCancellation = new CancellationTokenSource();
         Task updateCheck = Task.CompletedTask;
+        Task recoveryWork = Task.CompletedTask;
+        CancellationTokenSource? recoveryCancellation = null;
         try
         {
             JsonElement auth = default, syncStatus = default;
@@ -79,6 +81,7 @@ public sealed partial class MainWindow
                 _settings = await _sync.CallAsync("settings", new { });
             }
             var local = _demo || _sync.IsLocalDemo;
+            if (IsSyncRecoveryPreview) syncStatus = JsonSerializer.SerializeToElement(new { pending_pushes = 3, conflicts = 1 });
             var choiceStyle = (Style)Application.Current.Resources["SettingsChoiceStyle"];
             var theme = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
             var paneSizing = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
@@ -116,6 +119,19 @@ public sealed partial class MainWindow
                 catch (Exception error) { syncNotice.Severity = InfoBarSeverity.Error; syncNotice.Message = error.Message; }
                 finally { syncNotice.IsOpen = true; syncNow.IsEnabled = true; }
             };
+            var discardUnsynced = SettingsAction("Discard unsynced changes");
+            var unsyncedStatus = SettingsDescription("");
+            void UpdateUnsyncedStatus(JsonElement status)
+            {
+                syncStatus = status;
+                var count = status.Number("pending_pushes") + status.Number("conflicts");
+                unsyncedStatus.Text = count > 0 ? $"{count} queued changes or conflicts. Review the affected tasks before discarding anything." : "No unsynced changes or conflicts.";
+                discardUnsynced.IsEnabled = (!local || IsSyncRecoveryPreview) && !_updateBusy && count > 0;
+            }
+            UpdateUnsyncedStatus(syncStatus);
+            syncPage.Children.Add(SettingsCard("Unsynced changes", SettingsDescription(local && !IsSyncRecoveryPreview
+                ? "These reminders exist only on this PC. There is no iCloud copy to restore."
+                : "Remove selected local-only tasks or restore selected tasks from iCloud without clearing the app cache."), unsyncedStatus, discardUnsynced));
             var clearCache = SettingsAction("Clear app cache"); clearCache.IsEnabled = !local && !_updateBusy;
             var pending = syncStatus.Number("pending_pushes") + syncStatus.Number("conflicts");
             syncPage.Children.Add(SettingsCard("App cache", SettingsDescription(local
@@ -199,6 +215,8 @@ public sealed partial class MainWindow
             Grid.SetColumnSpan(compactNav, 2); Grid.SetRow(nav, 1); Grid.SetRow(scroll, 1); Grid.SetColumn(scroll, 1);
             layout.Children.Add(compactNav); layout.Children.Add(nav); layout.Children.Add(scroll);
             var selecting = false;
+            SyncRecoveryReview? recoveryReview = null;
+            var recoveryBusy = false; var recoveryLoading = false; var returnAfterCancel = false;
             void SelectCategory(int index)
             {
                 if (selecting || index < 0 || index >= pages.Length) return;
@@ -215,6 +233,7 @@ public sealed partial class MainWindow
                 var compact = layout.Width < 720;
                 compactNav.Visibility = compact ? Visibility.Visible : Visibility.Collapsed; nav.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
                 layout.ColumnDefinitions[0].Width = new GridLength(compact ? 0 : 200); layout.ColumnSpacing = compact ? 0 : 24;
+                if (recoveryReview is not null) { recoveryReview.View.Width = layout.Width; recoveryReview.View.Height = layout.Height; }
             }
             resize = (_, _) => Resize(); Root.SizeChanged += resize; Resize(); SelectCategory(Math.Clamp(initialCategory, 0, pages.Length - 1));
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "Settings", Content = layout,
@@ -232,18 +251,125 @@ public sealed partial class MainWindow
                 try { await global::Windows.System.Launcher.LaunchUriAsync(new Uri($"https://github.com/{AppUpdater.Repository}/releases/latest")); }
                 catch (Exception error) { updateNotice.Severity = InfoBarSeverity.Error; updateNotice.Title = "Couldn't open releases"; updateNotice.Message = error.Message; updateNotice.IsOpen = true; }
             };
+            void RestoreSettings()
+            {
+                recoveryReview = null; dialog.Content = layout; dialog.Title = "Settings";
+                dialog.PrimaryButtonText = "Save changes"; dialog.CloseButtonText = "Cancel";
+                dialog.DefaultButton = ContentDialogButton.Primary;
+                dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value is >= 1 and <= 60;
+            }
+            async Task LoadRecoveryReview()
+            {
+                if (recoveryLoading || recoveryBusy) return;
+                recoveryLoading = true; discardUnsynced.IsEnabled = false;
+                if (recoveryReview is { } existingReview) { existingReview.Refresh.IsEnabled = false; dialog.IsPrimaryButtonEnabled = false; }
+                try
+                {
+                    var rows = await ReadUnsyncedReview(updateCancellation.Token);
+                    if (updateCancellation.IsCancellationRequested) return;
+                    if (rows.Count == 0)
+                    {
+                        RestoreSettings(); UpdateUnsyncedStatus(await _sync.CallAsync("sync_status", new { }));
+                        syncNotice.Severity = InfoBarSeverity.Informational; syncNotice.Message = "There are no unsynced changes to discard."; syncNotice.IsOpen = true; return;
+                    }
+                    recoveryReview = new SyncRecoveryReview(rows, () =>
+                    {
+                        var count = recoveryReview?.Selected.Count ?? 0;
+                        dialog.IsPrimaryButtonEnabled = !recoveryBusy && !recoveryLoading && recoveryReview?.CanDiscard == true && count is > 0 and <= 1000;
+                        dialog.PrimaryButtonText = count == 0 ? "Discard selected" : $"Discard selected ({count})";
+                    }, _detailDirty);
+                    recoveryReview.Refresh.Click += async (_, _) => { recoveryWork = LoadRecoveryReview(); await recoveryWork; };
+                    recoveryReview.View.Width = layout.Width; recoveryReview.View.Height = layout.Height;
+                    dialog.Content = recoveryReview.View; dialog.Title = "Discard unsynced changes";
+                    dialog.PrimaryButtonText = "Discard selected"; dialog.CloseButtonText = "Back";
+                    dialog.DefaultButton = ContentDialogButton.Close; dialog.IsPrimaryButtonEnabled = false;
+                }
+                catch (OperationCanceledException) when (updateCancellation.IsCancellationRequested) { }
+                catch (Exception error)
+                {
+                    if (recoveryReview is { } review) { review.Notice.Title = "Couldn't load changes"; review.Notice.Message = error.Message; review.Notice.Severity = InfoBarSeverity.Error; review.Notice.IsOpen = true; }
+                    else { syncNotice.Severity = InfoBarSeverity.Error; syncNotice.Message = error.Message; syncNotice.IsOpen = true; }
+                }
+                finally
+                {
+                    recoveryLoading = false;
+                    if (recoveryReview is { } review) review.Refresh.IsEnabled = true;
+                    if (!updateCancellation.IsCancellationRequested) UpdateUnsyncedStatus(syncStatus);
+                }
+            }
+            discardUnsynced.Click += async (_, _) => { recoveryWork = LoadRecoveryReview(); await recoveryWork; };
+            async Task DiscardSelection(SyncRecoveryReview review)
+            {
+                var selected = review.Selected;
+                var discardCommitted = false;
+                recoveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(updateCancellation.Token);
+                recoveryBusy = true; returnAfterCancel = false; review.SetBusy(true);
+                dialog.IsPrimaryButtonEnabled = false; dialog.CloseButtonText = "Cancel";
+                try
+                {
+                    if (IsSyncRecoveryPreview) throw new InvalidOperationException("This sample preview cannot discard reminders.");
+                    var outcome = await _sync.CallAsync("discard_unsynced", new { confirmed = true,
+                        targets = selected.Select(row => new { id = row.Id, version = row.Version }).ToArray() }, recoveryCancellation.Token);
+                    discardCommitted = true;
+                    if (_selected is { } open && selected.Any(row => row.Id == open.Id)) ShowDetail(null);
+                    await RefreshAllAsync();
+                    UpdateUnsyncedStatus(await _sync.CallAsync("sync_status", new { }));
+                    RestoreSettings(); syncNotice.Severity = InfoBarSeverity.Success; syncNotice.Title = "Selected changes discarded";
+                    syncNotice.Message = $"Removed {outcome.Number("removed_local")} local-only tasks and restored {outcome.Number("restored_from_icloud")} iCloud tasks. Your other reminders and cache were kept.";
+                    syncNotice.IsOpen = true;
+                }
+                catch (OperationCanceledException)
+                {
+                    review.Notice.Title = discardCommitted ? "Changes discarded" : "Discard cancelled"; review.Notice.Message = discardCommitted ? "Refresh the list to see the restored reminders." : "No changes were discarded.";
+                    review.Notice.Severity = InfoBarSeverity.Informational; review.Notice.IsOpen = true;
+                }
+                catch (Exception error)
+                {
+                    review.Notice.Title = discardCommitted ? "Changes discarded; refresh failed" : "Couldn't discard changes"; review.Notice.Message = error.Message;
+                    review.Notice.Severity = InfoBarSeverity.Error; review.Notice.IsOpen = true;
+                    // A changed selection must be reviewed again with fresh versions.
+                    if (error is SyncException { Code: "STALE_SELECTION" }) review.CanDiscard = false;
+                    review.ClearSelection();
+                }
+                finally
+                {
+                    recoveryBusy = false; review.SetBusy(false); recoveryCancellation.Dispose(); recoveryCancellation = null;
+                    if (returnAfterCancel) RestoreSettings();
+                    else if (recoveryReview is not null) { dialog.CloseButtonText = "Back"; dialog.IsPrimaryButtonEnabled = false; }
+                }
+            }
+            dialog.PrimaryButtonClick += async (_, e) =>
+            {
+                if (recoveryReview is not { } review) return;
+                e.Cancel = true; var deferral = e.GetDeferral();
+                try { recoveryWork = DiscardSelection(review); await recoveryWork; }
+                finally { deferral.Complete(); }
+            };
+            dialog.Closing += (_, e) =>
+            {
+                if (!recoveryBusy) return;
+                e.Cancel = true; returnAfterCancel = true; recoveryCancellation?.Cancel();
+            };
             var showingPrivacy = false;
             privacy.Click += (_, _) => { dialog.Content = CreatePrivacyPolicyContent(); dialog.Title = "Privacy policy"; dialog.PrimaryButtonText = ""; dialog.CloseButtonText = "Back"; dialog.DefaultButton = ContentDialogButton.Close; showingPrivacy = true; };
             dialog.CloseButtonClick += (_, e) =>
             {
+                if (recoveryReview is not null)
+                {
+                    e.Cancel = true;
+                    if (recoveryBusy) { returnAfterCancel = true; recoveryCancellation?.Cancel(); }
+                    else RestoreSettings();
+                    return;
+                }
                 if (!showingPrivacy) return;
                 e.Cancel = true; showingPrivacy = false; dialog.Content = layout; dialog.Title = "Settings";
                 dialog.PrimaryButtonText = "Save changes"; dialog.CloseButtonText = "Cancel"; dialog.DefaultButton = ContentDialogButton.Primary;
             };
-            sync.ValueChanged += (_, _) => dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 1 && sync.Value <= 60;
+            sync.ValueChanged += (_, _) => { if (recoveryReview is null) dialog.IsPrimaryButtonEnabled = double.IsFinite(sync.Value) && sync.Value >= 1 && sync.Value <= 60; };
             var result = await dialog.ShowAsync();
             updateCancellation.Cancel();
             await updateCheck;
+            await recoveryWork;
             _dialogOpen = false;
             if (action == "sign_out") { await SignOutAsync(); return; }
             if (action == "clear_cache") { await ClearCacheAsync(); return; }
@@ -265,6 +391,7 @@ public sealed partial class MainWindow
         {
             updateCancellation.Cancel();
             await updateCheck;
+            await recoveryWork;
             if (resize is not null) Root.SizeChanged -= resize;
             _dialogOpen = false;
         }

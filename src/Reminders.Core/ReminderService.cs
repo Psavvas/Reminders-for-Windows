@@ -191,6 +191,22 @@ public sealed class ReminderService : IAsyncDisposable
                 await CancelBackgroundWorkAsync();
                 await WithClient(() => { client.SignOut(); cache.SetMeta("signed_out", "1"); return Task.FromResult(true); }, token);
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
+            case "unsynced_reminders": return cache.UnsyncedReminders();
+            case "discard_unsynced":
+                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders have no iCloud copy to restore.");
+                if (!p.Flag("confirmed")) throw CoreException.Bad("Confirm which unsynced changes to discard.");
+                if (p["targets"] is not JsonArray targets) throw CoreException.Bad("Select the reminders to discard.");
+                await CancelBackgroundWorkAsync();
+                try
+                {
+                    var selected = cache.ValidateDiscard(targets);
+                    var ids = selected.Select(row => row.Text("cloud_id")).OfType<string>().ToArray();
+                    var snapshots = ids.Length == 0 ? new Dictionary<string, JsonObject?>()
+                        : await WithClient(() => client.RecoverySnapshots(ids, token), token);
+                    token.ThrowIfCancellationRequested();
+                    return cache.DiscardUnsynced(targets, snapshots, token);
+                }
+                finally { ResumeBackgroundWork(); }
             case "clear_cache":
                 if (IsLocalDemo) throw CoreException.Bad("Local-account reminders are stored only on this PC and are not a downloadable cache.");
                 await CancelBackgroundWorkAsync();
@@ -225,7 +241,7 @@ public sealed class ReminderService : IAsyncDisposable
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
             case "sync": QueueSync(p.Flag("full")); return J.Node(new { queued = !IsLocalDemo && cache.Meta("signed_out") != "1", local_only = IsLocalDemo });
-            case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.Pending().Count, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 1) });
+            case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.PendingCount, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 1) });
             case "conflicts": return cache.Conflicts;
             case "resolve_conflict":
                 var conflictId = p.Number("id", -1); if (conflictId < 0) throw CoreException.Bad("missing conflict id");

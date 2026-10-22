@@ -218,7 +218,7 @@ authoritative. Ordinary queued changes and unrelated conflicts are preserved.
 The archive remains on this PC until the app cache is cleared. This migration
 does not delete or change any iCloud tag records.
 
-The account-free suite passes 809 checks. Read-only tag coverage includes
+The account-free suite passes 836 checks. Read-only tag coverage includes
 rejecting tag requests without partial writes, viewing/filtering downloaded tags,
 upgrading failed tag queues without blocking later dates or task creation,
 retaining archived requests across restart, preserving unrelated conflicts,
@@ -373,6 +373,40 @@ while a dialog is open. The explicit Install and restart action still opens
 the existing installation confirmation; Open releases keeps Settings open.
 The updater service checks and x64 builds passed. Live checks
 of the inline result, cancellation, and retained preferences remain pending.
+
+**Sync & storage → Discard unsynced changes** opens a review inside Settings,
+including tasks with queued uploads and unresolved merge conflicts. Select tasks
+individually or choose Select all, then use the explicit Discard selected action.
+Nothing is selected by default. Back returns to Settings with unsaved preferences
+intact. Settings stays open and shows the result after successful recovery.
+
+New tasks with no iCloud copy are removed locally. Existing tasks are restored
+from fresh iCloud lookups, including their tags and repeat rules; iCloud tasks
+are never deleted by this action. A stable create whose reply was lost recovers
+its existing cloud copy instead of deleting it. Unselected uploads, synced tasks,
+lists, preferences, credentials and the delta cursor are retained. A later
+ordinary sync can continue without the discarded queue entries.
+
+The backend requires explicit confirmation and exact reviewed versions of each
+selected task's pending changes/conflicts. It cancels and drains background work,
+reads the selected cloud snapshots, checks the versions again, and applies the
+local recovery in one SQLite transaction. A changed selection requires refreshing
+and reviewing again. Missing lookup acknowledgements, access failures, transport
+errors or cancellation preserve the selection. A server-confirmed missing or
+soft-deleted task can be removed locally. Up to 1,000 tasks can be selected per
+operation; pending-change counts are no longer capped at the first 100 uploads.
+A fresh cloud copy requires an active iCloud session; local-only accounts disable
+this action because there is no cloud copy to restore.
+
+The suite passes 836 account-free checks. Targeted recovery checks cover mixed
+new tasks, rejected edits and merge conflicts, more than 100 unselected uploads,
+explicit confirmation, duplicate/stale selections, edits arriving during lookup,
+missing parent/child acknowledgements, denied access, cancellation, latest cloud
+text, retained tags/repeats/preferences/cursor, ambiguous creates, cloud deletions,
+and cancelling an in-flight background sync without cloud writes. A Debug-only
+`--preview-settings --preview-unsynced` sample provides a review UI that cannot
+discard data. The sample Settings screen opened; review-list visual inspection
+was deferred while the desktop was in use. No real reminders were discarded.
 
 **Sync & storage → Clear app cache** removes downloaded reminders, tags, repeat
 records, sync cursors, old identifier aliases, queued uploads, and conflicts.

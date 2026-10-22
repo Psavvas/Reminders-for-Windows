@@ -38,7 +38,7 @@ internal sealed class CloudKit(AppleAuth auth)
         if (code is "CONFLICT" or "SERVER_RECORD_CHANGED") throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", error.ToJsonString());
         if (code is "AUTHENTICATION_FAILED" or "AUTHENTICATION_REQUIRED") throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.");
         if (code is "UNKNOWN_ITEM" or "NOT_FOUND" or "INVALID_ARGUMENTS" or "ACCESS_DENIED" or "PERMISSION_FAILURE" or "VALIDATION_FAILED" or "ZONE_NOT_FOUND" or "QUOTA_EXCEEDED")
-            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review Sync & storage in Settings to retry or clear the cache.", code + ": " + error.Text("reason"));
+            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review unsynced changes under Sync & storage in Settings.", code + ": " + error.Text("reason"));
         // Keep transient/unknown service failures retryable, including during
         // restoration. They do not establish a rejected local edit.
         throw new CoreException("NETWORK", "iCloud rejected a reminder operation", code + ": " + error.Text("reason"));
@@ -114,10 +114,13 @@ internal sealed class CloudKit(AppleAuth auth)
     {
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(J.Node(new { recordName = id })), ["zoneID"] = Zone }, token); var rows = response.Array("records"); Reject(rows); return rows;
     }
-    public async Task<JsonArray> LookupMany(IEnumerable<string> ids, CancellationToken token, bool allowMissing = false)
+    public async Task<JsonArray> LookupMany(IEnumerable<string> ids, CancellationToken token, bool allowMissing = false, bool requireAcknowledgement = false)
     {
-        var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(ids.Distinct().Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
+        var requested = ids.Distinct().ToArray();
+        var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(requested.Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
         var rows = response.Array("records");
+        if (requireAcknowledgement && requested.Any(id => !rows.Any(row => row.Text("recordName") == id)))
+            throw new CoreException("NETWORK", "iCloud did not return every requested reminder. No local changes were discarded.");
         // Web Services reports NOT_FOUND; some responses use the native error
         // name UNKNOWN_ITEM. Only optional per-record misses are expected here.
         var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") is not ("NOT_FOUND" or "UNKNOWN_ITEM")).Select(r => r?.DeepClone()).ToArray());

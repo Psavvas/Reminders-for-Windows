@@ -243,6 +243,7 @@ await AuthVerificationChecks.RunAsync(Check);
 await BrowserSessionTrustChecks.RunAsync(Check);
 await SignOutChecks.RunAsync(Check);
 await CacheRecoveryChecks.RunAsync(Check);
+await UnsyncedRecoveryChecks.RunAsync(Check);
 await WriteCompatibilityChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 RecurrenceWireFormatChecks.Run(Check);

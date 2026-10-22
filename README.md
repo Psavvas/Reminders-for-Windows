@@ -134,7 +134,7 @@ the updater. Committing code alone does not distribute an update.
 | Offline use | Cached reads; edits queue for upload |
 | Automatic sync | Launch/return, after edits, and every minute by default; incremental list/tag/rule updates |
 | Authentication | Apple-hosted device verification or native SMS, terms acceptance, saved trust tokens and cookies |
-| Conflicts | Preserve local/remote versions for explicit resolution |
+| Conflicts | Preserve local/remote versions; discard selected unsynced changes in Settings without clearing the cache |
 | Windows integration | Native controls, theme, badges and due notifications |
 
 Creating or changing lists is unsupported: CloudKit Web Services list records do

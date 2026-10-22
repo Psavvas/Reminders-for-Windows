@@ -106,6 +106,23 @@ public sealed class ReminderTag
     [JsonPropertyName("n")] public long Count { get; set; }
 }
 
+public sealed class UnsyncedReminder
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = "";
+    [JsonPropertyName("title")] public string Title { get; set; } = "";
+    [JsonPropertyName("version")] public string Version { get; set; } = "";
+    [JsonPropertyName("pending_changes")] public long PendingChanges { get; set; }
+    [JsonPropertyName("conflicts")] public long Conflicts { get; set; }
+    [JsonPropertyName("is_new")] public bool IsNew { get; set; }
+    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
+    [JsonIgnore] public string Summary => string.Join(" · ", new[]
+    {
+        IsNew ? "New task" : null,
+        PendingChanges > 0 ? $"{PendingChanges} queued change{(PendingChanges == 1 ? "" : "s")}" : null,
+        Conflicts > 0 ? $"{Conflicts} conflict{(Conflicts == 1 ? "" : "s")}" : null
+    }.OfType<string>());
+}
+
 public sealed record NavEntry(string Label, string Glyph, NavKind Kind, string Key, long Count = 0, string? Color = null);
 public enum NavKind { Smart, List, Tag }
 

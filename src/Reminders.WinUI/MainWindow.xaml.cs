@@ -143,7 +143,8 @@ public sealed partial class MainWindow : Window
         if (Environment.GetCommandLineArgs().Contains("--preview-settings", StringComparer.OrdinalIgnoreCase))
         {
             LoadDemo();
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Settings_Click(this, new RoutedEventArgs()));
+            if (IsSyncRecoveryPreview) Title = "Reminders for Windows · Recovery preview";
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () => await ShowSettingsAsync(IsSyncRecoveryPreview ? 1 : 0));
             return;
         }
         if (AppleSignInPreview.Enabled)
