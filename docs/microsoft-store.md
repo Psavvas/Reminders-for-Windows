@@ -43,9 +43,9 @@ GitHub Actions builds the Store submission packages for both architectures using
 `-Store`. After merging, wait for the successful workflow on the merged commit and
 download its x64 and ARM64 artifacts. Extract the artifact ZIPs and upload the two
 `.msix` files from `dist-store` unchanged. No certificate, manual signing, or
-repacking is needed. Release-tag builds place both packages and an explanatory
-README in `Reminders-for-Windows-Store-submission.zip` on the draft release. Use
-the latest build rather than an older development-identity MSIX.
+repacking is needed. Release-tag builds attach `Reminders-for-Windows-x64.msix`
+and `Reminders-for-Windows-ARM64.msix` separately, alongside the installers and
+portable ZIPs. Use the latest build rather than an older development-identity MSIX.
 
 ## Installing from GitHub versus the Store
 
@@ -55,8 +55,8 @@ uploaded to GitHub. An unsigned GitHub MSIX remains a submission input and Windo
 will refuse to install it directly, even if its identity matches a published app.
 
 For installation, use the Store listing or the matching x64/ARM64 `Setup.exe`
-from GitHub. Portable ZIPs are another option. The Store-submission ZIP is for the
-publisher to extract and upload to Partner Center, not an end-user installer.
+from GitHub. Portable ZIPs are another option. The separate unsigned MSIX files
+are for the publisher to upload to Partner Center, not direct app installation.
 GitHub release publication does not update the Store listing automatically.
 
 Direct MSIX distribution outside the Store requires signing with a certificate
