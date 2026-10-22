@@ -165,9 +165,10 @@ Verification and delivery controls are disabled together while either request
 is in flight. The previous priming step sent an untracked SMS before the UI
 requested a second one, creating a code-invalidation risk.
 
-Startup first exchanges the saved session and trust tokens through accountLogin,
-which recreates service cookies. Only a rejected or limited token falls back to
-a password handshake. A network failure retains the saved tokens for retry.
+Startup restores browser-originated sessions through `/validate` with their saved
+cookies and user agent. Native sessions exchange saved session and trust tokens
+through `accountLogin`, which recreates service cookies. Only rejected or limited
+sessions fall back to sign-in. A network failure retains the saved session for retry.
 Session data stays in Windows Credential Manager; closing the window does not
 invoke sign-out. An explicit hsaChallengeRequired response is honored even when
 hsaTrustedBrowser is true.

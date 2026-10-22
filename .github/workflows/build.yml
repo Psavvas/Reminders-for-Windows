@@ -80,6 +80,32 @@ jobs:
             fi
           done
 
+      - name: Separate unsigned Store submission packages from installers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_STORED
+
+          artifacts = Path('artifacts')
+          packages = []
+          for name in ('Reminders-for-Windows-x64.msix', 'Reminders-for-Windows-ARM64.msix'):
+              matches = list(artifacts.rglob(name))
+              if len(matches) != 1 or matches[0].stat().st_size == 0:
+                  raise SystemExit(f'Expected exactly one nonempty Store package: {name}')
+              packages.append(matches[0])
+          with ZipFile(artifacts / 'Reminders-for-Windows-Store-submission.zip', 'w', ZIP_STORED) as archive:
+              archive.writestr('README.txt',
+                  'FOR MICROSOFT STORE SUBMISSION ONLY\n\n'
+                  'These MSIX packages are unsigned inputs for Partner Center certification.\n'
+                  'Windows will not install them directly. Publishing the app in the Store\n'
+                  'does not sign these separate GitHub downloads.\n\n'
+                  'To install the app, use the Microsoft Store listing or download the\n'
+                  'matching x64/arm64 Setup.exe from the GitHub release.\n'
+                  'To submit an update, extract and upload both MSIX files to Partner Center.\n')
+              for package in packages:
+                  archive.write(package, package.name)
+          PY
+
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           draft: true
@@ -87,21 +113,19 @@ jobs:
           files: |
             artifacts/**/*-Setup.exe
             artifacts/**/*.zip
-            artifacts/**/*.msix
           fail_on_unmatched_files: true
           body: |
-            ## Before you sign in: two-factor works by text only
+            ## Signing in
 
-            When Apple asks for a verification code, use **Text me a code** and
-            enter the code from the SMS. The six digits shown in the prompt on
-            your iPhone, iPad or Mac **will not be accepted** -- Apple verifies
-            those through a channel this app does not implement yet, and it
-            keeps displaying the prompt regardless, so a device code looks
-            correct and is refused every time.
+            Choose **Sign in with an Apple device** to use Apple's hosted
+            sign-in page and the verification methods available for your
+            account. After verification, the window returns to the native app;
+            use **Continue in app** if it stays open. Choose **Trust** when
+            Apple offers it to remember this PC. Apple can still expire or
+            revoke the saved session.
 
-            If your Apple ID has **no trusted phone number**, sign-in cannot
-            complete at all in this release. Add a number at
-            [appleid.apple.com](https://appleid.apple.com) first.
+            Native email/password sign-in also supports **Text me a code**.
+            App-specific passwords do not authenticate this Reminders service.
 
             ## Installing
 
@@ -116,6 +140,8 @@ jobs:
             application as a portable folder -- unzip it and run `Reminders.exe`.
             Keep the publish folder together, including `Reminders.Core.dll`.
 
-            The `.msix` files use the assigned Microsoft Store identity and
-            are ready to upload to Partner Center for certification and signing.
-            Windows will not install them directly while they are unsigned.
+            **Reminders-for-Windows-Store-submission.zip** is for the publisher,
+            not for installing the app. Its unsigned MSIX packages use the Store
+            identity and are ready for Partner Center certification and signing.
+            Store publication does not sign the separate files on GitHub. For
+            a Store-signed installation, install from the Microsoft Store listing.

@@ -8,8 +8,14 @@
 
 Apple does not ship Reminders for Windows. This project provides an offline-capable
 Windows client with background sync and due-date notifications. The UI and iCloud
-engine run in one process. Rust, a separate sidecar, Node.js, and a browser runtime
-are no longer required.
+engine run in one process. Apple-device verification opens Apple's sign-in page
+in Microsoft Edge WebView2; the reminder interface uses native Windows controls.
+
+Download [v1.0.0](https://github.com/Psavvas/Reminders-for-Windows/releases/tag/v1.0.0)
+for x64 or ARM64, or read the [release notes](docs/releases/v1.0.0.md).
+For GitHub installation, use the matching `Setup.exe`; the Store-submission ZIP
+contains unsigned MSIX files for the publisher. Install through the Microsoft
+Store listing for a Store-signed package. See [distribution details](docs/microsoft-store.md).
 
 > This independent project is not authorized, sponsored, endorsed, or otherwise
 > approved by Apple Inc. It uses private, undocumented iCloud interfaces that may
@@ -17,7 +23,7 @@ are no longer required.
 
 Read the [Privacy Policy](PRIVACY.md) for account data, iCloud syncing, local
 storage, notifications, update checks, and removal instructions. The same policy
-is available offline from the sign-in screen and **Settings → Privacy policy**.
+is available offline from the sign-in screen and **Settings → About → Privacy policy**.
 
 ## Develop in Visual Studio
 
@@ -36,7 +42,7 @@ Credential Manager entries retain their formats and names.
 - `src/`: WinUI application, C# backend, and MSIX packaging project.
 - `tests/`: account-free backend, layout, and updater checks.
 - `scripts/`: development, build, packaging, and CI verification tools.
-- `docs/`: setup, architecture, protocol findings, and historical reviews.
+- `docs/`: setup, architecture, protocol findings, research, and release notes.
 
 The retired Rust backend has been removed; its source remains in Git history.
 
@@ -67,7 +73,7 @@ that choice and links to Apple's help. The app does not inspect or change these
 settings for you.
 
 Completion is remembered on this PC. Reopen the guide from the sign-in screen,
-an error's **Review iCloud setup** button, or **Settings → iCloud setup and
+an error's **Review iCloud setup** button, or **Settings → Sync & storage → iCloud setup and
 troubleshooting**. Error guidance preserves Apple's message and offers next
 steps without guessing an unreported cause. Troubleshooting can copy the error
 and open the actual diagnostic-log folder, including in a Store installation.
@@ -104,7 +110,7 @@ MSIX and portable builds show a release link.
 
 Installer builds check GitHub for updates on launch and every six hours while
 running. A banner offers **Install and restart** when a newer stable release is
-available. You can also use **Settings → Check for updates**. The app downloads
+available. You can also use **Settings → About → Check for updates**. The app downloads
 the matching x64 or ARM64 installer, checks its size and GitHub SHA-256 digest,
 then upgrades the existing installation and reopens. Reminder data, queued
 changes, preferences and sign-in credentials are kept. Save unfinished edits
@@ -116,7 +122,8 @@ and MSIX builds offer a link to the release instead of running an installer.
 To ship an update, increase `<Version>` in the WinUI project and the MSIX version
 in `src/Reminders.Package/Package.appxmanifest` together, commit the changes,
 and push a matching tag (for
-example `v0.4.0`). CI creates a draft with both installers. Review and publish
+example `v1.0.0`). The tagged commit must be on `main`. CI creates a draft with
+installers, portable ZIPs, and Store submission packages for both architectures. Review and publish
 that draft as a stable GitHub release; drafts and prereleases are ignored by
 the updater. Committing code alone does not distribute an update.
 
@@ -145,7 +152,20 @@ trusted session is saved in Windows Credential Manager; Apple can still expire
 or revoke it. App-specific passwords do not authenticate this Reminders service.
 Custom repeat rules the app cannot safely advance must be completed on an Apple
 device. Live Apple interoperability still requires account validation. See
-[protocol findings](docs/protocol-findings.md).
+[sign-in options](docs/authentication.md) and [protocol findings](docs/protocol-findings.md).
+
+## Recovering unsynced changes
+
+Open **Settings → Sync & storage → Discard unsynced changes** to review tasks
+with queued uploads or conflicts. Select only the tasks to recover: new tasks
+that never reached iCloud are removed locally, and existing tasks are restored
+from fresh iCloud copies. This does not delete tasks in iCloud or clear the rest
+of the cache. Unselected edits and saved sign-in are preserved.
+
+**Clear app cache** in the same section resets the entire local reminder cache
+and downloads it again. It requires confirmation when uploads or conflicts
+would be lost. **Settings → Account → Sign out** removes saved sign-in while
+retaining cached tasks and queued edits for a later sign-in.
 
 ## Architecture
 

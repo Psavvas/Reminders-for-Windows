@@ -253,10 +253,10 @@ that Apple's other clients render a write or accept a trusted session.
    Repeat with a timed reminder, tags, notes and an end/count limit.
 2. Create each supported repeat in Windows and confirm the schedule on iPhone.
    Confirm a custom weekday/ordinal rule is protected by the app's guard.
-3. Create a tagged task in Windows and confirm its tags on iPhone. Add a tag to
-   an existing task with iPhone tags, change its due date, then remove one tag
-   and finally all tags. Confirm each change on both devices and after restart.
-   Repeat offline, and check an old Windows-created malformed tag after sync.
+3. Create and change tags in Apple Reminders, then sync Windows. Confirm existing
+   tags remain visible and filterable after editing a task's due date, completing
+   a recurring task, and restarting. Both Windows reminder forms must keep tags
+   read-only. Confirm old queued tag writes no longer block ordinary edits.
 4. Use **Sign in with an Apple device**, finish Apple's verification and choose
    **Trust**. Close/reopen the app, then reboot Windows; confirm automatic restore.
    Repeat with native SMS sign-in. Check explicit sign-out removes the saved trust.

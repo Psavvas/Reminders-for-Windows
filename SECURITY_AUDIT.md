@@ -1,10 +1,9 @@
 # Security and release verification
 
 The current application runs `src/Reminders.WinUI` and `src/Reminders.Core` in
-one process. The retired Rust backend has been removed. Its August 2026 review
-is retained in [the historical audit](docs/history/security-audit-2026-08-09.md);
-that document's Cargo commands and child-process findings are historical.
-This index is not a new independent security audit.
+one process. This index describes checks for the current C# implementation; it is
+not an independent security audit. The obsolete audit of the removed Rust backend
+has been retired; Git history retains that document.
 
 ## Current checks
 
