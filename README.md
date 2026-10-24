@@ -11,8 +11,8 @@ Windows client with background sync and due-date notifications. The UI and iClou
 engine run in one process. Apple-device verification opens Apple's sign-in page
 in Microsoft Edge WebView2; the reminder interface uses native Windows controls.
 
-Download [v1.0.0](https://github.com/Psavvas/Reminders-for-Windows/releases/tag/v1.0.0)
-for x64 or ARM64, or read the [release notes](docs/releases/v1.0.0.md).
+Download [v1.0.1](https://github.com/Psavvas/Reminders-for-Windows/releases/tag/v1.0.1)
+for x64 or ARM64, or read the [release notes](docs/releases/v1.0.1.md).
 For GitHub installation, use the matching `Setup.exe`; the separate `.msix`
 downloads are unsigned Store submission files for the publisher. Install through the Microsoft
 Store listing for a Store-signed package. See [distribution details](docs/microsoft-store.md).

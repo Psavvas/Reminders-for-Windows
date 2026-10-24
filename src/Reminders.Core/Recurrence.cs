@@ -18,7 +18,7 @@ internal static class Recurrence
     {
         var fields = rule["fields"] as JsonObject ?? new();
         var supported = fields.All(p => p.Key is "Reminder" or "Frequency" or "Interval" or "OccurrenceCount" or "FirstDayOfTheWeek" or "Imported" or "Deleted" or "EndDate" or "CreationDate" or "LastModifiedDate" or "ResolutionTokenMap"
-            || p.Value?["value"] is null || p.Value?["value"] is JsonArray { Count: 0 });
+            || p.Value?["value"] is null || p.Value?["value"] is JsonArray { Count: 0 } || EmptyConstraint(p.Key, p.Value));
         // The UI/RPC uses 1=daily through 4=yearly. Apple's stored enum uses
         // 0=daily, 1=weekly, 2=monthly, 3=yearly, then hourly/minutely/secondly.
         // A missing or unsupported service value must never become a daily
@@ -27,6 +27,14 @@ internal static class Recurrence
             ? wire switch { 0 => 1, 1 => 2, 2 => 3, 3 => 4, _ => 0 } : 0;
         var interval = Math.Max(1, CloudKit.Int(rule, "Interval"));
         return new() { ["frequency"] = frequency, ["interval"] = interval, ["supported"] = supported && frequency is >= 1 and <= 4 && interval <= 999 };
+    }
+
+    private static bool EmptyConstraint(string name, JsonNode? field)
+    {
+        if (name is not ("DaysOfTheWeek" or "DaysOfTheMonth" or "DaysOfTheYear" or "WeeksOfTheYear" or "MonthsOfTheYear" or "SetPositions")) return false;
+        if (field.Text("type") is not ("BYTES" or "ENCRYPTED_BYTES") || field.Text("value") is not { } value) return false;
+        try { return J.Parse(System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(value))) is JsonArray { Count: 0 }; }
+        catch (FormatException) { return false; }
     }
 
     // Calendar arithmetic preserves wall-clock time across DST. Invalid monthly

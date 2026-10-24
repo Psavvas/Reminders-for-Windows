@@ -140,7 +140,14 @@ internal sealed partial class ICloudClient : IDisposable
     internal static JsonObject UpdateFields(JsonNode record, JsonObject patch)
     {
         var fields = new JsonObject(); var tokens = new List<string>();
-        foreach (var (json, cloud, logical) in new[] { ("title", "TitleDocument", "titleDocument"), ("description", "NotesDocument", "notesDocument") }) if (patch.ContainsKey(json)) { fields[cloud] = CloudKit.String(AppleDocument.Encode(patch.Text(json) ?? "")); tokens.Add(logical); }
+        foreach (var (json, cloud, logical) in new[] { ("title", "TitleDocument", "titleDocument"), ("description", "NotesDocument", "notesDocument") })
+        {
+            if (!patch.ContainsKey(json)) continue;
+            var document = CloudKit.Field(record, cloud)?.ToString();
+            if (document is null && CloudKit.Field(record, cloud + "Asset") is not null)
+                throw CoreException.Bad("Edit this reminder's large text document on an Apple device.");
+            fields[cloud] = CloudKit.String(AppleDocument.Edit(document, patch.Text(json) ?? "")); tokens.Add(logical);
+        }
         foreach (var (json, cloud) in new[] { ("priority", "Priority"), ("completed", "Completed"), ("flagged", "Flagged"), ("deleted", "Deleted"), ("all_day", "AllDay") }) if (patch.ContainsKey(json)) { fields[cloud] = CloudKit.Number(patch.Number(json, patch.Flag(json) ? 1 : 0)); tokens.Add(json == "all_day" ? "allDay" : json); }
         if (patch.ContainsKey("completed")) { fields["CompletionDate"] = CloudKit.Timestamp(patch.Flag("completed") ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : null); tokens.Add("completionDate"); }
         if (patch.ContainsKey("due_date")) { fields["DueDate"] = CloudKit.Timestamp(patch.Text("due_date") is { } due ? TimeUtil.ToFloating(TimeUtil.Parse(due), CloudKit.Text(record, "TimeZone")) : null); tokens.Add("dueDate"); }

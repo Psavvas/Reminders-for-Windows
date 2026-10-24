@@ -64,12 +64,25 @@ internal sealed partial class ICloudClient
             var shift = CloudKit.Field(new JsonObject { ["fields"] = active.DeepClone() }, "DueDate")!.GetValue<long>() - CloudKit.Field(original, "DueDate")!.GetValue<long>();
             active["StartDate"] = CloudKit.Timestamp(startMs + shift); AddTokens(active, "startDate");
         }
-        var past = (JsonObject)original["fields"]!.DeepClone();
-        foreach (var pair in UpdateFields(original, patch)) past[pair.Key] = pair.Value?.DeepClone();
-        foreach (var link in new[] { "RecurrenceRuleIDs", "AlarmIDs", "HashtagIDs", "AttachmentIDs" })
-            past[link] = J.Node(new { type = "STRING_LIST", value = Array.Empty<string>() });
+        // A downloaded native record is not a create payload: it can contain
+        // encrypted service types, asset download metadata, device-only fields
+        // and references owned by the active reminder. Build the history from
+        // our writable scalar/text fields, using fresh document identities.
+        var historyPatch = ToReminder(original)!;
+        foreach (var pair in patch) historyPatch[pair.Key] = pair.Value?.DeepClone();
+        foreach (var name in new[] { "TitleDocument", "NotesDocument" })
+            if (CloudKit.Field(original, name) is null && CloudKit.Field(original, name + "Asset") is not null)
+                throw CoreException.Bad("Complete this reminder with a large text document on an Apple device.");
+        var context = new JsonObject { ["fields"] = new JsonObject { ["TimeZone"] = original["fields"]?["TimeZone"]?.DeepClone() } };
+        var past = UpdateFields(context, historyPatch);
+        past["List"] = CloudKit.Reference(CloudKit.Field(original, "List").Text("recordName") ?? throw CoreException.Bad("Refresh this reminder before completing its repeat."));
+        past["Deleted"] = CloudKit.Number(0);
+        if (CloudKit.Text(original, "TimeZone") is { } zone) past["TimeZone"] = CloudKit.String(zone);
+        if (CloudKit.Field(original, "StartDate") is JsonValue pastStart && pastStart.TryGetValue<long>(out var pastStartMs))
+            past["StartDate"] = CloudKit.Timestamp(pastStartMs);
+        past["RecurrenceRuleIDs"] = J.Node(new { type = "STRING_LIST", value = Array.Empty<string>() });
         past["CreationDate"] = CloudKit.Timestamp(now.ToUnixTimeMilliseconds());
-        AddTokens(past, "recurrenceRuleIDs", "alarmIDs", "attachmentIDs", "creationDate");
+        AddTokens(past, "recurrenceRuleIDs", "creationDate");
         var operations = new JsonArray(
             CloudKit.Operation("update", id, original.Text("recordChangeTag"), active),
             CloudKit.Operation("create", historyId, null, past, parent: CloudKit.Field(original, "List").Text("recordName")));
