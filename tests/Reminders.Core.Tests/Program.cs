@@ -30,6 +30,7 @@ foreach (var text in new[] { "", "Hello", "café • 日本語 🛫", new string
 Equal<string?>(null, AppleDocument.Decode("not base64!"), "malformed document");
 // Saved fixture from the previous connector, independent of this encoder.
 Equal("Hello", AppleDocument.Decode("EgkaBxIFSGVsbG8="), "uncompressed protobuf fixture");
+AppleDocumentEditingChecks.Run(Check);
 var ny = TimeUtil.Zone("America/New_York");
 Equal(TimeUtil.Parse("2026-11-01T05:30:00Z"), TimeUtil.Anchor(new DateTime(2026, 11, 1, 1, 30, 0), ny), "DST overlap chooses first instant");
 Equal(TimeUtil.Parse("2026-03-08T07:00:00Z"), TimeUtil.Anchor(new DateTime(2026, 3, 8, 2, 30, 0), ny), "DST gap advances");
@@ -248,6 +249,7 @@ await WriteCompatibilityChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 RecurrenceWireFormatChecks.Run(Check);
 await RecurrenceAndSyncChecks.RunAsync(Check);
+await NativeReminderWriteChecks.RunAsync(Check);
 await RecurrenceEditingChecks.RunAsync(Check);
 await ReadOnlyTagChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);

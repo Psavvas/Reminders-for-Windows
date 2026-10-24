@@ -1,6 +1,6 @@
 # Documentation
 
-Current for Reminders for Windows v1.0.0.
+Current for Reminders for Windows v1.0.1.
 
 ## Using the app
 
@@ -9,7 +9,7 @@ Current for Reminders for Windows v1.0.0.
 | [Getting started](getting-started.md) | Requirements, setup, sync, Settings and recovery |
 | [Sign-in options](authentication.md) | Apple-hosted verification, native SMS, remembered sessions and app-specific-password limits |
 | [Local test account](demo-account.md) | Persistent sample data without an Apple Account |
-| [v1.0.0 release notes](releases/v1.0.0.md) | Changes, downloads, updates and compatibility |
+| [v1.0.1 release notes](releases/v1.0.1.md) | Changes, downloads, updates and compatibility |
 | [Privacy policy](../PRIVACY.md) | Data access, local storage and removal choices |
 
 Install from the Microsoft Store listing or use the GitHub release's matching

@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Reminders.Core;
 
-internal static class AppleDocument
+internal static partial class AppleDocument
 {
     private const int MaxBytes = 4 * 1024 * 1024;
     private static void Put(List<byte> output, ulong n) { while (n >= 128) { output.Add((byte)((n & 127) | 128)); n >>= 7; } output.Add((byte)n); }
@@ -31,14 +31,19 @@ internal static class AppleDocument
         if (value is null || value.Length > MaxBytes * 2) return null;
         try
         {
-            var bytes = Convert.FromBase64String(value + new string('=', (4 - value.Length % 4) % 4));
-            using var input = new MemoryStream(bytes); using Stream reader = bytes.Length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b ? new GZipStream(input, CompressionMode.Decompress) : bytes.Length > 0 && bytes[0] == 0x78 ? new ZLibStream(input, CompressionMode.Decompress) : input;
-            using var output = new MemoryStream(); var buffer = new byte[8192]; int count;
-            while ((count = reader.Read(buffer, 0, buffer.Length)) > 0) { if (output.Length + count > MaxBytes) return null; output.Write(buffer, 0, count); }
-            var data = output.ToArray(); var raw = Field(Field(Field(data, 2), 3), 2) ?? Field(Field(data, 3), 2) ?? Field(data, 2);
+            var data = Expand(value); var raw = Field(Field(Field(data, 2), 3), 2) ?? Field(Field(data, 3), 2) ?? Field(data, 2);
             return raw is null ? null : new UTF8Encoding(false, true).GetString(raw);
         }
         catch (Exception e) when (e is FormatException or InvalidDataException or IOException or DecoderFallbackException) { return null; }
+    }
+    private static byte[] Expand(string value)
+    {
+        if (value.Length > MaxBytes * 2) throw new InvalidDataException();
+        var bytes = Convert.FromBase64String(value + new string('=', (4 - value.Length % 4) % 4));
+        using var input = new MemoryStream(bytes); using Stream reader = bytes.Length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b ? new GZipStream(input, CompressionMode.Decompress) : bytes.Length > 0 && bytes[0] == 0x78 ? new ZLibStream(input, CompressionMode.Decompress) : input;
+        using var output = new MemoryStream(); var buffer = new byte[8192]; int count;
+        while ((count = reader.Read(buffer, 0, buffer.Length)) > 0) { if (output.Length + count > MaxBytes) throw new InvalidDataException(); output.Write(buffer, 0, count); }
+        return output.ToArray();
     }
     private static ulong Varint(byte[] data, ref int position)
     {

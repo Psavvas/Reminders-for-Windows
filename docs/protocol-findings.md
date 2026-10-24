@@ -39,6 +39,35 @@ Linked writes are atomic. Schedule editing also updates parent/rule links
 atomically and preserves supported end conditions. A retry must not create a
 second history record or advance twice.
 
+Native rule constraints such as `DaysOfTheWeek` can arrive as base64 JSON in
+`BYTES` or `ENCRYPTED_BYTES` fields. An encoded empty array does not constrain a
+simple repeat. Nonempty or malformed constraints still require an Apple device.
+
+The completed history create payload is built from writable reminder values,
+with fresh text documents, rather than copying a downloaded native record.
+Downloaded asset metadata, native encrypted field types and references owned by
+the active reminder must not be replayed into a new record. Tags, alarms,
+attachments and assignments stay attached to the active reminder.
+
+### Editing native text
+
+`TitleDocument` and `NotesDocument` are mergeable strings. Replacing their blobs
+with unrelated fresh documents can cause an Apple device to concatenate the old
+and new text. An edit must retain the original character identities, tombstone
+their live ranges, and insert replacement text with updated vector clocks.
+Replica indices refer to UUID sort order; adding a replica requires remapping
+the existing identities. Character ranges use UTF-16, including emoji.
+
+On October 24, synthetic documents from Apple's publicly served
+[2638Build16 bundle](https://www.icloud.com/applications/reminders2/2638Build16/en-us/main.js)
+were used to check replacement, clearing, Unicode and repeated edits by merging
+the Windows output through Apple's text engine. Inspected SHA-256:
+`117405a95eb2cfd91d9ecbdfe9d00b3f62cf332efe2cc123384f77d316b3a544`.
+The public bundle at this URL changed since the earlier frequency inspection.
+Only synthetic fixtures are committed; Apple's implementation is not bundled
+with the app. Unsupported/malformed document structures and asset-only text
+are rejected before uploading an unsafe replacement.
+
 ### Tags and lists
 
 Tags remain readable and filterable. Windows tag writing and automatic repair

@@ -1,11 +1,11 @@
-# v1.0.0 behavior and validation
+# v1.0.1 behavior and validation
 
-Reviewed October 22, 2026. This document describes the current implementation and
+Reviewed October 24, 2026. This document describes the current implementation and
 its evidence, rather than individual test-build experiments.
 
 ## Automated checks
 
-- 836 account-free backend, authentication, scheduling and layout checks.
+- 896 account-free backend, authentication, scheduling and layout checks.
 - 24 updater checks for stable-release selection, architecture, size and digest
   verification, and installation eligibility.
 - 8 CI policy checks for cache, permissions and release-artifact boundaries.
@@ -60,6 +60,18 @@ uploaded schedules need an explicit change to the intended frequency; the app
 cannot distinguish them from deliberately chosen Apple schedules. Exhaustive
 iPhone verification of post-creation schedule edits and custom rules remains a
 separate live check.
+
+October 24 regression checks cover native text documents with multiple replicas
+and prior deletions, encoded empty repeat constraints, and populated phone-style
+records with encrypted text, asset metadata and linked records. Renames retain
+the original character identities and delete the prior text; synthetic Windows
+edits also merge correctly through Apple's public text engine. Recurring
+completion builds a fresh history payload from supported fields and recovers a
+lost reply without advancing twice. These checks address the reported desktop
+rename concatenation and native-record completion failure; the corrected build
+still needs a live iPhone completion/rename check. See
+[protocol findings](protocol-findings.md#editing-native-text) for the inspected
+bundle and the limits of this validation.
 
 ## Tags
 
