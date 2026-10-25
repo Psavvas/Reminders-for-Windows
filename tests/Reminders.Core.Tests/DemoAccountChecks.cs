@@ -53,6 +53,8 @@ internal static class DemoAccountChecks
                 id = row.Required("id");
                 check(row.Number("dirty") == 0 && row.Flag("flagged") && row.Number("priority") == 1, "local create saves clean reminder fields");
                 await Call(demo, "update_reminder", new { id, title = "Edited flight plan", description = "Updated notes" });
+                await Call(demo, "update_reminder", new { id, list_id = "demo-personal" });
+                check((await Call(demo, "reminder", new { id })).Text("list_id") == "demo-personal", "local demo can move existing tasks between lists");
                 check((await Call(demo, "reminders", new { search = "Edited flight", sort = "title" })).AsArray().Count == 1, "local edit and search");
                 var notifications = await Call(demo, "due_notifications");
                 check(notifications.Array("notified_ids").Any(n => n?.GetValue<string>() == id), "local due notifications");
@@ -73,6 +75,7 @@ internal static class DemoAccountChecks
             await using (var reopened = ReminderService.OpenDemo(root, password))
             {
                 check((await Call(reopened, "reminder", new { id })).Text("title") == "Edited flight plan", "local edits persist across sessions");
+                check((await Call(reopened, "reminder", new { id })).Text("list_id") == "demo-personal", "local list moves persist across sessions");
                 check((await Call(reopened, "settings")).Text("theme") == "dark", "local settings persist across sessions");
                 check((await Call(reopened, "reminders", new { include_completed = true })).AsArray().Count == 6, "reopening does not duplicate or reset samples");
             }

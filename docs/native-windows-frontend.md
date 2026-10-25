@@ -30,6 +30,12 @@ with sample data** button.
 
 ## Reminder and sidebar controls
 
+Select a task, choose its destination in the details pane's **List** picker,
+then click **Save changes** to move it. The picker follows sidebar list order
+and excludes groups. Moves are saved locally and queued for iCloud when offline;
+the task leaves its previous list as soon as it is saved. Demo mode supports
+the same interaction with its sample lists.
+
 Only Today shows a count badge. Today includes unfinished reminders due today
 or earlier; Upcoming shows all unfinished dated reminders, including overdue
 work. Overdue dates include an **Overdue** label and use the Windows critical
@@ -85,6 +91,9 @@ Run `scripts\run-windows.ps1 -Demo`, then check:
   active list remain available.
 - The add popup validates an empty title, allows an undated reminder, and saves
   due date, time, priority, flag, and recurrence together. Tags are read-only.
+- Open a task from Inbox, change **List** to Work, and save. It should leave
+  Inbox and appear in Work. From All, moving it again should retain selection
+  and update the details header. Other task fields should keep their values.
 - Settings opens on the current theme; Save applies changes and Cancel keeps
   the prior settings. Reopening shows the saved values.
 - Completing a reminder visibly checks it before it leaves the list; disabling

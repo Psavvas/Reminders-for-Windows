@@ -140,6 +140,7 @@ internal sealed partial class ICloudClient : IDisposable
     internal static JsonObject UpdateFields(JsonNode record, JsonObject patch)
     {
         var fields = new JsonObject(); var tokens = new List<string>();
+        if (patch.ContainsKey("list_id")) { fields["List"] = CloudKit.Reference(patch.Required("list_id")); tokens.Add("list"); }
         foreach (var (json, cloud, logical) in new[] { ("title", "TitleDocument", "titleDocument"), ("description", "NotesDocument", "notesDocument") })
         {
             if (!patch.ContainsKey(json)) continue;
@@ -186,11 +187,9 @@ internal sealed partial class ICloudClient : IDisposable
             return await CompleteRecurring(original, patch, baseTag, token);
         if (baseTag is not null && baseTag != remoteTag) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", ToReminder(original)?.ToJsonString() ?? "{}");
         var fields = UpdateFields(original, patch); var result = await Cloud.Modify(CloudKit.Operation("update", id, remoteTag, (JsonObject)fields.DeepClone()), token);
-        var returned = result.FirstOrDefault() ?? throw new CoreException("ERROR", "iCloud did not return the updated reminder");
         var target = original["fields"] as JsonObject ?? new(); original["fields"] = null; original["fields"] = target;
-        foreach (var p in fields) target[p.Key] = p.Value?.DeepClone(); if (returned["fields"] is JsonObject changed) foreach (var p in changed) target[p.Key] = p.Value?.DeepClone();
-        if (returned["recordChangeTag"] is { } tag) original["recordChangeTag"] = tag.DeepClone();
-        return Snapshot(original);
+        foreach (var p in fields) target[p.Key] = p.Value?.DeepClone();
+        return MergeResult(original, result);
     }
     public void Dispose() => auth.Dispose();
 }

@@ -28,6 +28,9 @@ internal sealed partial class ICloudClient
         copy["fields"] ??= new JsonObject();
         if (returned["fields"] is JsonObject changed)
             foreach (var pair in changed) copy["fields"]![pair.Key] = pair.Value?.DeepClone();
+        if (returned["parent"] is { } parent) copy["parent"] = parent.DeepClone();
+        else if (CloudKit.Field(copy, "List").Text("recordName") is { } listId)
+            copy["parent"] = J.Node(new { recordName = listId });
         copy["recordChangeTag"] = returned["recordChangeTag"]?.DeepClone();
         return Snapshot(copy);
     }

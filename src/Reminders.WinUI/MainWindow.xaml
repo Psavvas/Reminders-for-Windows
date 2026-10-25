@@ -96,6 +96,7 @@
         <StackPanel Padding="20,0,20,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="16">
          <TextBox x:Name="DetailTitle" PlaceholderText="Task title" AutomationProperties.Name="Task title" Style="{StaticResource TaskTitleEditorStyle}" TextChanged="Detail_Changed"/>
          <TextBox x:Name="DetailNotes" Style="{StaticResource TaskNotesEditorStyle}" TextChanged="Detail_Changed"/>
+         <ComboBox x:Name="DetailList" Header="List" PlaceholderText="Choose a list" DisplayMemberPath="Title" SelectedValuePath="Id" HorizontalAlignment="Stretch" AutomationProperties.Name="Task list" SelectionChanged="Detail_Changed"/>
          <Border Style="{StaticResource EditorSectionStyle}">
           <StackPanel Spacing="10">
            <TextBlock Text="Schedule" Style="{ThemeResource BodyStrongTextBlockStyle}"/>

@@ -273,6 +273,16 @@ public sealed class ReminderService : IAsyncDisposable
             if (operation is "delete" or "restore") fields["deleted"] = operation == "delete";
             else
             {
+                if (p.ContainsKey("list_id"))
+                {
+                    var listId = p.Required("list_id");
+                    if (listId != current.Text("list_id"))
+                    {
+                        if (!cache.Lists.Any(list => list.Text("id") == listId && !list.Flag("is_group")))
+                            throw CoreException.Bad("Choose an existing reminder list.");
+                        fields["list_id"] = listId;
+                    }
+                }
                 foreach (var (key, max) in new[] { ("title", 4096), ("description", 100000) }) if (p.Optional(key, max) is { } value) fields[key] = value;
                 foreach (var key in new[] { "priority", "completed", "flagged", "all_day" }) if (p.ContainsKey(key)) fields[key] = p[key]?.DeepClone();
                 var allDay = fields.ContainsKey("all_day") ? fields.Flag("all_day") : current.Flag("all_day");

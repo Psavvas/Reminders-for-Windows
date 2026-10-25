@@ -710,6 +710,8 @@ public sealed partial class MainWindow : Window
         {
             DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description;
             DetailListName.Text = _lists.FirstOrDefault(list => list.Id == reminder.ListId)?.Title ?? "Reminder";
+            DetailList.ItemsSource = OrderedLists();
+            DetailList.SelectedValue = reminder.ListId;
             DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
@@ -766,6 +768,7 @@ public sealed partial class MainWindow : Window
     {
         if (_selected is null) return;
         string? due = FormatDueDate(DetailDate.Date, DetailAllDay.IsOn, DetailTime.Time);
+        var listId = DetailList.SelectedValue as string ?? _selected.ListId;
         var priority = long.Parse(((ComboBoxItem?)DetailPriority.SelectedItem)?.Tag?.ToString() ?? "0");
         try
         {
@@ -774,6 +777,7 @@ public sealed partial class MainWindow : Window
             if (_demo)
             {
                 _selected.Title = DetailTitle.Text.Trim(); _selected.Description = DetailNotes.Text;
+                _selected.ListId = listId;
                 _selected.DueDate = due; _selected.AllDay = DetailAllDay.IsOn;
                 _selected.Flagged = DetailFlagged.IsOn; _selected.Priority = priority;
                 if (repeatChanged) _selected.Recurrence = recurrence;
@@ -781,6 +785,7 @@ public sealed partial class MainWindow : Window
             else
             {
                 var patch = new Dictionary<string, object?> { ["id"] = _selected.Id, ["title"] = DetailTitle.Text.Trim(), ["description"] = DetailNotes.Text, ["due_date"] = due, ["all_day"] = DetailAllDay.IsOn, ["flagged"] = DetailFlagged.IsOn, ["priority"] = priority };
+                if (listId != _selected.ListId) patch["list_id"] = listId;
                 if (repeatChanged) patch["recurrence"] = recurrence;
                 await _sync.CallAsync("update_reminder", patch);
             }
