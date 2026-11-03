@@ -6,8 +6,8 @@ priority, flag and completion state. Save unfinished changes to the parent
 before opening the subtask dialog. Subtasks can themselves have subtasks.
 
 The borderless arrow at the right of a task expands or collapses its children
-for the current session. Children use compact, indented checklist rows with a
-subtle guide line, regular-weight titles and no repeated "Subtask" label.
+for the current session. Children use compact, indented checklist rows with
+regular-weight titles and no repeated "Subtask" label or vertical guide line.
 Child notes are available in the details pane; meaningful dates and priority
 remain visible in the list. Indentation is capped to keep deep trees readable.
 Existing iCloud subtasks use the same display. Sorting keeps families

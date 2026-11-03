@@ -56,9 +56,6 @@
         <DataTemplate x:DataType="local:ReminderItem">
          <Grid Padding="{x:Bind RowPadding, Mode=OneWay}" Margin="{x:Bind HierarchyIndent, Mode=OneWay}" MinHeight="40">
           <Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-          <Border Grid.ColumnSpan="3" Width="1" HorizontalAlignment="Left" Margin="-8,-4,0,-4"
-                  Background="{ThemeResource DividerStrokeColorDefaultBrush}" IsHitTestVisible="False"
-                  Visibility="{x:Bind HierarchyGuideVisibility, Mode=OneWay}"/>
           <CheckBox IsChecked="{x:Bind Completed, Mode=TwoWay}" Click="Complete_Click" VerticalAlignment="Top" AutomationProperties.Name="Mark reminder complete"/>
           <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
            <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" FontWeight="{x:Bind RowTitleWeight, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>

@@ -57,8 +57,8 @@ NuGet's vulnerability feed was unreachable; builds report NU1900 for that lookup
 
 The requested visual refresh moves the disclosure arrow to the right and uses
 the native borderless button style. Child rows use tighter spacing, regular
-titles and an indentation guide. Repeated context labels and child-note previews
-are removed from the list; the full notes remain in task details. Deep indentation
+titles and indentation without vertical guide lines. Repeated context labels and
+child-note previews are removed from the list; the full notes remain in task details. Deep indentation
 is capped to preserve text space. Native on-screen testing was stopped with
 Escape before this refresh, so the revised subtask appearance is compiled but
 still needs a light/dark visual pass.

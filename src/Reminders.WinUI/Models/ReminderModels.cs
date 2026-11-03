@@ -39,7 +39,6 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     private bool _expanded = true;
     [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 4) * 24, 0, 0, 0);
     [JsonIgnore] public Microsoft.UI.Xaml.Thickness RowPadding => new(8, _depth > 0 ? 4 : 10, 8, _depth > 0 ? 4 : 10);
-    [JsonIgnore] public Microsoft.UI.Xaml.Visibility HierarchyGuideVisibility => _depth > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     [JsonIgnore] public global::Windows.UI.Text.FontWeight RowTitleWeight => _depth > 0 ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
@@ -47,7 +46,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
     {
         _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
-        foreach (var name in new[] { nameof(HierarchyIndent), nameof(RowPadding), nameof(HierarchyGuideVisibility), nameof(RowTitleWeight),
+        foreach (var name in new[] { nameof(HierarchyIndent), nameof(RowPadding), nameof(RowTitleWeight),
             nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel), nameof(DescriptionVisibility) })
             PropertyChanged?.Invoke(this, new(name));
     }
