@@ -13,13 +13,15 @@ public sealed class ReminderList
     [JsonPropertyName("is_group")] public bool IsGroup { get; set; }
 }
 
-public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledReminder
+public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchicalReminder
 {
     private string _title = "";
     private string _description = "";
     private bool _completed;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("list_id")] public string ListId { get; set; } = "";
+    [JsonPropertyName("parent_id")] public string? ParentId { get; set; }
+    [JsonPropertyName("context_only")] public bool ContextOnly { get; set; }
     [JsonPropertyName("title")] public string Title { get => _title; set => Set(ref _title, value); }
     [JsonPropertyName("description")] public string Description { get => _description; set => Set(ref _description, value); }
     [JsonPropertyName("due_date")] public string? DueDate { get; set; }
@@ -31,6 +33,20 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     [JsonPropertyName("tags")] public List<string> Tags { get; set; } = [];
     [JsonPropertyName("dirty")] public long Dirty { get; set; }
     [JsonPropertyName("recurrence")] public RepeatSchedule? Recurrence { get; set; }
+
+    private int _depth;
+    private bool _hasChildren;
+    private bool _expanded = true;
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 12) * 24, 0, 0, 0);
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
+    [JsonIgnore] public string SubtaskToggleLabel => (_expanded ? "Collapse subtasks of " : "Expand subtasks of ") + DisplayTitle;
+    public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
+    {
+        _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
+        foreach (var name in new[] { nameof(HierarchyIndent), nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel) })
+            PropertyChanged?.Invoke(this, new(name));
+    }
 
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => string.IsNullOrWhiteSpace(Metadata)
@@ -59,6 +75,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
         get
         {
             var parts = new List<string>();
+            if (ContextOnly) parts.Add(ParentId is null ? "Parent task" : "Subtask");
             if (IsOverdue) parts.Add("Overdue");
             if (DueText.Length > 0) parts.Add(DueText);
             if (Recurrence is not null) parts.Add(Recurrence.Label);

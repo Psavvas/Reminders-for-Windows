@@ -133,6 +133,7 @@ the updater. Committing code alone does not distribute an update.
 | Feature | Support |
 |---|---|
 | Lists and reminders | Read lists; read and write reminders |
+| Subtasks | Nested display, expand/collapse and creation from task details ([behavior and validation](docs/subtasks.md)) |
 | Titles, notes, due dates, priorities, completion and flags | Read and write |
 | Smart lists | Today, Upcoming, All, Completed and Deleted |
 | Search and sorting | Local SQLite queries |

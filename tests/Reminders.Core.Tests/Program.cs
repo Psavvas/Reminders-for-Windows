@@ -247,6 +247,8 @@ await CacheRecoveryChecks.RunAsync(Check);
 await UnsyncedRecoveryChecks.RunAsync(Check);
 await WriteCompatibilityChecks.RunAsync(Check);
 await ReminderListEditingChecks.RunAsync(Check);
+await SubtaskChecks.RunAsync(Check);
+await SubtaskSyncChecks.RunAsync(Check);
 AppleSignInPolicyChecks.Run(Check);
 RecurrenceWireFormatChecks.Run(Check);
 await RecurrenceAndSyncChecks.RunAsync(Check);

@@ -36,12 +36,14 @@ public sealed partial class MainWindow : Window
     private bool _dialogOpen;
     private readonly HashSet<string> _completing = [];
     private readonly List<ReminderItem> _demoRows = [];
+    private readonly HashSet<string> _collapsedSubtasks = [];
     private ReminderItem? _selected;
     private NavEntry _view = new("Today", "", NavKind.Smart, "today");
     private string _sort = "manual";
     private bool _verificationBusy;
     private bool _loadingDetail;
     private bool _detailDirty;
+    private string? _detailBaseline;
     private bool _demo;
     private DateTimeOffset _lastSyncRequest = DateTimeOffset.MinValue;
     private bool _bootStarted;
@@ -295,7 +297,7 @@ public sealed partial class MainWindow : Window
         if (_demo) { LoadDemoRows(); return; }
         try
         {
-            var query = new Dictionary<string, object?> { ["include_completed"] = ShowCompleted.IsOn, ["search"] = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim(), ["sort"] = _sort };
+            var query = new Dictionary<string, object?> { ["include_completed"] = ShowCompleted.IsOn, ["include_parents"] = true, ["search"] = string.IsNullOrWhiteSpace(SearchBox.Text) ? null : SearchBox.Text.Trim(), ["sort"] = _sort };
             query[_view.Kind switch { NavKind.List => "list_id", NavKind.Tag => "tag", _ => "scope" }] = _view.Key;
             var rows = await _sync.CallAsync<List<ReminderItem>>("reminders", query);
             if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
@@ -314,14 +316,30 @@ public sealed partial class MainWindow : Window
             : _view.Kind == NavKind.Smart && _view.Key is "completed" or "deleted"
                 ? "Reminders will appear here when you " + (_view.Key == "completed" ? "complete" : "delete") + " them."
                 : "Add a reminder whenever you need one.";
-        RowCount.Text = _reminders.Count == 1 ? "1 reminder" : $"{_reminders.Count:N0} reminders";
+        var count = _reminders.Count(row => !row.ContextOnly);
+        var matching = _reminders.Any(row => row.ContextOnly) ? " matching" : "";
+        RowCount.Text = count == 1 ? $"1{matching} reminder" : $"{count:N0}{matching} reminders";
     }
     private void SetReminderRows(IEnumerable<ReminderItem> rows)
     {
         var selectedId = _selected?.Id;
+        var preserveEditor = _detailDirty && _selected is not null;
         _regrouping = true;
         try { _reminders.Clear(); foreach (var row in rows) _reminders.Add(row); }
         finally { _regrouping = false; }
+        if (!string.IsNullOrWhiteSpace(SearchBox.Text) || _view.Kind == NavKind.Tag)
+        {
+            var byId = _reminders.ToDictionary(row => row.Id);
+            foreach (var match in _reminders.Where(row => !row.ContextOnly))
+            {
+                var seen = new HashSet<string>();
+                for (var parentId = match.ParentId; parentId is not null && seen.Add(parentId);)
+                {
+                    _collapsedSubtasks.Remove(parentId);
+                    parentId = byId.GetValueOrDefault(parentId)?.ParentId;
+                }
+            }
+        }
         _reminderDate = DateTime.Today;
         UpdateRows();
         if (selectedId is not null)
@@ -330,27 +348,31 @@ public sealed partial class MainWindow : Window
             _regrouping = true;
             try { ReminderList.SelectedItem = selected; }
             finally { _regrouping = false; }
-            ShowDetail(selected);
+            if (!preserveEditor) ShowDetail(selected);
         }
     }
     private void RebuildReminderSections(bool force = false)
     {
+        var families = ReminderHierarchy.Build(_reminders, _collapsedSubtasks);
+        List<ReminderItem> Visible(ReminderFamily<ReminderItem> family) => family.Rows.Where(row => !row.Hidden).Select(row =>
+        {
+            row.Item.ConfigureHierarchy(row.Depth, row.HasChildren, !_collapsedSubtasks.Contains(row.Item.Id)); return row.Item;
+        }).ToList();
         if (_view.Kind != NavKind.Smart || _view.Key is not ("today" or "upcoming"))
         {
-            if (ReferenceEquals(ReminderList.ItemsSource, _reminders)) return;
             _regrouping = true;
-            try { ReminderList.ItemsSource = _reminders; ReminderList.SelectedItem = _reminders.FirstOrDefault(row => row.Id == _selected?.Id); }
+            try { var visible = families.SelectMany(Visible).ToList(); ReminderList.ItemsSource = visible; ReminderList.SelectedItem = visible.FirstOrDefault(row => row.Id == _selected?.Id); }
             finally { _regrouping = false; }
             _sectionSignature = "";
             return;
         }
-        var groups = ReminderGrouping.Group(_reminders, _view.Key, _sort, DateTimeOffset.Now);
-        var signature = JsonSerializer.Serialize(groups.Select(group => new { group.Title, Ids = group.Items.Select(row => row.Id) }));
+        var groups = ReminderGrouping.Group(families, _view.Key, _sort, DateTimeOffset.Now);
+        var signature = JsonSerializer.Serialize(groups.Select(group => new { group.Title, Ids = group.Items.SelectMany(family => family.Rows).Select(row => new { row.Item.Id, row.Hidden, row.Depth }) }));
         if (!force && signature == _sectionSignature) return;
         _regrouping = true;
         try
         {
-            _sectionView.Source = groups.Select(group => new ReminderSection(group.Title, group.Items)).ToList();
+            _sectionView.Source = groups.Select(group => new ReminderSection(group.Title, group.Items.SelectMany(Visible))).ToList();
             ReminderList.ItemsSource = _sectionView.View;
             ReminderList.SelectedItem = _reminders.FirstOrDefault(row => row.Id == _selected?.Id);
             _sectionSignature = signature;
@@ -688,7 +710,8 @@ public sealed partial class MainWindow : Window
         var saved = false;
         try
         {
-            if (!_demo) await _sync.CallAsync("update_reminder", new { id = reminder.Id, completed });
+            if (_demo) CompleteDemoFamily(reminder, completed);
+            else await _sync.CallAsync("update_reminder", new { id = reminder.Id, completed });
             saved = true;
             if (completed) await AnimateCompletionAsync(reminder);
             _completing.Remove(reminder.Id);
@@ -712,6 +735,7 @@ public sealed partial class MainWindow : Window
             DetailListName.Text = _lists.FirstOrDefault(list => list.Id == reminder.ListId)?.Title ?? "Reminder";
             DetailList.ItemsSource = OrderedLists();
             DetailList.SelectedValue = reminder.ListId;
+            AddSubtaskButton.IsEnabled = !reminder.Completed && !reminder.Deleted;
             DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
@@ -723,6 +747,7 @@ public sealed partial class MainWindow : Window
             DetailTags.Text = string.Join(", ", reminder.Tags.Select(t => "#" + t));
             DetailTagsSection.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
+        _detailBaseline = reminder is null ? null : CaptureDetailValues();
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
         UpdatePaneLayout();
         if (reminder is not null) AnimateDetailPane();
@@ -758,12 +783,21 @@ public sealed partial class MainWindow : Window
     private void Detail_Changed(object sender, object e)
     {
         if (_loadingDetail || _selected is null) return;
-        _detailDirty = true;
+        _detailDirty = CaptureDetailValues() != _detailBaseline;
         UpdateRepeatControls();
         var repeats = DetailRepeatChoice.SelectedIndex > 0 || _selected.Recurrence?.Supported == false;
-        SaveButton.IsEnabled = (!repeats || DetailDate.Date is not null)
+        SaveButton.IsEnabled = _detailDirty && (!repeats || DetailDate.Date is not null)
             && (!DetailRepeatInterval.IsEnabled || double.IsFinite(DetailRepeatInterval.Value) && DetailRepeatInterval.Value is >= 1 and <= 999 && DetailRepeatInterval.Value == Math.Truncate(DetailRepeatInterval.Value));
     }
+    private string CaptureDetailValues() => JsonSerializer.Serialize(new
+    {
+        Title = DetailTitle.Text, Notes = DetailNotes.Text, List = DetailList.SelectedValue as string ?? _selected?.ListId,
+        Date = DetailDate.Date?.Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+        Time = DetailDate.Date is null || DetailAllDay.IsOn ? null : DetailTime.Time.ToString(),
+        AllDay = DetailAllDay.IsOn, Flagged = DetailFlagged.IsOn, Priority = DetailPriority.SelectedIndex,
+        Repeat = DetailRepeatChoice.SelectedIndex,
+        Interval = DetailRepeatChoice.SelectedIndex > 0 ? DetailRepeatInterval.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture) : null
+    });
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
         if (_selected is null) return;
@@ -777,7 +811,7 @@ public sealed partial class MainWindow : Window
             if (_demo)
             {
                 _selected.Title = DetailTitle.Text.Trim(); _selected.Description = DetailNotes.Text;
-                _selected.ListId = listId;
+                MoveDemoFamily(_selected, listId);
                 _selected.DueDate = due; _selected.AllDay = DetailAllDay.IsOn;
                 _selected.Flagged = DetailFlagged.IsOn; _selected.Priority = priority;
                 if (repeatChanged) _selected.Recurrence = recurrence;
@@ -796,9 +830,15 @@ public sealed partial class MainWindow : Window
     private async void Delete_Click(object sender, RoutedEventArgs e)
     {
         if (_selected is null) return;
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Delete reminder?", Content = _selected.DisplayTitle, PrimaryButtonText = "Delete", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Delete reminder?", Content = _selected.DisplayTitle + "\n\nAny subtasks will also be deleted.", PrimaryButtonText = "Delete", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
-        if (_demo) _selected.Deleted = true; else await _sync.CallAsync("delete_reminder", new { id = _selected.Id }); ShowDetail(null); await LoadRemindersAsync();
+        try
+        {
+            if (_demo) { _selected.Deleted = true; foreach (var child in DemoDescendants(_selected.Id)) child.Deleted = true; }
+            else await _sync.CallAsync("delete_reminder", new { id = _selected.Id });
+            ShowDetail(null); await LoadRemindersAsync();
+        }
+        catch (Exception error) { ShowInfo("Couldn't delete reminder", error.Message, InfoBarSeverity.Error); }
     }
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
     private async void NewAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowNewReminderAsync(); }

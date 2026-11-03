@@ -19,7 +19,7 @@ public sealed partial class MainWindow
         return grid;
     }
 
-    private async Task ShowNewReminderAsync()
+    private async Task ShowNewReminderAsync(ReminderItem? parent = null)
     {
         if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
@@ -33,6 +33,7 @@ public sealed partial class MainWindow
             var list = new ComboBox { Header = "List", ItemsSource = OrderedLists(), DisplayMemberPath = "Title",
                 SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
             list.SelectedValue = _view.Kind == NavKind.List ? _view.Key : _settings.Text("default_list_id", "");
+            if (parent is not null) { list.SelectedValue = parent.ListId; list.IsEnabled = false; }
             if (list.SelectedIndex < 0) list.SelectedIndex = 0;
 
             var date = new CalendarDatePicker { Header = "Due date", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -69,6 +70,7 @@ public sealed partial class MainWindow
             var more = new Expander { Header = "More options", HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = EditorPair(priority, flagged) };
             var panel = new StackPanel { Spacing = 16 };
+            if (parent is not null) panel.Children.Add(new TextBlock { Text = "Subtask of " + parent.DisplayTitle, TextWrapping = TextWrapping.Wrap });
             panel.Children.Add(title); panel.Children.Add(notes); panel.Children.Add(list);
             panel.Children.Add(new Border { Style = (Style)Application.Current.Resources["EditorSectionStyle"], Child = schedule });
             panel.Children.Add(more);
@@ -76,7 +78,7 @@ public sealed partial class MainWindow
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Padding = new Thickness(0, 0, 8, 0) };
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-                Title = "New reminder", Content = scroll, PrimaryButtonText = "Add reminder", CloseButtonText = "Cancel",
+                Title = parent is null ? "New reminder" : "New subtask", Content = scroll, PrimaryButtonText = parent is null ? "Add reminder" : "Add subtask", CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary, IsPrimaryButtonEnabled = false };
             dialog.Resources["ContentDialogMinWidth"] = 0d;
             dialog.Resources["ContentDialogMaxWidth"] = 680d;
@@ -122,11 +124,13 @@ public sealed partial class MainWindow
             var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
             if (_demo)
             {
-                _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, Title = title.Text.Trim(), Description = notes.Text,
+                if (parent is not null && (parent.Completed || parent.Deleted || parent.ListId != listId)) throw new InvalidOperationException("The parent task changed. Reopen it before adding a subtask.");
+                _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, ParentId = parent?.Id, Title = title.Text.Trim(), Description = notes.Text,
                 DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence });
             }
-            else await _sync.CallAsync("create_reminder", new { list_id = listId, title = title.Text.Trim(), description = notes.Text,
+            else await _sync.CallAsync("create_reminder", new { list_id = listId, parent_id = parent?.Id, title = title.Text.Trim(), description = notes.Text,
                 due_date = due, all_day = allDay.IsOn, priority = priorityValue, flagged = flagged.IsOn, recurrence });
+            if (parent is not null) _collapsedSubtasks.Remove(parent.Id);
             await RefreshAllAsync();
         }
         catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }

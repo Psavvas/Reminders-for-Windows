@@ -30,6 +30,11 @@ with sample data** button.
 
 ## Reminder and sidebar controls
 
+Tasks with subtasks have an expand/collapse arrow. Select an unfinished task
+and use **Add subtask** in its details pane to create a child in the same list.
+See [subtask behavior and validation](subtasks.md) for family edits, filtered
+views, offline sync and repeat limitations.
+
 Select a task, choose its destination in the details pane's **List** picker,
 then click **Save changes** to move it. The picker follows sidebar list order
 and excludes groups. Moves are saved locally and queued for iCloud when offline;

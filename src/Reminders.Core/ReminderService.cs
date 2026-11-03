@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace Reminders.Core;
 
 /// <summary>In-process iCloud engine. Cache calls remain available during network operations.</summary>
-public sealed class ReminderService : IAsyncDisposable
+public sealed partial class ReminderService : IAsyncDisposable
 {
     private readonly Cache cache;
     private readonly ICloudClient? cloudClient;
@@ -236,7 +236,18 @@ public sealed class ReminderService : IAsyncDisposable
                 r["recurrence"] = Recurrence.Validate(p["recurrence"], r.Text("due_date"));
                 r["cloud_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
                 r["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
-                cache.Transaction(() => { cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true; }); QueueSync(); return cache.Reminder(r.Required("id"));
+                cache.Transaction(() =>
+                {
+                    if (p.ContainsKey("parent_id") && p["parent_id"] is not null)
+                    {
+                        var parentId = cache.ResolveId(p.Required("parent_id"));
+                        var parent = cache.Reminder(parentId);
+                        if (parent is null || parent.Flag("deleted") || parent.Flag("completed")) throw CoreException.Bad("Choose an unfinished parent task.");
+                        if (parent.Text("list_id") != r.Text("list_id")) throw CoreException.Bad("A subtask must use its parent's list.");
+                        r["parent_id"] = parentId;
+                    }
+                    cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true;
+                }); QueueSync(); return cache.Reminder(r.Required("id"));
             case "update_reminder": return LocalChange(p, "update");
             case "delete_reminder": return LocalChange(p, "delete");
             case "restore_reminder": return LocalChange(p, "restore");
@@ -263,15 +274,19 @@ public sealed class ReminderService : IAsyncDisposable
     {
         if (p.ContainsKey("tags")) throw new CoreException("UNSUPPORTED", "Tag editing is unavailable. Manage tags in Apple Reminders.");
     }
-    private JsonNode LocalChange(JsonObject p, string operation)
+    private JsonNode LocalChangeOne(JsonObject p, string operation)
     {
         RejectTagEditing(p);
         var id = cache.ResolveId(p.Required("id")); JsonObject? result = null;
-        cache.Transaction(() =>
         {
             var current = cache.Reminder(id) ?? throw CoreException.Bad($"No such reminder: {id}"); var fields = new JsonObject();
             if (operation is "delete" or "restore") fields["deleted"] = operation == "delete";
-            else
+            if (operation == "restore" && current.Text("parent_id") is { } restoreParentId)
+            {
+                var parent = cache.Reminder(restoreParentId);
+                if (parent is null || parent.Flag("deleted") || parent.Text("list_id") != current.Text("list_id")) fields["parent_id"] = null;
+            }
+            if (operation is not ("delete" or "restore"))
             {
                 if (p.ContainsKey("list_id"))
                 {
@@ -281,7 +296,15 @@ public sealed class ReminderService : IAsyncDisposable
                         if (!cache.Lists.Any(list => list.Text("id") == listId && !list.Flag("is_group")))
                             throw CoreException.Bad("Choose an existing reminder list.");
                         fields["list_id"] = listId;
+                        if (current.Text("parent_id") is { } parentId && cache.Reminder(parentId).Text("list_id") != listId)
+                            fields["parent_id"] = null;
                     }
+                }
+                if (p.ContainsKey("parent_id"))
+                {
+                    var requestedParent = p.Optional("parent_id", 2048);
+                    if (requestedParent != current.Text("parent_id") && !(requestedParent is null && fields.ContainsKey("parent_id")))
+                        throw CoreException.Bad("Create a subtask from its parent task. Changing a task's parent is not supported.");
                 }
                 foreach (var (key, max) in new[] { ("title", 4096), ("description", 100000) }) if (p.Optional(key, max) is { } value) fields[key] = value;
                 foreach (var key in new[] { "priority", "completed", "flagged", "all_day" }) if (p.ContainsKey(key)) fields[key] = p[key]?.DeepClone();
@@ -307,7 +330,7 @@ public sealed class ReminderService : IAsyncDisposable
                 }
                 if (fields.Flag("completed"))
                 {
-                    if (current.Flag("completed")) { result = current; return true; }
+                    if (current.Flag("completed")) return current;
                     fields["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
                 }
             }
@@ -324,9 +347,9 @@ public sealed class ReminderService : IAsyncDisposable
             cache.Edit(id, fields, dirty: !IsLocalDemo);
             if (IsLocalDemo && fields.ContainsKey("completed")) cache.Execute("UPDATE reminders SET completed_date=@p0 WHERE id=@p1", fields.Flag("completed") ? TimeUtil.Now : null, id);
             if (!IsLocalDemo && fields.Count > 0) cache.Enqueue(id, operation == "delete" ? "delete" : "update", operation == "delete" ? new JsonObject() : fields, current.Text("change_tag"));
-            result = cache.Reminder(id); return true;
-        });
-        QueueSync(); return operation == "delete" ? J.Node(new { deleted = id }) : result!;
+            result = cache.Reminder(id);
+        }
+        return operation == "delete" ? J.Node(new { deleted = id }) : result!;
     }
     private JsonNode Notifications(JsonObject p)
     {

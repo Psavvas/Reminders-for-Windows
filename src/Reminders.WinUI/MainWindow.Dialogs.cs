@@ -178,17 +178,25 @@ public sealed partial class MainWindow
 
     private void LoadDemoRows()
     {
+        foreach (var row in _demoRows) row.ContextOnly = false;
         IEnumerable<ReminderItem> rows = _demoRows.Where(row => !row.Deleted);
         if (_view.Kind == NavKind.List) rows = rows.Where(row => row.ListId == _view.Key);
-        else if (_view.Kind == NavKind.Tag) rows = rows.Where(row => row.Tags.Contains(_view.Key));
-        else if (_view.Key == "today") rows = rows.Where(row => !row.Completed && DateTimeOffset.TryParse(row.DueDate, out var due) && due.LocalDateTime.Date <= DateTime.Today);
-        else if (_view.Key == "upcoming") rows = rows.Where(row => !row.Completed && row.DueDate is not null);
-        else if (_view.Key == "completed") rows = rows.Where(row => row.Completed);
-        else if (_view.Key == "deleted") rows = _demoRows.Where(row => row.Deleted);
+        else if (_view.Kind == NavKind.Smart)
+        {
+            if (_view.Key == "today") rows = rows.Where(row => !row.Completed && DateTimeOffset.TryParse(row.DueDate, out var due) && due.LocalDateTime.Date <= DateTime.Today);
+            else if (_view.Key == "upcoming") rows = rows.Where(row => !row.Completed && row.DueDate is not null);
+            else if (_view.Key == "completed") rows = rows.Where(row => row.Completed);
+            else if (_view.Key == "deleted") rows = _demoRows.Where(row => row.Deleted);
+        }
         if (!ShowCompleted.IsOn && _view.Key != "completed") rows = rows.Where(row => !row.Completed);
+        rows = IncludeDemoFamily(rows.ToList());
+        if (_view.Kind == NavKind.Tag) rows = rows.Where(row => row.Tags.Contains(_view.Key));
         if (!string.IsNullOrWhiteSpace(SearchBox.Text)) rows = rows.Where(row => (row.Title + " " + row.Description).Contains(SearchBox.Text, StringComparison.OrdinalIgnoreCase));
+        rows = rows.ToList();
+        if (_view.Kind == NavKind.Tag || !string.IsNullOrWhiteSpace(SearchBox.Text))
+            foreach (var row in rows) row.ContextOnly = false;
         rows = _sort switch { "title" => rows.OrderBy(row => row.Title), "priority" => rows.OrderBy(row => row.Priority == 0 ? 10 : row.Priority), _ => rows.OrderBy(row => row.DueDate is null).ThenBy(row => row.DueDate) };
-        SetReminderRows(rows);
+        SetReminderRows(IncludeDemoFamily(rows.ToList()));
         SetBadge("smart:today", _demoRows.Count(row => !row.Completed && !row.Deleted && DateTimeOffset.TryParse(row.DueDate, out var due) && due.LocalDateTime.Date <= DateTime.Today));
     }
 }

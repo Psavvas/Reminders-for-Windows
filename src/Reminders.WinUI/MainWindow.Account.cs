@@ -51,7 +51,7 @@ public sealed partial class MainWindow
 
     private void ClearAccountView()
     {
-        ShowDetail(null); _lists.Clear(); _tags.Clear(); _demoRows.Clear();
+        ShowDetail(null); _lists.Clear(); _tags.Clear(); _demoRows.Clear(); _collapsedSubtasks.Clear();
         DetailListName.Text = "";
         _view = new("Today", "", NavKind.Smart, "today"); SetReminderRows([]);
         ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = ""; RowCount.Text = "";
