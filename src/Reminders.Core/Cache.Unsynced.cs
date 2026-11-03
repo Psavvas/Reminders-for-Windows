@@ -44,6 +44,9 @@ internal sealed partial class Cache
                 throw new CoreException("STALE_SELECTION", "These reminders changed while you were reviewing them. Refresh the list and choose again.");
             selected.Add(row.DeepClone());
         }
+        foreach (var row in selected.Where(row => row.Flag("is_new")))
+            if (Descendants(row!.Required("id")).Any(child => !seen.Contains(child.Required("id"))))
+                throw CoreException.Bad("Also select the subtasks before discarding a new parent task.");
         return selected;
     }
 

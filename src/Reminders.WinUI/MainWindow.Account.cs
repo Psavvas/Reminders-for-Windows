@@ -8,7 +8,7 @@ public sealed partial class MainWindow
 {
     private async Task SignOutAsync()
     {
-        if (_accountBusy || _dialogOpen || _updateBusy) return;
+        if (_accountBusy || _dialogOpen || _updateBusy || _savingDetail) return;
         if (_selected is not null && _detailDirty)
         {
             _dialogOpen = true;
@@ -51,7 +51,8 @@ public sealed partial class MainWindow
 
     private void ClearAccountView()
     {
-        ShowDetail(null); _lists.Clear(); _tags.Clear(); _demoRows.Clear();
+        _accountEpoch++; _reminderLoads.Invalidate(); _navigationLoads.Invalidate();
+        ShowDetail(null); _lists.Clear(); _tags.Clear(); _demoRows.Clear(); _collapsedSubtasks.Clear();
         DetailListName.Text = "";
         _view = new("Today", "", NavKind.Smart, "today"); SetReminderRows([]);
         ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = ""; RowCount.Text = "";

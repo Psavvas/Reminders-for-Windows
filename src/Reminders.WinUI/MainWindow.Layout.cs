@@ -109,5 +109,12 @@ public sealed partial class MainWindow
     }
     private void AutomaticPaneSizing_Click(object sender, RoutedEventArgs args) => UseAutomaticPaneSizing();
     private void PaneDivider_DoubleTapped(object sender, DoubleTappedRoutedEventArgs args) { UseAutomaticPaneSizing(); args.Handled = true; }
-    private void BackToReminders_Click(object sender, RoutedEventArgs args) { ReminderList.SelectedItem = null; ShowDetail(null); }
+    private async void BackToReminders_Click(object sender, RoutedEventArgs args)
+    {
+        if (_savingDetail || !await ConfirmLeaveDetailAsync()) return;
+        _regrouping = true;
+        try { ReminderList.SelectedItem = null; }
+        finally { _regrouping = false; }
+        ShowDetail(null);
+    }
 }

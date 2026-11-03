@@ -38,6 +38,11 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                         emit("sync_warning", push["error"]!.DeepClone());
                         return new JsonObject { ["push"] = push, ["pull"] = pull };
                     }
+                    if (push.Number("pushed") == 0 && cache.PendingCount > 0)
+                    {
+                        emit("sync_warning", new CoreException("DEPENDENCY_PENDING", "Some subtasks are waiting for their parent tasks to sync. Review unsynced changes in Settings.").Body);
+                        return new JsonObject { ["push"] = push, ["pull"] = pull };
+                    }
                     if (Interlocked.Read(ref requested) == generation && cache.Pending(1).Count == 0)
                     {
                         if (cache.Conflicts.Count > 0) emit("sync_warning", new CoreException("CONFLICT", "Review the conflicting changes in Settings.").Body);

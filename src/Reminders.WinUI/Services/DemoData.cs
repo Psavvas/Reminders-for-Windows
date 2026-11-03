@@ -12,6 +12,8 @@ internal static class DemoData
     public static List<ReminderItem> CreateReminders() =>
     [
         new() { Id = "1", ListId = "inbox", Title = "Review the project plan", Description = "Add notes before tomorrow's check-in", DueDate = DateTimeOffset.Now.AddHours(2).ToString("O"), Priority = 1 },
+        new() { Id = "plan-checklist", ParentId = "1", ListId = "inbox", Title = "Review the checklist", Description = "This subtask has its own notes." },
+        new() { Id = "plan-estimates", ParentId = "1", ListId = "inbox", Title = "Update the estimates" },
         new() { Id = "2", ListId = "personal", Title = "Pick up groceries", DueDate = DateTimeOffset.Now.AddDays(1).ToString("O"), Tags = ["errands"] },
         new() { Id = "overdue", ListId = "inbox", Title = "Return the library book", DueDate = DateTimeOffset.Now.AddDays(-2).ToString("O"), AllDay = true },
         new() { Id = "3", ListId = "work", Title = "Send the updated mockups", Dirty = 1 }

@@ -132,7 +132,7 @@ internal sealed partial class ICloudClient : IDisposable
         string? Timestamp(string name) => CloudKit.Field(r, name) is JsonValue v && v.TryGetValue<long>(out var ms) ? TimeUtil.Iso(DateTimeOffset.FromUnixTimeMilliseconds(ms)) : null;
         return new JsonObject
         {
-            ["id"] = id, ["list_id"] = CloudKit.Field(r, "List").Text("recordName") ?? "", ["title"] = AppleDocument.Decode(CloudKit.Field(r, "TitleDocument")?.ToString()) ?? CloudKit.Text(r, "Title") ?? "", ["description"] = AppleDocument.Decode(CloudKit.Field(r, "NotesDocument")?.ToString()) ?? CloudKit.Text(r, "Description") ?? "",
+            ["id"] = id, ["list_id"] = CloudKit.Field(r, "List").Text("recordName") ?? "", ["parent_id"] = CloudKit.Field(r, "ParentReminder").Text("recordName"), ["title"] = AppleDocument.Decode(CloudKit.Field(r, "TitleDocument")?.ToString()) ?? CloudKit.Text(r, "Title") ?? "", ["description"] = AppleDocument.Decode(CloudKit.Field(r, "NotesDocument")?.ToString()) ?? CloudKit.Text(r, "Description") ?? "",
             ["due_date"] = CloudKit.Field(r, "DueDate") is JsonValue v && v.TryGetValue<long>(out var due) ? TimeUtil.Iso(TimeUtil.FromFloating(due, zone)) : null, ["time_zone"] = zone, ["recurrence_ids"] = CloudKit.Field(r, "RecurrenceRuleIDs")?.DeepClone() ?? new JsonArray(),
             ["priority"] = CloudKit.Int(r, "Priority"), ["completed"] = CloudKit.Int(r, "Completed") != 0, ["completed_date"] = Timestamp("CompletionDate"), ["flagged"] = CloudKit.Int(r, "Flagged") != 0, ["all_day"] = CloudKit.Int(r, "AllDay") != 0, ["deleted"] = CloudKit.Int(r, "Deleted") != 0, ["created"] = Timestamp("CreationDate"), ["modified"] = Timestamp("LastModifiedDate"), ["change_tag"] = r.Text("recordChangeTag"), ["tags"] = new JsonArray(), ["hashtag_ids"] = new JsonArray(), ["dirty"] = 0, ["notified"] = 0
         };
@@ -140,6 +140,12 @@ internal sealed partial class ICloudClient : IDisposable
     internal static JsonObject UpdateFields(JsonNode record, JsonObject patch)
     {
         var fields = new JsonObject(); var tokens = new List<string>();
+        if (patch.ContainsKey("list_id")) { fields["List"] = CloudKit.Reference(patch.Required("list_id")); tokens.Add("list"); }
+        if (patch.ContainsKey("parent_id") && (patch.Text("parent_id") is not null || CloudKit.Field(record, "ParentReminder") is not null))
+        {
+            fields["ParentReminder"] = patch.Text("parent_id") is { } parentId ? CloudKit.Reference(parentId) : new JsonObject { ["type"] = "REFERENCE", ["value"] = null };
+            tokens.Add("parentReminder");
+        }
         foreach (var (json, cloud, logical) in new[] { ("title", "TitleDocument", "titleDocument"), ("description", "NotesDocument", "notesDocument") })
         {
             if (!patch.ContainsKey(json)) continue;
@@ -175,6 +181,13 @@ internal sealed partial class ICloudClient : IDisposable
         // A stable identity lets a retry recover a committed create whose reply was lost.
         var existing = payload.Text("cloud_id") is null ? null : (await Cloud.LookupMany([id], token, true)).FirstOrDefault();
         if (existing is not null) return Snapshot(existing);
+        if (payload.Text("parent_id") is { } parentId)
+        {
+            var parent = (await Cloud.Lookup(parentId, token)).FirstOrDefault();
+            if (parent is null || CloudKit.Int(parent, "Deleted") != 0 || CloudKit.Int(parent, "Completed") != 0
+                || CloudKit.Field(parent, "List").Text("recordName") != payload.Text("list_id"))
+                throw CoreException.Bad("The parent task is no longer available in this list. Refresh before adding a subtask.");
+        }
         var result = await Cloud.Modify(operations, token);
         return MergeResult(new JsonObject { ["recordName"] = id, ["fields"] = fields.DeepClone() }, result);
     }
@@ -186,11 +199,9 @@ internal sealed partial class ICloudClient : IDisposable
             return await CompleteRecurring(original, patch, baseTag, token);
         if (baseTag is not null && baseTag != remoteTag) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", ToReminder(original)?.ToJsonString() ?? "{}");
         var fields = UpdateFields(original, patch); var result = await Cloud.Modify(CloudKit.Operation("update", id, remoteTag, (JsonObject)fields.DeepClone()), token);
-        var returned = result.FirstOrDefault() ?? throw new CoreException("ERROR", "iCloud did not return the updated reminder");
         var target = original["fields"] as JsonObject ?? new(); original["fields"] = null; original["fields"] = target;
-        foreach (var p in fields) target[p.Key] = p.Value?.DeepClone(); if (returned["fields"] is JsonObject changed) foreach (var p in changed) target[p.Key] = p.Value?.DeepClone();
-        if (returned["recordChangeTag"] is { } tag) original["recordChangeTag"] = tag.DeepClone();
-        return Snapshot(original);
+        foreach (var p in fields) target[p.Key] = p.Value?.DeepClone();
+        return MergeResult(original, result);
     }
     public void Dispose() => auth.Dispose();
 }

@@ -13,13 +13,15 @@ public sealed class ReminderList
     [JsonPropertyName("is_group")] public bool IsGroup { get; set; }
 }
 
-public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledReminder
+public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchicalReminder
 {
     private string _title = "";
     private string _description = "";
     private bool _completed;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("list_id")] public string ListId { get; set; } = "";
+    [JsonPropertyName("parent_id")] public string? ParentId { get; set; }
+    [JsonPropertyName("context_only")] public bool ContextOnly { get; set; }
     [JsonPropertyName("title")] public string Title { get => _title; set => Set(ref _title, value); }
     [JsonPropertyName("description")] public string Description { get => _description; set => Set(ref _description, value); }
     [JsonPropertyName("due_date")] public string? DueDate { get; set; }
@@ -32,16 +34,32 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     [JsonPropertyName("dirty")] public long Dirty { get; set; }
     [JsonPropertyName("recurrence")] public RepeatSchedule? Recurrence { get; set; }
 
+    private int _depth;
+    private bool _hasChildren;
+    private bool _expanded = true;
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 4) * 24, 0, 0, 0);
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness RowPadding => new(8, _depth > 0 ? 4 : 10, 8, _depth > 0 ? 4 : 10);
+    [JsonIgnore] public global::Windows.UI.Text.FontWeight RowTitleWeight => _depth > 0 ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
+    [JsonIgnore] public string SubtaskToggleLabel => (_expanded ? "Collapse subtasks of " : "Expand subtasks of ") + DisplayTitle;
+    public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
+    {
+        _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
+        foreach (var name in new[] { nameof(HierarchyIndent), nameof(RowPadding), nameof(RowTitleWeight),
+            nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel), nameof(DescriptionVisibility) })
+            PropertyChanged?.Invoke(this, new(name));
+    }
+
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
-    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => string.IsNullOrWhiteSpace(Metadata)
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => IsOverdue || string.IsNullOrWhiteSpace(Metadata)
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
-    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => string.IsNullOrWhiteSpace(Description)
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility OverdueMetadataVisibility => IsOverdue
+        ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => _depth > 0 || string.IsNullOrWhiteSpace(Description)
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
     [JsonIgnore] public bool IsOverdue => !Completed && !Deleted && DateTimeOffset.TryParse(DueDate, out var due)
         && (AllDay ? due.LocalDateTime.Date < DateTime.Today : due < DateTimeOffset.Now);
-    [JsonIgnore] public Microsoft.UI.Xaml.Media.Brush MetadataBrush => IsOverdue
-        ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SystemFillColorCriticalBrush"]
-        : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
     [JsonIgnore] public string DueText
     {
         get
@@ -72,14 +90,14 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     {
         PropertyChanged?.Invoke(this, new(nameof(Metadata)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility)));
-        PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
     }
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
-        PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility))); PropertyChanged?.Invoke(this, new(nameof(DescriptionVisibility)));
     }
 }

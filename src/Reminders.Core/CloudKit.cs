@@ -21,6 +21,8 @@ internal sealed class CloudKit(AppleAuth auth)
     internal static JsonNode Operation(string kind, string name, string? tag, JsonObject fields, string type = "Reminder", string? parent = null)
     {
         var record = new JsonObject { ["recordName"] = name, ["recordType"] = type, ["fields"] = fields };
+        // A reminder's list reference and CloudKit hierarchy move together.
+        parent ??= type == "Reminder" ? fields["List"]?["value"].Text("recordName") : null;
         if (parent is not null) record["parent"] = J.Node(new { recordName = parent });
         if (tag is not null) record["recordChangeTag"] = tag;
         return new JsonObject { ["operationType"] = kind, ["record"] = record };
