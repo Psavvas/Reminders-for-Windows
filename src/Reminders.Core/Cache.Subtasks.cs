@@ -4,8 +4,9 @@ namespace Reminders.Core;
 
 internal sealed partial class Cache
 {
-    internal IReadOnlyList<JsonObject> Descendants(string id)
+    internal IReadOnlyList<JsonObject> Descendants(string id, bool sameFamilyOnly = false)
     {
+        var root = Reminder(id);
         var children = Query("SELECT * FROM reminders WHERE parent_id IS NOT NULL").OfType<JsonObject>()
             .GroupBy(row => row.Required("parent_id")).ToDictionary(group => group.Key, group => group.ToArray());
         var seen = new HashSet<string> { id }; var pending = new Queue<string>(); var result = new List<JsonObject>();
@@ -13,7 +14,8 @@ internal sealed partial class Cache
         while (pending.TryDequeue(out var parent))
             if (children.TryGetValue(parent, out var items))
                 foreach (var child in items)
-                    if (seen.Add(child.Required("id")))
+                    if ((!sameFamilyOnly || child.Text("list_id") == root.Text("list_id") && child.Flag("deleted") == root.Flag("deleted"))
+                        && seen.Add(child.Required("id")))
                     {
                         var full = Reminder(child.Required("id"))!;
                         result.Add(full); pending.Enqueue(child.Required("id"));

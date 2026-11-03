@@ -5,8 +5,12 @@ new task inherits its parent's list and has its own title, notes, due date,
 priority, flag and completion state. Save unfinished changes to the parent
 before opening the subtask dialog. Subtasks can themselves have subtasks.
 
-The arrow beside a task expands or collapses its children for the current
-session. Existing iCloud subtasks use the same display. Sorting keeps families
+The borderless arrow at the right of a task expands or collapses its children
+for the current session. Children use compact, indented checklist rows with a
+subtle guide line, regular-weight titles and no repeated "Subtask" label.
+Child notes are available in the details pane; meaningful dates and priority
+remain visible in the list. Indentation is capped to keep deep trees readable.
+Existing iCloud subtasks use the same display. Sorting keeps families
 together; search, tags, Today and Upcoming include related tasks as context.
 Only matching tasks contribute to the result count. A missing parent or a
 malformed relationship never makes a task disappear.
@@ -43,7 +47,7 @@ too, to prevent orphaned drafts.
 
 ## Validation — November 2, 2026
 
-- 973 backend, authentication, scheduling, cache, hierarchy and sync checks.
+- 990 backend, authentication, scheduling, cache, hierarchy and sync checks.
 - 24 updater checks and 8 CI policy checks.
 - Regression coverage for offline creation/restart, old-cache migration,
   filtered family context, sorting/collapse, missing parents, cycles, 10,000
@@ -52,9 +56,13 @@ too, to prevent orphaned drafts.
 - Native sample-data UI checks cover nested display, collapse/expand, blank-title
   validation, inherited list, undated subtask creation, independent notes,
   preservation of unsaved edits during refresh, family completion and reopening.
-- Debug x64 and Release x64/ARM64 builds compile successfully. ARM64 runtime
+- Release x64/ARM64 builds compile successfully. Debug x64 also compiled before
+  the final subtask appearance refresh. ARM64 runtime
   behavior was not exercised on this x64 machine. NuGet's vulnerability feed
   was unreachable, so the builds report NU1900 warnings for that lookup.
 
 The tests use temporary databases, in-memory credentials and mocked iCloud
 requests. Live interoperability with an Apple device remains unverified.
+
+See the [follow-up bug and UI audit](bug-audit.md) for additional edit-protection,
+navigation, family-boundary and theme/layout fixes.

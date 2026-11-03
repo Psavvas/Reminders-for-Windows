@@ -37,27 +37,30 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     private int _depth;
     private bool _hasChildren;
     private bool _expanded = true;
-    [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 12) * 24, 0, 0, 0);
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 4) * 24, 0, 0, 0);
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness RowPadding => new(8, _depth > 0 ? 4 : 10, 8, _depth > 0 ? 4 : 10);
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility HierarchyGuideVisibility => _depth > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public global::Windows.UI.Text.FontWeight RowTitleWeight => _depth > 0 ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
     [JsonIgnore] public string SubtaskToggleLabel => (_expanded ? "Collapse subtasks of " : "Expand subtasks of ") + DisplayTitle;
     public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
     {
         _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
-        foreach (var name in new[] { nameof(HierarchyIndent), nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel) })
+        foreach (var name in new[] { nameof(HierarchyIndent), nameof(RowPadding), nameof(HierarchyGuideVisibility), nameof(RowTitleWeight),
+            nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel), nameof(DescriptionVisibility) })
             PropertyChanged?.Invoke(this, new(name));
     }
 
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
-    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => string.IsNullOrWhiteSpace(Metadata)
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => IsOverdue || string.IsNullOrWhiteSpace(Metadata)
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
-    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => string.IsNullOrWhiteSpace(Description)
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility OverdueMetadataVisibility => IsOverdue
+        ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => _depth > 0 || string.IsNullOrWhiteSpace(Description)
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
     [JsonIgnore] public bool IsOverdue => !Completed && !Deleted && DateTimeOffset.TryParse(DueDate, out var due)
         && (AllDay ? due.LocalDateTime.Date < DateTime.Today : due < DateTimeOffset.Now);
-    [JsonIgnore] public Microsoft.UI.Xaml.Media.Brush MetadataBrush => IsOverdue
-        ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SystemFillColorCriticalBrush"]
-        : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
     [JsonIgnore] public string DueText
     {
         get
@@ -75,7 +78,6 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         get
         {
             var parts = new List<string>();
-            if (ContextOnly) parts.Add(ParentId is null ? "Parent task" : "Subtask");
             if (IsOverdue) parts.Add("Overdue");
             if (DueText.Length > 0) parts.Add(DueText);
             if (Recurrence is not null) parts.Add(Recurrence.Label);
@@ -89,14 +91,14 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     {
         PropertyChanged?.Invoke(this, new(nameof(Metadata)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility)));
-        PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
     }
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
-        PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(Metadata))); PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility))); PropertyChanged?.Invoke(this, new(nameof(DescriptionVisibility)));
     }
 }

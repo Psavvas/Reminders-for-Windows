@@ -35,10 +35,15 @@ public sealed partial class MainWindow
             if (args.IsSettingsInvoked) { RestoreNavigationSelection(); await ShowSettingsAsync(); }
             else if (args.InvokedItemContainer?.Tag?.ToString() == "sync")
             {
+                RestoreNavigationSelection();
                 if (_demo) ShowInfo("Demo mode", "Sample reminders do not sync with iCloud.", InfoBarSeverity.Informational);
                 else await RequestAutoSyncAsync();
             }
-            else if (args.InvokedItemContainer?.Tag?.ToString() == "conflicts") await ResolveConflictsAsync();
+            else if (args.InvokedItemContainer?.Tag?.ToString() == "conflicts")
+            {
+                RestoreNavigationSelection();
+                if (await ConfirmLeaveDetailAsync()) await ResolveConflictsAsync();
+            }
         }
         catch (Exception error) { ShowInfo("Couldn't complete action", error.Message, InfoBarSeverity.Error); }
     }

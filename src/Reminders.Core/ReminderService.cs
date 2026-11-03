@@ -330,8 +330,8 @@ public sealed partial class ReminderService : IAsyncDisposable
                 }
                 if (fields.Flag("completed"))
                 {
-                    if (current.Flag("completed")) return current;
-                    fields["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
+                    if (current.Flag("completed")) fields.Remove("completed");
+                    else fields["completion_id"] = "Reminder/" + Guid.NewGuid().ToString().ToUpperInvariant();
                 }
             }
             if (IsLocalDemo && fields.Flag("completed") && current["recurrence"] is JsonObject localRepeat && current.Text("due_date") is { } localDue)

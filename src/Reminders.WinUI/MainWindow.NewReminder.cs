@@ -21,7 +21,7 @@ public sealed partial class MainWindow
 
     private async Task ShowNewReminderAsync(ReminderItem? parent = null)
     {
-        if (_dialogOpen || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
+        if (_dialogOpen || _savingDetail || AuthGate.Visibility != Visibility.Collapsed || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         SizeChangedEventHandler? resize = null;
         try

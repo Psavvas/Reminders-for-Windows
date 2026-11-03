@@ -25,21 +25,24 @@ public sealed partial class MainWindow
 
     private List<ReminderItem> DemoDescendants(string id)
     {
+        var root = _demoRows.FirstOrDefault(row => row.Id == id);
+        if (root is null) return [];
         var seen = new HashSet<string> { id }; var pending = new Queue<string>(); var result = new List<ReminderItem>();
         var children = _demoRows.Where(row => row.ParentId is not null).GroupBy(row => row.ParentId!).ToDictionary(group => group.Key, group => group.ToArray());
         pending.Enqueue(id);
         while (pending.TryDequeue(out var parent))
             foreach (var child in children.GetValueOrDefault(parent) ?? [])
-                if (seen.Add(child.Id)) { result.Add(child); pending.Enqueue(child.Id); }
+                if (child.ListId == root.ListId && child.Deleted == root.Deleted && seen.Add(child.Id)) { result.Add(child); pending.Enqueue(child.Id); }
         return result;
     }
 
     private void MoveDemoFamily(ReminderItem reminder, string listId)
     {
         if (reminder.ListId == listId) return;
+        var children = DemoDescendants(reminder.Id).Where(row => !row.Deleted).ToArray();
         if (reminder.ParentId is { } parent && _demoRows.FirstOrDefault(row => row.Id == parent)?.ListId != listId) reminder.ParentId = null;
         reminder.ListId = listId;
-        foreach (var child in DemoDescendants(reminder.Id).Where(row => !row.Deleted)) child.ListId = listId;
+        foreach (var child in children) child.ListId = listId;
     }
 
     private void CompleteDemoFamily(ReminderItem reminder, bool completed)

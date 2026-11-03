@@ -10,7 +10,7 @@ public sealed partial class ReminderService
         {
             var id = cache.ResolveId(patch.Required("id"));
             var current = cache.Reminder(id) ?? throw CoreException.Bad("This task is no longer available.");
-            var descendants = cache.Descendants(id);
+            var descendants = cache.Descendants(id, sameFamilyOnly: true);
             if (patch.Flag("completed") && descendants.Count > 0 && current["recurrence"] is not null)
                 throw CoreException.Bad("Complete a repeating task with subtasks on an Apple device to preserve its schedule.");
             var saved = LocalChangeOne(patch, operation);
@@ -34,10 +34,10 @@ public sealed partial class ReminderService
             if (operation == "update" && patch.ContainsKey("completed") && !patch.Flag("completed"))
             {
                 var seen = new HashSet<string> { id };
-                for (var parentId = current.Text("parent_id"); parentId is not null && seen.Add(parentId);)
+                for (var parentId = saved.Text("parent_id"); parentId is not null && seen.Add(parentId);)
                 {
                     var parent = cache.Reminder(parentId);
-                    if (parent is null || parent.Flag("deleted") || parent.Text("list_id") != current.Text("list_id")) break;
+                    if (parent is null || parent.Flag("deleted") || parent.Text("list_id") != saved.Text("list_id")) break;
                     if (parent.Flag("completed")) LocalChangeOne(new() { ["id"] = parentId, ["completed"] = false }, "update");
                     parentId = parent.Text("parent_id");
                 }
