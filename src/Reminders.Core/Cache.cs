@@ -8,7 +8,7 @@ internal sealed partial class Cache : IDisposable
     private readonly SqliteConnection connection;
     private readonly object gate = new();
     private static readonly string[] Flags = ["completed", "flagged", "all_day", "deleted", "is_group", "resolved"];
-    internal static readonly string[] EditFields = ["title", "description", "due_date", "priority", "completed", "flagged", "list_id", "deleted", "all_day", "recurrence", "recurrence_ids", "time_zone"];
+    internal static readonly string[] EditFields = ["title", "description", "due_date", "priority", "completed", "flagged", "list_id", "parent_id", "deleted", "all_day", "recurrence", "recurrence_ids", "time_zone"];
     public Cache(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
@@ -21,8 +21,11 @@ internal sealed partial class Cache : IDisposable
         using var reader = new StreamReader(stream);
         Execute(reader.ReadToEnd());
         var columns = Query("PRAGMA table_info(reminders)").Select(r => r.Text("name")).ToHashSet();
-        foreach (var column in new[] { "recurrence", "recurrence_ids", "time_zone" })
+        foreach (var column in new[] { "recurrence", "recurrence_ids", "time_zone", "parent_id" })
             if (!columns.Contains(column)) Execute($"ALTER TABLE reminders ADD COLUMN {column} TEXT");
+        if (!columns.Contains("parent_id"))
+            Execute("UPDATE reminders SET parent_id=(SELECT json_extract(json,'$.fields.ParentReminder.value.recordName') FROM related_records WHERE related_records.id=reminders.id)");
+        Execute("CREATE INDEX IF NOT EXISTS idx_reminders_parent ON reminders(parent_id)");
         if (Meta("schema_version") != "3" && Settings.Number("sync_minutes") == 10)
             SetSettings(new() { ["sync_minutes"] = 1 });
         SetMeta("schema_version", "3");
@@ -120,6 +123,26 @@ internal sealed partial class Cache : IDisposable
             };
             var rows = Query(sql + "ORDER BY " + order + " LIMIT " + Param(Math.Clamp(p.Number("limit", 1000), 1, scope == "completed" ? 50 : 10000)), args.ToArray());
             foreach (var row in rows.OfType<JsonObject>()) AttachTags(row);
+            if (p.Flag("include_parents"))
+            {
+                var filterText = p.Optional("search", 4096); var filterTag = p.Text("tag");
+                if (!string.IsNullOrEmpty(filterText) || filterTag is not null)
+                {
+                    // Search the family context that was visible before filtering,
+                    // too: an undated child under a task due today is still findable.
+                    var scopeQuery = p.DeepClone().AsObject(); scopeQuery.Remove("search"); scopeQuery.Remove("tag");
+                    var included = rows.OfType<JsonObject>().Select(row => row.Required("id")).ToHashSet();
+                    foreach (var candidate in Reminders(scopeQuery).OfType<JsonObject>())
+                    {
+                        if (!string.IsNullOrEmpty(filterText) && !(candidate.Text("title") ?? "").Contains(filterText, StringComparison.OrdinalIgnoreCase)
+                            && !(candidate.Text("description") ?? "").Contains(filterText, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (filterTag is not null && !candidate.Array("tags").Any(tagName => tagName?.ToString() == filterTag)) continue;
+                        if (!included.Add(candidate.Required("id"))) continue;
+                        var match = candidate.DeepClone(); match["context_only"] = false; rows.Add(match);
+                    }
+                }
+                IncludeParents(rows, p);
+            }
             return rows;
         }
     }
@@ -136,7 +159,7 @@ internal sealed partial class Cache : IDisposable
         {
             var id = r.Required("id"); var old = Reminder(id);
             if (!local && old.Number("dirty") != 0) return;
-            string[] columns = ["id", "list_id", "title", "description", "due_date", "priority", "completed", "completed_date", "flagged", "all_day", "deleted", "created", "modified", "change_tag", "notified", "dirty", "recurrence", "recurrence_ids", "time_zone"];
+            string[] columns = ["id", "list_id", "parent_id", "title", "description", "due_date", "priority", "completed", "completed_date", "flagged", "all_day", "deleted", "created", "modified", "change_tag", "notified", "dirty", "recurrence", "recurrence_ids", "time_zone"];
             var copy = (JsonObject)r.DeepClone(); copy["dirty"] = local ? 1 : 0; copy["notified"] = old.Text("due_date") == r.Text("due_date") ? old.Number("notified") : 0;
             foreach (var key in new[] { "title", "description", "list_id" }) copy[key] ??= "";
             foreach (var key in new[] { "priority", "completed", "flagged", "all_day", "deleted" }) copy[key] ??= 0;
@@ -252,10 +275,17 @@ internal sealed partial class Cache : IDisposable
     public JsonArray Pending(int limit = 100) => Query("SELECT * FROM outbox ORDER BY seq LIMIT @p0", limit);
     // Keep edits to a single reminder in order, while allowing another reminder
     // past an earlier rejected upload. Successful creates may remap queued IDs.
-    public JsonNode? NextUpload(long afterSeq) => Query("SELECT * FROM outbox AS next WHERE seq>@p0 AND NOT EXISTS (SELECT 1 FROM outbox AS earlier WHERE earlier.reminder_id=next.reminder_id AND earlier.seq<next.seq) ORDER BY seq LIMIT 1", afterSeq).FirstOrDefault();
+    public JsonNode? NextUpload(long afterSeq) => Query("SELECT * FROM outbox AS next WHERE seq>@p0 AND NOT EXISTS (SELECT 1 FROM outbox AS earlier WHERE earlier.reminder_id=next.reminder_id AND earlier.seq<next.seq) AND NOT EXISTS (SELECT 1 FROM outbox AS parent WHERE next.op='create' AND parent.seq<next.seq AND parent.reminder_id=json_extract(next.payload,'$.parent_id')) ORDER BY seq LIMIT 1", afterSeq).FirstOrDefault();
     public void Acknowledge(long seq, string id, string? tag) => Transaction(() => { Execute("DELETE FROM outbox WHERE seq=@p0", seq); Execute("UPDATE outbox SET base_tag=@p0 WHERE reminder_id=@p1 AND seq>@p2", tag, id, seq); Execute("UPDATE reminders SET change_tag=@p0,dirty=EXISTS(SELECT 1 FROM outbox WHERE reminder_id=@p1) WHERE id=@p1", tag, id); return true; });
     public string ResolveId(string id) => Meta("id_alias:" + id) ?? id;
-    public void ReplaceId(string oldId, string newId) => Transaction(() => { Execute("UPDATE reminders SET id=@p0 WHERE id=@p1", newId, oldId); foreach (var table in new[] { "tags", "outbox" }) Execute($"UPDATE {table} SET reminder_id=@p0 WHERE reminder_id=@p1", newId, oldId); SetMeta("id_alias:" + oldId, newId); return true; });
+    public void ReplaceId(string oldId, string newId) => Transaction(() =>
+    {
+        Execute("UPDATE reminders SET id=@p0 WHERE id=@p1", newId, oldId);
+        Execute("UPDATE reminders SET parent_id=@p0 WHERE parent_id=@p1", newId, oldId);
+        Execute("UPDATE outbox SET payload=json_set(payload,'$.parent_id',@p0) WHERE json_extract(payload,'$.parent_id')=@p1", newId, oldId);
+        foreach (var table in new[] { "tags", "outbox" }) Execute($"UPDATE {table} SET reminder_id=@p0 WHERE reminder_id=@p1", newId, oldId);
+        SetMeta("id_alias:" + oldId, newId); return true;
+    });
     public JsonArray Conflicts
     {
         get { var rows = Query("SELECT * FROM conflicts WHERE resolved=0 ORDER BY detected_at DESC"); foreach (var row in rows.OfType<JsonObject>()) { row["local"] = J.Parse(row.Text("local_json")); row["remote"] = J.Parse(row.Text("remote_json")); row.Remove("local_json"); row.Remove("remote_json"); } return rows; }

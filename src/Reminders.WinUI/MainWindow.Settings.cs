@@ -63,7 +63,7 @@ public sealed partial class MainWindow
 
     private async Task ShowSettingsAsync(int initialCategory = 0)
     {
-        if (_dialogOpen || _accountBusy || _verificationBusy || SetupGuide.Visibility == Visibility.Visible) return;
+        if (_dialogOpen || _savingDetail || _accountBusy || _verificationBusy || SetupGuide.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         SizeChangedEventHandler? resize = null;
         using var updateCancellation = new CancellationTokenSource();

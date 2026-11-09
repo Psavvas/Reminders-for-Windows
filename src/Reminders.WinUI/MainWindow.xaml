@@ -51,11 +51,26 @@
         <GroupStyle.HeaderTemplate><DataTemplate x:DataType="local:ReminderSection"><TextBlock Text="{x:Bind Title}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="14,10,14,2"/></DataTemplate></GroupStyle.HeaderTemplate>
        </GroupStyle></ListView.GroupStyle>
        <ListView.ItemContainerTransitions><TransitionCollection><AddDeleteThemeTransition/><ReorderThemeTransition/></TransitionCollection></ListView.ItemContainerTransitions>
-       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,2"/><Setter Property="MinHeight" Value="52"/><Setter Property="CornerRadius" Value="6"/></Style></ListView.ItemContainerStyle>
-       <ListView.ItemTemplate><DataTemplate x:DataType="local:ReminderItem"><Grid Padding="12,10"><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/></Grid.ColumnDefinitions>
-        <CheckBox IsChecked="{x:Bind Completed, Mode=TwoWay}" Click="Complete_Click" VerticalAlignment="Top" AutomationProperties.Name="Mark reminder complete"/>
-        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center"><TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" Style="{ThemeResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Metadata, Mode=OneWay}" Visibility="{x:Bind MetadataVisibility, Mode=OneWay}" Foreground="{x:Bind MetadataBrush, Mode=OneWay}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Description, Mode=OneWay}" Visibility="{x:Bind DescriptionVisibility, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/></StackPanel>
-       </Grid></DataTemplate></ListView.ItemTemplate>
+       <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="4,1"/><Setter Property="MinHeight" Value="0"/><Setter Property="CornerRadius" Value="6"/></Style></ListView.ItemContainerStyle>
+       <ListView.ItemTemplate>
+        <DataTemplate x:DataType="local:ReminderItem">
+         <Grid Padding="{x:Bind RowPadding, Mode=OneWay}" Margin="{x:Bind HierarchyIndent, Mode=OneWay}" MinHeight="40">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <CheckBox IsChecked="{x:Bind Completed, Mode=TwoWay}" Click="Complete_Click" VerticalAlignment="Top" AutomationProperties.Name="Mark reminder complete"/>
+          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+           <TextBlock Text="{x:Bind DisplayTitle, Mode=OneWay}" FontWeight="{x:Bind RowTitleWeight, Mode=OneWay}" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{x:Bind Metadata, Mode=OneWay}" Visibility="{x:Bind MetadataVisibility, Mode=OneWay}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{x:Bind Metadata, Mode=OneWay}" Visibility="{x:Bind OverdueMetadataVisibility, Mode=OneWay}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+           <TextBlock Text="{x:Bind Description, Mode=OneWay}" Visibility="{x:Bind DescriptionVisibility, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Style="{ThemeResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+          <Button Grid.Column="2" Style="{ThemeResource SubtleButtonStyle}" Width="32" Height="32" MinWidth="0" Padding="0" Margin="4,-4,0,0" VerticalAlignment="Top"
+                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind SubtaskToggleVisibility, Mode=OneWay}"
+                  AutomationProperties.Name="{x:Bind SubtaskToggleLabel, Mode=OneWay}" ToolTipService.ToolTip="{x:Bind SubtaskToggleLabel, Mode=OneWay}" Click="ToggleSubtasks_Click">
+           <FontIcon Glyph="{x:Bind SubtaskGlyph, Mode=OneWay}" FontSize="12"/>
+          </Button>
+         </Grid>
+        </DataTemplate>
+       </ListView.ItemTemplate>
       </ListView>
       <Grid x:Name="EmptyState" Grid.Row="2" Visibility="Collapsed" IsHitTestVisible="False"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Margin="24" MaxWidth="320"><FontIcon Glyph="&#xE90C;" FontSize="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,4"/><TextBlock x:Name="EmptyStateTitle" Text="No reminders yet" TextWrapping="Wrap" TextAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}"/><TextBlock x:Name="EmptyStateMessage" Text="Add a reminder to get started." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></StackPanel></Grid>
       <Grid Grid.Row="3" Padding="24,12,24,16" ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ToggleSwitch x:Name="ShowCompleted" MinWidth="0" OnContent="Completed" OffContent="Completed" AutomationProperties.Name="Show completed reminders" ToolTipService.ToolTip="Show completed reminders" VerticalAlignment="Center" Toggled="ShowCompleted_Toggled"/><TextBlock x:Name="RowCount" Grid.Column="1" Style="{ThemeResource CaptionTextBlockStyle}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></Grid>
@@ -93,9 +108,12 @@
         <Button Grid.Column="2" Margin="12,0,0,0" AutomationProperties.Name="Task actions" ToolTipService.ToolTip="Task actions" VerticalAlignment="Center"><FontIcon Glyph="&#xE712;" FontSize="16"/><Button.Flyout><MenuFlyout><MenuFlyoutItem Text="Delete task" Click="Delete_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;"/></MenuFlyoutItem.Icon></MenuFlyoutItem></MenuFlyout></Button.Flyout></Button>
        </Grid>
        <ScrollViewer x:Name="DetailScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+        <Grid>
         <StackPanel Padding="20,0,20,20" MaxWidth="620" HorizontalAlignment="Stretch" Spacing="16">
          <TextBox x:Name="DetailTitle" PlaceholderText="Task title" AutomationProperties.Name="Task title" Style="{StaticResource TaskTitleEditorStyle}" TextChanged="Detail_Changed"/>
          <TextBox x:Name="DetailNotes" Style="{StaticResource TaskNotesEditorStyle}" TextChanged="Detail_Changed"/>
+         <ComboBox x:Name="DetailList" Header="List" PlaceholderText="Choose a list" DisplayMemberPath="Title" SelectedValuePath="Id" HorizontalAlignment="Stretch" AutomationProperties.Name="Task list" SelectionChanged="Detail_Changed"/>
+         <Button x:Name="AddSubtaskButton" Content="Add subtask" Click="AddSubtask_Click"/>
          <Border Style="{StaticResource EditorSectionStyle}">
           <StackPanel Spacing="10">
            <TextBlock Text="Schedule" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
@@ -112,6 +130,7 @@
           </StackPanel>
          </Expander>
         </StackPanel>
+        </Grid>
        </ScrollViewer>
        <Border Grid.Row="2" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"><Grid Padding="20,12" MaxWidth="620" HorizontalAlignment="Stretch"><Button x:Name="SaveButton" Content="Save changes" MinWidth="140" Height="36" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Right" IsEnabled="False" Click="Save_Click"/></Grid></Border>
       </Grid>

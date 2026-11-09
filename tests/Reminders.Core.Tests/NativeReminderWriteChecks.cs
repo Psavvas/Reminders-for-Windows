@@ -60,7 +60,7 @@ internal static class NativeReminderWriteChecks
                 check(body.Flag("atomic"), "native repeat completion and history commit atomically");
                 // A strict service mock rejects the previous clone-every-field
                 // implementation, instead of silently accepting arbitrary types.
-                if (fields.Any(p => p.Key is "TitleDocumentAsset" or "UserActivity" or "ParentReminder" or "AssignmentIDs" or "AlarmIDs" or "HashtagIDs" or "AttachmentIDs"
+                if (fields.Any(p => p.Key is "TitleDocumentAsset" or "UserActivity" or "AssignmentIDs" or "AlarmIDs" or "HashtagIDs" or "AttachmentIDs"
                     || p.Value.Text("type") is "ENCRYPTED_BYTES" or "ASSETID"))
                     return Reply(J.Node(new { records = new[] { new { recordName = supplied.Text("recordName"), serverErrorCode = "VALIDATION_FAILED", reason = "Unsupported native field in create" } } }));
                 check(!records.ContainsKey(supplied.Required("recordName")), "native completion retry never duplicates history");
@@ -97,6 +97,7 @@ internal static class NativeReminderWriteChecks
         var history = active["completed_occurrence"]!;
         check(history.Flag("completed") && history.Text("title") == "New_Name" && history.Text("description") == "New notes", "native history retains the renamed title and notes");
         check(history.Number("priority") == 5 && history.Flag("flagged") && history.Text("list_id") == "List/test", "native history retains priority, flag and list");
+        check(history.Text("parent_id") == "Reminder/parent" && records["Reminder/phone-history"]["fields"]!["ParentReminder"].Text("type") == "REFERENCE", "completed subtask history retains a writable parent reference");
         check(CloudKit.Field(records["Reminder/phone-history"], "DueDate")!.GetValue<long>() == TimeUtil.ToFloating(due, "UTC"), "history retains the completed occurrence's due date");
         check(CloudKit.Field(records["Reminder/phone"], "HashtagIDs")!.AsArray().Count == 1 && CloudKit.Field(records["Reminder/phone"], "AttachmentIDs")!.AsArray().Count == 1, "completion preserves native relationships on the active reminder");
         check(history.Array("recurrence_ids").Count == 0 && records["Reminder/phone-history"]["parent"].Text("recordName") == "List/test", "completed history has a list parent and no recurrence");
