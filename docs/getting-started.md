@@ -3,13 +3,13 @@
 ## Requirements
 
 - Windows 10 1809 or newer, x64 or ARM64.
+- Microsoft Edge WebView2 Runtime for Apple's hosted sign-in window.
 - .NET 8 SDK or newer.
 - Visual Studio 2022 or newer with .NET desktop development and Windows Application
   Packaging Project tools for packaged debugging and the package designer.
 - Windows SDK with MakeAppx and SignTool for command-line MSIX packaging/signing.
 
-The backend is C#. Rust, Cargo, MSVC, Python, Node.js and npm are not needed to
-build or run the application. Python is used only by CI policy tests.
+The app and backend are C#. Python is used only by CI policy tests.
 
 ## Visual Studio
 
@@ -35,8 +35,15 @@ For unpackaged debugging, set `Reminders.WinUI` as the startup project. The
 
 Demo mode displays sample data without opening the real cache, reading credentials,
 or contacting iCloud. Debug builds accept `REMINDERS_DATA_DIR` for a separate test
-cache directory. Release builds use the normal LocalAppData location. There is no
-executable override or sidecar process.
+cache and UI-preferences directory. Release builds use the normal LocalAppData location.
+
+To verify the first-run guide without using your normal preferences, launch a
+Debug build with `REMINDERS_DATA_DIR` set to an empty test directory. Complete
+the guide and reopen the app with the same directory to verify it stays completed.
+The Debug-only `--preview-sign-in-error` argument displays an offline sample of
+an account-login failure after an accepted code; no Apple request is made.
+Use its **Review iCloud setup** button to inspect the troubleshooting, error-copy,
+and log-folder actions. This preview is not included in Release builds.
 
 ## MSIX distribution
 
@@ -93,11 +100,28 @@ dotnet run --project .\tests\AppUpdater.Tests\AppUpdater.Tests.csproj -c Release
 dotnet build .\src\Reminders.WinUI\Reminders.WinUI.csproj -c Release -p:Platform=x64
 ```
 
-Choose **Text me a code** and enter the latest texted code for two-factor sign-in.
-Device-prompt codes cannot complete Apple's HSA2 bridge in this app. Accounts need
-a trusted phone number. Cached reminders remain available during outages; upload
-errors leave edits queued and conflicts ask which version to keep. **Sync now**
-retrieves changes from Apple devices; the normal automatic interval is ten minutes.
+Choose **Sign in with an Apple device** for Apple's hosted verification page.
+Apple offers the methods available for your account. Choose **Trust** when offered;
+the app saves the verified session in Windows Credential Manager. After sign-in,
+the window returns to the native app; use **Continue in app** if needed. Native
+email/password sign-in also supports **Text me a code**, using the latest SMS.
+App-specific passwords cannot replace this flow. See [sign-in options](authentication.md).
+
+Cached reminders remain available during outages. Upload errors leave edits queued;
+conflicts retain both versions for review. **Sync now** retrieves changes from Apple
+devices; the default automatic interval is one minute, configurable in Settings.
+
+Under **Settings → Sync & storage**, **Discard unsynced changes** lets you select
+individual tasks with queued uploads or conflicts. New local-only tasks are removed
+and existing tasks revert to fresh iCloud copies. It does not delete cloud tasks.
+**Clear app cache** resets the whole local reminder cache and requires confirmation
+if unsynced edits would be lost. **Settings → Account → Sign out** removes saved
+sign-in while retaining cached reminders and queued edits.
+
+Use **Settings → About → Check for updates** to check inside the Settings window.
+Existing iCloud tags are visible and filterable; create and edit them in Apple
+Reminders. Daily, weekly, monthly and yearly repeats can be created and changed in
+the native reminder editor; unsupported custom schedules remain protected.
 
 Unpackaged logs are under `%LOCALAPPDATA%\RemindersSync\logs\app.log`; packaged
 installations may have a virtualized location. Include the app version and relevant

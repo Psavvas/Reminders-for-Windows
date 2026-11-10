@@ -30,6 +30,7 @@ foreach (var text in new[] { "", "Hello", "café • 日本語 🛫", new string
 Equal<string?>(null, AppleDocument.Decode("not base64!"), "malformed document");
 // Saved fixture from the previous connector, independent of this encoder.
 Equal("Hello", AppleDocument.Decode("EgkaBxIFSGVsbG8="), "uncompressed protobuf fixture");
+AppleDocumentEditingChecks.Run(Check);
 var ny = TimeUtil.Zone("America/New_York");
 Equal(TimeUtil.Parse("2026-11-01T05:30:00Z"), TimeUtil.Anchor(new DateTime(2026, 11, 1, 1, 30, 0), ny), "DST overlap chooses first instant");
 Equal(TimeUtil.Parse("2026-03-08T07:00:00Z"), TimeUtil.Anchor(new DateTime(2026, 3, 8, 2, 30, 0), ny), "DST gap advances");
@@ -192,6 +193,12 @@ try
                 tagReads++; records = new JsonArray(Tag("Hashtag/1", "old"), Tag("Hashtag/1", changedTags ? "engineering" : "school"), Tag("Hashtag/removed", "removed"), new JsonObject { ["recordName"] = "Hashtag/removed", ["deleted"] = true }, new JsonObject { ["recordName"] = "Hashtag/tombstone", ["recordType"] = "Hashtag", ["reason"] = "deleted" });
             }
             else if (types.Count == 1) records = new JsonArray(new JsonObject { ["recordName"] = "List/1", ["recordType"] = "List", ["fields"] = new JsonObject { ["Name"] = CloudKit.String("School"), ["Count"] = CloudKit.Number(1) } });
+            else if (body.Array("zones")[0]!.Text("syncToken") is null)
+            {
+                tagReads++;
+                records = new JsonArray(serverRecord!.DeepClone(), new JsonObject { ["recordName"] = "List/1", ["recordType"] = "List", ["fields"] = new JsonObject { ["Name"] = CloudKit.String("School"), ["Count"] = CloudKit.Number(1) } },
+                    Tag("Hashtag/1", "old"), Tag("Hashtag/1", "school"), Tag("Hashtag/removed", "removed"), new JsonObject { ["recordName"] = "Hashtag/removed", ["deleted"] = true });
+            }
             else records = changedTags ? new JsonArray(Tag("Hashtag/1", "engineering")) : new JsonArray();
             response = new JsonObject { ["zones"] = new JsonArray(new JsonObject { ["syncToken"] = "cursor", ["moreComing"] = false, ["records"] = records }) };
         }
@@ -212,7 +219,7 @@ try
     cache.Edit(id, new() { ["completed"] = true }); cache.Enqueue(id, "update", J.Node(new { completed = true }), cache.Reminder(id).Text("change_tag"));
     await sync.Sync(false, default); Check(cache.Reminder(id).Flag("completed"), "completion uploads"); Check(cache.Reminder(id).Text("completed_date") is not null, "completion date round trip");
     changedTags = true; await sync.Sync(false, default);
-    Equal("engineering", cache.Reminder(id)!.Array("tags")[0]!.GetValue<string>(), "delta refresh uses zone changes for tags"); Equal(2, tagReads, "delta tags fetched once");
+    Equal("engineering", cache.Reminder(id)!.Array("tags")[0]!.GetValue<string>(), "delta applies changed tags directly"); Equal(1, tagReads, "delta does not download tag history again");
     Equal("cursor", cache.Meta("sync_cursor"), "delta cursor committed after tag refresh"); changedTags = false;
     cache.Edit(id, new() { ["title"] = "My local version" }); cache.Enqueue(id, "update", J.Node(new { title = "My local version" }), cache.Reminder(id).Text("change_tag"));
     serverRecord!["recordChangeTag"] = "externally-changed"; serverRecord["fields"]!["TitleDocument"] = CloudKit.String(AppleDocument.Encode("Remote version"));
@@ -233,6 +240,26 @@ try
     try { await login; throw new Exception("shutdown should cancel sign-in"); } catch (OperationCanceledException) { Check(true, "shutdown cancels active direct call"); }
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(shutdownRoot, true); }
+await AuthVerificationChecks.RunAsync(Check);
+await BrowserSessionTrustChecks.RunAsync(Check);
+await SignOutChecks.RunAsync(Check);
+await CacheRecoveryChecks.RunAsync(Check);
+await UnsyncedRecoveryChecks.RunAsync(Check);
+await WriteCompatibilityChecks.RunAsync(Check);
+await ReminderListEditingChecks.RunAsync(Check);
+await SubtaskChecks.RunAsync(Check);
+await SubtaskSyncChecks.RunAsync(Check);
+await BugAuditChecks.RunAsync(Check);
+await LatestRequestChecks.RunAsync(Check);
+await ReminderEditPatchChecks.RunAsync(Check);
+AppleSignInPolicyChecks.Run(Check);
+RecurrenceWireFormatChecks.Run(Check);
+await RecurrenceAndSyncChecks.RunAsync(Check);
+await NativeReminderWriteChecks.RunAsync(Check);
+await RecurrenceEditingChecks.RunAsync(Check);
+await ReadOnlyTagChecks.RunAsync(Check);
+await DemoAccountChecks.RunAsync(Check);
+SignInTroubleshootingChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);
 PaneSizingChecks.Run(Check);
 Console.WriteLine($"Passed {passed} backend and scheduling checks.");

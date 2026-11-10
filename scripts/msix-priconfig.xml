@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources targetOsVersion="10.0.0" majorVersion="1">
+  <!-- Import the complete portable index, including embedded WinUI framework
+       resources, into a primary map named for the final package identity. -->
+  <index root="\" startIndexAt="Reminders.pri">
+    <default><qualifier name="Language" value="en-US" /></default>
+    <indexer-config type="PRI" />
+  </index>
+  <!-- Index package-only shell artwork so Windows can select the unplated
+       target-size variants, instead of adding an accent-colored backplate. -->
+  <index root="\" startIndexAt="shell-assets.resfiles">
+    <default><qualifier name="Language" value="en-US" /></default>
+    <indexer-config type="RESFILES" qualifierDelimiter="." />
+  </index>
+</resources>

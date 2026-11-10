@@ -31,74 +31,72 @@ public sealed partial class MainWindow
         ReminderList.ItemTemplate = apple ? (DataTemplate)Root.Resources["AppleReminderTemplate"] : _windowsReminderTemplate;
         ReminderList.ItemContainerStyle = apple ? (Style)Root.Resources["AppleRowStyle"] : _windowsReminderRowStyle;
         ReminderList.Padding = apple ? new Thickness(18, 0, 22, 0) : new Thickness(8, 0, 8, 0);
-        ViewTitle.FontSize = apple ? 32 : 28;
-        ViewTitle.FontWeight = apple ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
-        if (!apple) { ViewTitle.ClearValue(TextBlock.FontSizeProperty); ViewTitle.ClearValue(TextBlock.FontWeightProperty); }
-        ReminderHeader.Margin = apple ? new Thickness(28, 20, 24, 10) : new Thickness(24, 20, 20, 8);
-        foreach (var element in new UIElement[] { ApplePaneButton, AppleSearchButton, AppleSortButton, AppleShowCompleted, DetailTags, AppleClearDue, AppleDetailStatus })
-            element.Visibility = apple ? Visibility.Visible : Visibility.Collapsed;
+        if (apple)
+        {
+            ViewTitle.FontSize = 32;
+            ViewTitle.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+        }
+        else
+        {
+            ViewTitle.ClearValue(TextBlock.FontSizeProperty);
+            ViewTitle.ClearValue(TextBlock.FontWeightProperty);
+            ViewTitle.ClearValue(TextBlock.ForegroundProperty);
+        }
+        ReminderHeader.Margin = apple ? new Thickness(28, 20, 24, 10) : new Thickness(24, 0, 24, 12);
+        foreach (var button in new[] { ApplePaneButton, AppleSearchButton, AppleSortButton })
+            button.Visibility = apple ? Visibility.Visible : Visibility.Collapsed;
         SortButton.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
-        DetailHeading.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
-        ShowCompleted.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
-        AppleShowCompleted.IsChecked = ShowCompleted.IsOn;
-        ReminderFooter.Padding = apple ? new Thickness(28, 8, 24, 10) : new Thickness(24, 10, 20, 16);
-        DetailFields.Spacing = apple ? 20 : 10;
-        DetailNotes.MinHeight = apple ? 160 : 110;
+        UpdateCompletedControls();
+        ReminderFooter.Padding = apple ? new Thickness(28, 8, 24, 10) : new Thickness(24, 12, 24, 16);
+        DetailFields.Spacing = apple ? 20 : 16;
         SaveButton.Content = apple ? "Save" : "Save changes";
-        SaveButton.MinWidth = apple ? 140 : 0;
-        DeleteButton.MinWidth = apple ? 120 : 0;
-        AddButton.Width = apple ? 40 : double.NaN;
-        AddButton.Height = apple ? 40 : double.NaN;
-        AddButton.CornerRadius = apple ? new CornerRadius(20) : new CornerRadius(4);
-        AddButton.Padding = apple ? new Thickness(0) : new Thickness(12, 8, 12, 8);
-        if (!apple)
-            foreach (var property in new[] { FrameworkElement.WidthProperty, FrameworkElement.HeightProperty, Control.CornerRadiusProperty, Control.PaddingProperty })
+        AddButton.Height = apple ? 40 : 36;
+        if (apple)
+        {
+            AddButton.Width = 40;
+            AddButton.CornerRadius = new CornerRadius(20);
+            AddButton.Padding = new Thickness(0);
+            DetailNotes.MinHeight = 160;
+            DetailTitle.Header = "TITLE";
+        }
+        else
+        {
+            foreach (var property in new[] { FrameworkElement.WidthProperty, Control.CornerRadiusProperty, Control.PaddingProperty })
                 AddButton.ClearValue(property);
-        // Reorder the shared form instead of duplicating editors or their event handlers.
-        DetailFields.Children.Remove(DetailDateTime);
-        DetailFields.Children.Remove(AppleClearDue);
-        DetailFields.Children.Remove(DetailListPriority);
-        DetailFields.Children.Remove(DetailTags);
-        DetailFields.Children.Insert(4, apple ? DetailDateTime : DetailListPriority);
-        DetailFields.Children.Insert(5, apple ? AppleClearDue : DetailDateTime);
-        DetailFields.Children.Insert(6, apple ? DetailListPriority : AppleClearDue);
-        DetailFields.Children.Insert(7, DetailTags);
-        DetailTitle.Header = apple ? "TITLE" : "Title";
+            DetailNotes.ClearValue(FrameworkElement.MinHeightProperty);
+            DetailTitle.ClearValue(TextBox.HeaderProperty);
+        }
         DetailNotes.Header = apple ? "NOTES" : "Notes";
         DetailPriority.Header = apple ? "PRIORITY" : "Priority";
         DetailList.Header = apple ? "LIST" : "List";
         DetailDate.Header = apple ? "DUE DATE" : "Due date";
         DetailTime.Header = apple ? "TIME" : "Time";
         var headerTemplate = apple ? (DataTemplate)Root.Resources["AppleFieldHeaderTemplate"] : null;
-        DetailTitle.HeaderTemplate = headerTemplate; DetailNotes.HeaderTemplate = headerTemplate;
-        DetailTags.HeaderTemplate = headerTemplate; DetailPriority.HeaderTemplate = headerTemplate;
-        DetailList.HeaderTemplate = headerTemplate; DetailDate.HeaderTemplate = headerTemplate;
+        DetailTitle.HeaderTemplate = headerTemplate;
+        DetailNotes.HeaderTemplate = headerTemplate;
+        DetailPriority.HeaderTemplate = headerTemplate;
+        DetailList.HeaderTemplate = headerTemplate;
+        DetailDate.HeaderTemplate = headerTemplate;
         DetailTime.HeaderTemplate = headerTemplate;
-        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailTags, DetailPriority, DetailList, DetailDate, DetailTime })
+        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate, DetailTime })
         {
-            control.HorizontalAlignment = HorizontalAlignment.Stretch;
-            control.CornerRadius = new CornerRadius(apple ? 12 : 4);
-            if (!apple)
-            {
-                control.ClearValue(FrameworkElement.HorizontalAlignmentProperty);
-                control.ClearValue(Control.CornerRadiusProperty);
-                control.ClearValue(Control.BackgroundProperty);
-                control.ClearValue(Control.ForegroundProperty);
-                control.ClearValue(Control.BorderBrushProperty);
-                control.ClearValue(Control.BorderThicknessProperty);
-            }
+            if (apple) control.CornerRadius = new CornerRadius(12);
+            else
+                foreach (var property in new[] { Control.CornerRadiusProperty, Control.BackgroundProperty, Control.ForegroundProperty, Control.BorderBrushProperty, Control.BorderThicknessProperty })
+                    control.ClearValue(property);
         }
         if (apple) ApplyAppleColors();
         else
         {
             ReminderHost.ClearValue(Panel.BackgroundProperty);
-            ReminderHost.Style = (Style)Root.Resources["WindowsReminderHostStyle"];
             DetailsHost.ClearValue(Panel.BackgroundProperty);
-            ViewTitle.ClearValue(TextBlock.ForegroundProperty);
-            AddButton.ClearValue(Control.BackgroundProperty); AddButton.ClearValue(Control.ForegroundProperty);
-            SaveButton.ClearValue(Control.BackgroundProperty); SaveButton.ClearValue(Control.ForegroundProperty);
-            DeleteButton.ClearValue(Control.ForegroundProperty); DeleteButton.ClearValue(Control.BackgroundProperty);
+            foreach (var button in new[] { AddButton, SaveButton })
+            {
+                button.ClearValue(Control.BackgroundProperty);
+                button.ClearValue(Control.ForegroundProperty);
+            }
         }
+        UpdateAppleDetailVisibility();
         UpdateAppleSidebarLayout();
         UpdateSearchVisibility();
         RebuildAppleNavigation();
@@ -110,7 +108,7 @@ public sealed partial class MainWindow
     {
         ReminderHost.Background = AppleBrush("AppleCanvasBrush");
         DetailsHost.Background = AppleBrush("AppleSidebarBrush");
-        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailTags, DetailPriority, DetailList, DetailDate, DetailTime })
+        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate, DetailTime })
         {
             control.Background = AppleBrush("AppleFieldBrush");
             control.Foreground = AppleBrush("AppleTextBrush");
@@ -119,7 +117,6 @@ public sealed partial class MainWindow
         }
         AddButton.Background = AppleBrush("AppleBlueBrush"); AddButton.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
         SaveButton.Background = AppleBrush("AppleBlueBrush"); SaveButton.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
-        DeleteButton.Background = AppleBrush("AppleHoverBrush"); DeleteButton.Foreground = AppleBrush("AppleRedBrush");
         UpdateViewAccent();
     }
 
@@ -138,7 +135,6 @@ public sealed partial class MainWindow
         return appearance?.Color ?? list.ColorHex ?? "#AF52DE";
     }
 
-    private void Root_SizeChanged(object sender, SizeChangedEventArgs args) => UpdateAppleSidebarLayout();
     private void UpdateAppleSidebarLayout()
     {
         var visible = IsAppleStyle && _appleSidebarOpen;
@@ -213,14 +209,6 @@ public sealed partial class MainWindow
         if (((ListView)sender).SelectedItem is ListViewItem { Tag: NavEntry entry }) await SelectViewAsync(entry);
     }
 
-    private async Task SelectViewAsync(NavEntry entry)
-    {
-        _view = entry;
-        ViewTitle.Text = entry.Label; ViewSubtitle.Text = entry.Kind == NavKind.Tag ? "Filtered by tag" : "";
-        RestoreNavigationSelection(); RestoreAppleSelection(); UpdateViewAccent();
-        ShowDetail(null); await LoadRemindersAsync();
-    }
-
     private void UpdateDemoAppleCounts()
     {
         var active = _demoRows.Where(row => !row.Deleted && !row.Completed).ToList();
@@ -237,9 +225,16 @@ public sealed partial class MainWindow
     private void UpdateSearchVisibility()
     {
         SearchRow.Visibility = !IsAppleStyle || _appleSearchOpen || !string.IsNullOrWhiteSpace(SearchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        AppleShowCompleted.Margin = new Thickness(28, SearchRow.Visibility == Visibility.Visible ? 48 : 0, 20, 12);
     }
-    private void RevealSearch() { _appleSearchOpen = true; UpdateSearchVisibility(); SearchBox.Focus(FocusState.Programmatic); }
+    private void RevealSearch()
+    {
+        if (IsAppleStyle)
+        {
+            _appleSearchOpen = true;
+            UpdateSearchVisibility();
+        }
+        SearchBox.Focus(FocusState.Programmatic);
+    }
     private void AppleSearch_Click(object sender, RoutedEventArgs e)
     {
         if (_appleSearchOpen && string.IsNullOrWhiteSpace(SearchBox.Text)) { _appleSearchOpen = false; UpdateSearchVisibility(); }
@@ -247,13 +242,31 @@ public sealed partial class MainWindow
     }
     private void AppleSort_Click(object sender, RoutedEventArgs e) => SortButton.Flyout?.ShowAt(AppleSortButton);
     private void ApplePane_Click(object sender, RoutedEventArgs e) { _appleSidebarOpen = !_appleSidebarOpen; UpdateAppleSidebarLayout(); }
+    private void UpdateCompletedControls()
+    {
+        var available = _view.Kind != NavKind.Smart || _view.Key != "completed";
+        ShowCompleted.Visibility = !IsAppleStyle && available ? Visibility.Visible : Visibility.Collapsed;
+        AppleShowCompleted.Visibility = IsAppleStyle && available ? Visibility.Visible : Visibility.Collapsed;
+        AppleShowCompleted.IsChecked = ShowCompleted.IsOn;
+    }
+
+    private void UpdateAppleDetailVisibility()
+    {
+        AppleClearDue.Visibility = IsAppleStyle && DetailDate.Date is not null ? Visibility.Visible : Visibility.Collapsed;
+        AppleDetailStatus.Visibility = IsAppleStyle ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void AppleShowCompleted_Click(object sender, RoutedEventArgs e) => ShowCompleted.IsOn = AppleShowCompleted.IsChecked == true;
     private void AppleClearDue_Click(object sender, RoutedEventArgs e) => DetailDate.Date = null;
     private async void AppleSettings_Click(object sender, RoutedEventArgs e) => await ShowSettingsAsync();
     private async void AppleSync_Click(object sender, RoutedEventArgs e)
     {
-        if (_demo) ShowInfo("Demo mode", "Sample reminders do not sync with iCloud.", InfoBarSeverity.Informational);
+        if (_demo || _sync.IsLocalDemo) ShowInfo("Local reminders", "These reminders are stored on this PC.", InfoBarSeverity.Informational);
         else await RequestAutoSyncAsync();
     }
-    private async void AppleConflicts_Click(object sender, RoutedEventArgs e) => await ResolveConflictsAsync();
+
+    private async void AppleConflicts_Click(object sender, RoutedEventArgs e)
+    {
+        if (await ConfirmLeaveDetailAsync()) await ResolveConflictsAsync();
+    }
 }

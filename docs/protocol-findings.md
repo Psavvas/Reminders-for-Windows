@@ -1,152 +1,153 @@
-# iCloud Reminders protocol findings
+# iCloud protocol implementation notes
 
-These observations came from the repository's original live-account probes and
-define the behavior the native C# connector must preserve.
+Current for v1.0.0, reviewed October 22, 2026. These are observed implementation
+details of private Apple interfaces, not a supported Apple service contract.
 
-- Reminders use the private `com.apple.reminders` CloudKit container and the
-  `Reminders` custom zone. The API is undocumented and may change.
-- Due dates are wall-clock fields encoded in a CloudKit timestamp as though the
-  fields were UTC. `TimeZone` optionally anchors them; a missing zone floats in
-  the device's current zone. Creation, modification, and completion dates are
-  ordinary instants.
-- Deletion is a soft `Deleted = 1` field update.
-- List changes do not appear in the reminder delta stream, so every delta pass
-  also refreshes lists.
-- List colors are JSON blobs; `daHexString` is the preferred display value.
-- Tags are readable but writes accepted by CloudKit were not rendered by Apple
-  clients. This app therefore keeps tags read-only.
-- List creates, renames, and deletes accepted by CloudKit did not propagate to
-  Apple devices. This app does not expose those operations.
-- A phone may replace linked field collections wholesale. Local writes carry a
-  base `recordChangeTag`; mismatches become user-visible conflicts rather than
-  last-write-wins overwrites.
+## Records and synchronization
 
-## Two-factor sign-in
+- Reminders use the private `com.apple.reminders` CloudKit container. Titles and
+  notes use Apple's document encoding; dates preserve floating wall-clock values
+  and the reminder's time zone.
+- Sync requests Reminder, List, Hashtag and RecurrenceRule records in one paginated
+  zone-change stream. Batch application and cursor updates are transactional.
+- Mutations use current revision tags and preserve fields outside the requested
+  change. Outbox entries retain stable operation/record identities so retry can
+  recognize a write committed before its response was lost.
+- Known rejected uploads remain queued while unrelated tasks can sync. Later
+  changes to the same task retain their order. A conflict preserves local and
+  remote versions for review.
+- Optional lookups recognize both `NOT_FOUND` and `UNKNOWN_ITEM`. A missing reply
+  is not evidence of deletion. Recovery requires explicit acknowledgement of
+  every requested record, including related tags and repeat rules.
 
-- **Apple has three verifiers; this connector implements two.** Trusted-device
-  verification has moved to Apple's HSA2 **bridge**: the client opens a
-  websocket to `websocket.push.apple.com`, takes an APNs push token, posts
-  `auth/bridge/step/0`, waits for a pushed challenge, and answers it with an
-  SRP-style prover exchange. pyicloud implements that in about 2,300 lines
-  (`hsa2_bridge.py`, `hsa2_bridge_prover.py`) and selects it whenever Apple's
-  boot data says `authInitialRoute == "auth/bridge/step"`, falling back to
-  `POST verify/trusteddevice/securitycode` only for accounts Apple has left on
-  the old verifier.
+### Repeats
 
-  For an account Apple has moved, that legacy endpoint answers **409** -- while
-  Apple still displays the prompt on the user's devices, which is what makes it
-  look like a code problem. It is not. No six digits will ever be accepted
-  there. This was misdiagnosed three times as a header problem, a delivery
-  problem, and a routing problem before the missing verifier was the answer.
+The UI/RPC uses daily=1, weekly=2, monthly=3, yearly=4. Apple's stored Frequency
+uses 0/1/2/3 for those units. Other frequencies and unsupported constraints must
+not be interpreted as one of these four schedules.
 
-  `POST verify/phone/securitycode` is a different endpoint, plain HTTP, and
-  needs no bridge -- so a texted code is the only route this connector can
-  currently complete, and `request_2fa` prefers it whenever Apple lists a
-  trusted number. Restoring the device prompt means porting the bridge.
-- The `phoneNumber` payload is `{"id": <id>}` plus `"nonFTEU"` only when Apple
-  included it. Both `PUT verify/phone` and `POST verify/phone/securitycode`
-  take the same shape.
-- **Apple's auth server must not be sent the headers its own responses hand
-  back for setup.icloud.com.** `X-Apple-Webauth-Token` and
-  `X-Apple-ID-Account-Country` are values Apple returns for a client to store
-  and replay to `setup.icloud.com`; replaying them to `idmsa.apple.com` makes it
-  answer **409** to every verification request. Neither exists until
-  `signin/complete` has returned a session token, so a client that does this
-  signs in normally right up to the moment a code is involved and then fails at
-  everything -- which reads as "the code is invalid", "Apple would not send a
-  code", and a bare HTTP 409, all from one cause. The header set that works is
-  exactly pyicloud's `_get_auth_headers`: the OAuth/widget headers, the FD
-  client info, `X-Apple-OAuth-State` and `X-Apple-Frame-Id` (both the client
-  id), and whichever of `scnt`, `X-Apple-ID-Session-Id` and
-  `X-Apple-Auth-Attributes` the session holds. Nothing else.
-- `Referer` on auth requests is the idmsa **host** (`https://idmsa.apple.com`),
-  not the auth path. `Origin` stays `https://www.icloud.com`.
-- `Accept` varies per endpoint: `application/json, text/javascript` for the SRP
-  requests, `application/json` for the verification requests, and
-  `application/json, plain/text` for the SMS verifier.
-- `signin/complete` answers **409** when Apple wants a second factor. That
-  response also carries the challenge options: `trustedDeviceCount` and
-  `trustedPhoneNumbers`. Keep them -- they decide where a code can be sent, and
-  the challenge is thrown away by the next sign-in attempt.
-- **Apple rotates `scnt` on every response from the auth endpoint** and refuses
-  any later request that echoes a stale one. Every `idmsa` response must be read
-  for a new `scnt`, `X-Apple-ID-Session-Id` and `X-Apple-Session-Token`,
-  including the ones for requesting and submitting a code. A stale `scnt` is
-  refused in a way that is indistinguishable from a wrong code.
-- There are two delivery routes and they do not interoperate. A code pushed to a
-  trusted device is requested with `GET verify/trusteddevice` and validated at
-  `POST verify/trusteddevice/securitycode`; a texted code is requested with
-  `PUT verify/phone` and validated at `POST verify/phone/securitycode`. Sending
-  on one route and validating on the other is rejected, again exactly as a wrong
-  code is. An account with no trusted device only has the phone route.
-- **Both delivery endpoints answer with a non-2xx status and send the code
-  anyway.** Observed on a live account: the app reported "Apple would not send a
-  verification code" while the prompt was on the user's phone and two texts had
-  arrived. The session is still unauthenticated at that point and Apple says so;
-  that is not a refusal. Never infer "no code was sent" from the status of these
-  two requests -- only a dead session (401/403/421) is a real failure.
-- Only `service_errors[0].code == "-21669"` means the digits were wrong. Every
-  other refusal is ambiguous -- it can equally mean the code was fine and the
-  challenge or the route was not -- so it must not be reported as a typing
-  mistake, and it is the signal that another route is worth trying.
-- Apple's own `service_errors[0].message` is user-grade text ("Incorrect
-  verification code.", "Enter the verification code displayed on your other
-  devices."). Prefer it over anything inferred from a status code.
-- Requesting a *text* mints a new code and retires the previous one, so a text
-  must only ever follow the user asking for one. Re-requesting the trusted-device
-  push re-serves the same challenge and is safe.
-- Whether the 409 pushes the device code on its own is not observable from the
-  client, so the app requests one and tracks which routes have actually
-  delivered. That also means a user can legitimately hold two live codes at
-  once, and verification tries every route that sent one before blaming the
-  typing.
-- Rebuilding the session re-runs SRP and voids any outstanding challenge. The
-  background sync must not do that while a code is in flight.
-- The exact statuses Apple returns here are undocumented. Verify behavior with
-  account-free HTTP mocks and a disposable account before changing classifications.
+The mapping was inspected in Apple's publicly served
+[Reminders 2638Build16 script](https://www.icloud.com/applications/reminders2/2638Build16/en-us/main.js)
+on October 20, 2026. Inspected SHA-256:
+`cb1097a325a50c37e8d3e9f5b1395c0551e34744bd857c7dc243dde78951d8b8`.
+Independent fixtures pin the numeric mapping rather than deriving expected values
+from the application's converter.
 
-The authentication and record formats need live Windows/account validation
-whenever Apple changes the private service. Tests must use a dedicated account
-and must never log passwords, verification codes, session tokens, record
-contents, or credential-vault values.
+Completing a supported repeat retains the active task and rule, advances its due
+date and creates a separate completed history record without a repeat link.
+Linked writes are atomic. Schedule editing also updates parent/rule links
+atomically and preserves supported end conditions. A retry must not create a
+second history record or advance twice.
 
-## Account-free backend tests
+Native rule constraints such as `DaysOfTheWeek` can arrive as base64 JSON in
+`BYTES` or `ENCRYPTED_BYTES` fields. An encoded empty array does not constrain a
+simple repeat. Nonempty or malformed constraints still require an Apple device.
 
-The production C# backend uses Windows Credential Manager. Account-free tests
-inject a memory vault and mocked HTTP handlers.
+The completed history create payload is built from writable reminder values,
+with fresh text documents, rather than copying a downloaded native record.
+Downloaded asset metadata, native encrypted field types and references owned by
+the active reminder must not be replayed into a new record. Tags, alarms,
+attachments and assignments stay attached to the active reminder.
 
-## Authentication lifecycle regression checks
+### Editing native text
 
-The C# connector prepares the challenge without requesting delivery. The
-code-entry screen requests one SMS; only an explicit resend requests another.
-Verification and delivery controls are disabled together while either request
-is in flight. The previous priming step sent an untracked SMS before the UI
-requested a second one, creating a code-invalidation risk.
+`TitleDocument` and `NotesDocument` are mergeable strings. Replacing their blobs
+with unrelated fresh documents can cause an Apple device to concatenate the old
+and new text. An edit must retain the original character identities, tombstone
+their live ranges, and insert replacement text with updated vector clocks.
+Replica indices refer to UUID sort order; adding a replica requires remapping
+the existing identities. Character ranges use UTF-16, including emoji.
 
-Startup first exchanges the saved session and trust tokens through accountLogin,
-which recreates service cookies. Only a rejected or limited token falls back to
-a password handshake. A network failure retains the saved tokens for retry.
-Session data stays in Windows Credential Manager; closing the window does not
-invoke sign-out. An explicit hsaChallengeRequired response is honored even when
-hsaTrustedBrowser is true.
+On October 24, synthetic documents from Apple's publicly served
+[2638Build16 bundle](https://www.icloud.com/applications/reminders2/2638Build16/en-us/main.js)
+were used to check replacement, clearing, Unicode and repeated edits by merging
+the Windows output through Apple's text engine. Inspected SHA-256:
+`117405a95eb2cfd91d9ecbdfe9d00b3f62cf332efe2cc123384f77d316b3a544`.
+The public bundle at this URL changed since the earlier frequency inspection.
+Only synthetic fixtures are committed; Apple's implementation is not bundled
+with the app. Unsupported/malformed document structures and asset-only text
+are rejected before uploading an unsafe replacement.
 
-Mocked HTTP tests in tests/Reminders.Core.Tests/Program.cs cover the preparation,
-delivery, verification and trust sequence, rotated headers, token restoration,
-response limits and malformed/rejected verification responses. These checks
-validate client behavior; a real Apple account must still confirm successful
-sign-in followed by closing and reopening the built application.
+### Tags and lists
 
-### Accepted verification responses with HTTP 409
+Tags remain readable and filterable. Windows tag writing and automatic repair
+are removed because the attempted writes did not produce native iPhone tags.
+An acknowledgement or server readback does not establish Apple-device propagation.
+See [tag-sync research](tag-sync-research.md) for evidence and acceptance criteria.
 
-Do not classify a security-code response from its status alone. rclone's fix
-https://github.com/rclone/rclone/commit/731f2a6 documents accepted verification
-responses carrying HTTP 409 and an X-Apple-Session-Token. Issue 9730 also reports
-securityCode.valid=true without that response header. The connector now proceeds
-to trust when a 409 carries either positive signal, unless the body explicitly
-rejects the code. A previously saved token does not qualify. Successful trust
-and accountLogin confirming a trusted browser without an outstanding challenge
-are still required before the UI is authenticated.
+Old queued tag writes/tag-only conflicts are archived locally and retired from the
+active queue. They do not trigger another repair or delete actual iCloud tags.
+List creation, rename and deletion remain unsupported for the same requirement
+to establish device-side propagation before offering a write feature.
 
-Verification diagnostics log only the optional valid boolean and token-presence
-boolean. They do not log the code or token. Existing field-name-only logs cannot
-establish whether an earlier 409 contained either acceptance signal.
+## Apple-hosted sign-in
+
+WebView2 hosts Apple's own page in an isolated InPrivate profile. Popup windows
+use the same environment/profile and retain opener/message relationships. The
+host does not inject password interception or bypass Apple's verification.
+
+Successful `accountLogin` or `/validate` responses can trigger handoff. The native
+client independently validates the browser cookies with the same user agent,
+checks the account/challenge and saves rotated cookies. Browser-cookie restoration
+does not require an exposed token-bearing `accountLogin` request body.
+
+`hsaTrustedBrowser` expresses remembered browser trust, not whether the current
+verification finished. A completed browser session can have that flag false while
+`hsaChallengeRequired` is false. Before accepting that session, the app also requires
+a successful read-only Reminders access check. The saved trust flag is preserved;
+the client does not manufacture trust. Pending challenges are always rejected.
+
+Cookies and session/trust tokens are stored in Windows Credential Manager and
+retained on normal shutdown. Browser sessions resume through `/validate`; native
+sessions resume through saved tokens and `accountLogin`. A network failure keeps
+the saved state for retry. Explicit sign-out removes it and persists that choice.
+
+## Native password and SMS flow
+
+Native sign-in uses Apple's SRP challenge/proof flow. A fresh password handshake
+starts with a clean cookie container/native user agent while retaining an existing
+trust token. It must not inherit browser-only restoration metadata. See
+[SRP reference vectors](srp-reference-vectors.md) for cryptographic evidence/limits.
+
+Important invariants in `AppleAuth` and the authentication tests:
+
+- Rotate `scnt`, session identifiers and auth attributes from every applicable
+  response before sending the next request.
+- Auth headers for `idmsa.apple.com` differ from account/service headers for
+  `setup.icloud.com`. Do not replay setup-only webauth/country headers to auth.
+- Keep the challenge's available routes. A trusted-device code and an SMS code
+  use different delivery/verifier endpoints and cannot be interchanged.
+- Native SMS delivery and verification both use the requested `sms` mode, even
+  when Apple's phone metadata contains another `pushMode`.
+- Code delivery is user initiated; only explicit resend requests another SMS.
+  Background restoration must not restart SRP while verification is pending.
+- Do not decide code acceptance from HTTP status alone. Accepted verification
+  can return 409 with a fresh session token or `securityCode.valid=true`.
+  Explicit rejection still wins; successful trust and account validation are
+  required before considering native sign-in complete.
+- Preserve Apple's useful error text and distinguish delivery, verification,
+  account-login and transport failures. An ambiguous error is not proof that the
+  user typed the wrong code or selected an incorrect account setting.
+
+Apple's current device-verification bridge is handled by the hosted Apple page.
+The native form supports SMS. App-specific passwords are not a verified
+authentication route for this Reminders service; see [sign-in options](authentication.md).
+
+The accepted-409 behavior is also described in
+[rclone's authentication fix](https://github.com/rclone/rclone/commit/731f2a6).
+Apple can change these private endpoints and statuses; HTTP mocks establish
+client behavior, not universal live compatibility.
+
+## Recovery and diagnostics
+
+Selective recovery reads fresh cloud snapshots and atomically removes only
+reviewed local changes. It must not issue cloud mutations. Queue/conflict version
+checks run before and after lookup and inside the transaction; missing/denied
+lookup results and cancellation cannot partially discard the selected tasks.
+
+Sign-in diagnostics record stages, statuses and acceptance/token-presence flags.
+They must not log passwords, verification codes, token values, credential-vault
+contents or reminder contents. Review local logs before sharing them.
+
+See [feature validation](feature-validation.md) for current test results and
+remaining live-account/device checks, and [CI](ci.md) for packaging validation.

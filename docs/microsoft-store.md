@@ -43,8 +43,26 @@ GitHub Actions builds the Store submission packages for both architectures using
 `-Store`. After merging, wait for the successful workflow on the merged commit and
 download its x64 and ARM64 artifacts. Extract the artifact ZIPs and upload the two
 `.msix` files from `dist-store` unchanged. No certificate, manual signing, or
-repacking is needed. Release-tag builds attach the same Store packages to the
-draft release. Use the latest build rather than an older development-identity MSIX.
+repacking is needed. Release-tag builds attach `Reminders-for-Windows-x64.msix`
+and `Reminders-for-Windows-ARM64.msix` separately, alongside the installers and
+portable ZIPs. Use the latest build rather than an older development-identity MSIX.
+
+## Installing from GitHub versus the Store
+
+Installing from the Microsoft Store works because Microsoft signs the package
+delivered by the Store. Publishing that app does not sign separate MSIX files
+uploaded to GitHub. An unsigned GitHub MSIX remains a submission input and Windows
+will refuse to install it directly, even if its identity matches a published app.
+
+For installation, use the Store listing or the matching x64/ARM64 `Setup.exe`
+from GitHub. Portable ZIPs are another option. The separate unsigned MSIX files
+are for the publisher to upload to Partner Center, not direct app installation.
+GitHub release publication does not update the Store listing automatically.
+
+Direct MSIX distribution outside the Store requires signing with a certificate
+trusted by the target device. A self-signed certificate requires a separate trust
+step and does not provide public trust. See Microsoft's
+[MSIX signing overview](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview).
 
 ## Product display name
 
@@ -72,6 +90,43 @@ use **Publish → Create App Packages → Microsoft Store**. The wizard can crea
 
 ## Submit and publish
 
+### Resource identity and packaged launch
+
+The portable build contains `Reminders.pri`, whose primary resource map is named
+`Reminders`. Giving that executable package identity changes WinUI/MRT resource
+lookup. The MSIX needs a package-level `resources.pri` with a primary map matching
+`Package/Identity/Name`. Copying portable output into an MSIX without creating
+that index can crash while initializing application XAML, before showing a window.
+Renaming the file alone does not correct the primary map.
+
+`build-msix.ps1` uses the Windows SDK's MakePri tool to import
+the portable index into `resources.pri` under the final package identity, preserving
+embedded XAML and framework resources. It verifies the identity and startup XAML
+before packing. See [Microsoft's MRT packaging guidance](https://learn.microsoft.com/en-us/windows/uwp/app-resources/using-mrt-for-converted-desktop-apps-and-games)
+and the [WinUI identity-dependent PRI lookup report](https://github.com/microsoft/microsoft-ui-xaml/issues/10856).
+
+Build fresh packages from the release commit; do not use `-SkipBuild` with an
+older publish directory. Test the actual submission payload
+in a clean Windows user or VM with Developer Mode enabled:
+
+```powershell
+.\scripts\test-msix-launch.ps1 -PackagePath .\dist-store\Reminders-for-Windows-x64.msix
+```
+
+The test registers the extracted payload without signing, launches the app through
+Windows activation, verifies its window stays alive, and removes the registration.
+It refuses to replace an existing installation and requires the package to match
+the machine's native architecture. Run the ARM64 package test on an ARM64 machine
+as well. CI runs the launch test on x64 and resource validation on both architectures.
+This test covers package identity and startup; it does not replace certification
+or testing the signed Store installation on a clean machine.
+
+Startup failures are logged before application resources and the main window are
+initialized. For packaged installs, Windows redirects the app's local-data paths;
+look for `RemindersSync\logs\app.log` inside the package's local data. If a future
+report still shows `0xc000027b`, download the linked `.evtx` and inspect adjacent
+events: that exception code alone does not identify the underlying XAML error.
+
 ### Privacy policy
 
 Answer **Yes** to whether the product accesses, collects, or transmits personal
@@ -80,17 +135,13 @@ them locally, and syncs with Apple. Local storage still counts as accessing
 personal information.
 
 The policy is maintained in [PRIVACY.md](../PRIVACY.md) and embedded in the app,
-accessible before sign-in and through **Settings → Privacy policy**, even offline.
+accessible before sign-in and through **Settings → About → Privacy policy**, even offline.
 Settings provides a Back button to return without losing unsaved preferences.
 Keep the policy current with any changes to data handling.
 
-After this change is merged into `main`, enter this public URL in Partner Center:
+Enter this public URL in Partner Center:
 
 https://github.com/Psavvas/Reminders-for-Windows/blob/main/PRIVACY.md
-
-Until the PR is merged, the published branch copy is available at:
-
-https://github.com/Psavvas/Reminders-for-Windows/blob/codex/reminders-for-windows-cleanup/PRIVACY.md
 
 Verify the chosen URL opens while signed out before submitting. The app does not
 create a separate developer-hosted account or upload reminder databases to a

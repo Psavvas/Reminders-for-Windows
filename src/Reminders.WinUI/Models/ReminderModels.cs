@@ -13,14 +13,17 @@ public sealed class ReminderList
     [JsonPropertyName("is_group")] public bool IsGroup { get; set; }
 }
 
-public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledReminder
+public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchicalReminder
 {
     private string _title = "";
+    private string _description = "";
     private bool _completed;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("list_id")] public string ListId { get; set; } = "";
+    [JsonPropertyName("parent_id")] public string? ParentId { get; set; }
+    [JsonPropertyName("context_only")] public bool ContextOnly { get; set; }
     [JsonPropertyName("title")] public string Title { get => _title; set => Set(ref _title, value); }
-    [JsonPropertyName("description")] public string Description { get; set; } = "";
+    [JsonPropertyName("description")] public string Description { get => _description; set => Set(ref _description, value); }
     [JsonPropertyName("due_date")] public string? DueDate { get; set; }
     [JsonPropertyName("priority")] public long Priority { get; set; }
     [JsonPropertyName("completed")] public bool Completed { get => _completed; set => Set(ref _completed, value); }
@@ -29,13 +32,34 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     [JsonPropertyName("deleted")] public bool Deleted { get; set; }
     [JsonPropertyName("tags")] public List<string> Tags { get; set; } = [];
     [JsonPropertyName("dirty")] public long Dirty { get; set; }
+    [JsonPropertyName("recurrence")] public RepeatSchedule? Recurrence { get; set; }
+
+    private int _depth;
+    private bool _hasChildren;
+    private bool _expanded = true;
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness HierarchyIndent => new(Math.Min(_depth, 4) * 24, 0, 0, 0);
+    [JsonIgnore] public Microsoft.UI.Xaml.Thickness RowPadding => new(8, _depth > 0 ? 4 : 10, 8, _depth > 0 ? 4 : 10);
+    [JsonIgnore] public global::Windows.UI.Text.FontWeight RowTitleWeight => _depth > 0 ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
+    [JsonIgnore] public string SubtaskToggleLabel => (_expanded ? "Collapse subtasks of " : "Expand subtasks of ") + DisplayTitle;
+    public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
+    {
+        _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
+        foreach (var name in new[] { nameof(HierarchyIndent), nameof(RowPadding), nameof(RowTitleWeight),
+            nameof(SubtaskToggleVisibility), nameof(SubtaskGlyph), nameof(SubtaskToggleLabel), nameof(DescriptionVisibility) })
+            PropertyChanged?.Invoke(this, new(name));
+    }
 
     [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => IsOverdue || string.IsNullOrWhiteSpace(Metadata)
+        ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility OverdueMetadataVisibility => IsOverdue
+        ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility DescriptionVisibility => _depth > 0 || string.IsNullOrWhiteSpace(Description)
+        ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
     [JsonIgnore] public bool IsOverdue => !Completed && !Deleted && DateTimeOffset.TryParse(DueDate, out var due)
         && (AllDay ? due.LocalDateTime.Date < DateTime.Today : due < DateTimeOffset.Now);
-    [JsonIgnore] public Microsoft.UI.Xaml.Media.Brush MetadataBrush => IsOverdue
-        ? (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["SystemFillColorCriticalBrush"]
-        : (Microsoft.UI.Xaml.Media.Brush)Microsoft.UI.Xaml.Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
     [JsonIgnore] public string DueText
     {
         get
@@ -64,6 +88,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
             var parts = new List<string>();
             if (IsOverdue) parts.Add("Overdue");
             if (DueText.Length > 0) parts.Add(DueText);
+            if (Recurrence is not null) parts.Add(Recurrence.Label);
             if (Priority is 1 or 5 or 9) parts.Add(Priority switch { 1 => "High priority", 5 => "Medium priority", _ => "Low priority" });
             if (Tags.Count > 0) parts.Add(string.Join("  ", Tags.Select(t => "#" + t)));
             if (Dirty != 0) parts.Add("Waiting to sync");
@@ -73,13 +98,10 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
     public void RefreshTimeMetadata()
     {
         PropertyChanged?.Invoke(this, new(nameof(Metadata)));
-        PropertyChanged?.Invoke(this, new(nameof(MetadataBrush)));
+        PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility)));
+        PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(DueText)));
         PropertyChanged?.Invoke(this, new(nameof(AppleDueBrush)));
-        PropertyChanged?.Invoke(this, new(nameof(ApplePriority)));
-        PropertyChanged?.Invoke(this, new(nameof(AppleTags)));
-        PropertyChanged?.Invoke(this, new(nameof(ApplePending)));
-        PropertyChanged?.Invoke(this, new(nameof(AppleSyncDescription)));
     }
     public event PropertyChangedEventHandler? PropertyChanged;
     private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
@@ -87,7 +109,22 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IScheduledRe
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
         RefreshTimeMetadata();
+        PropertyChanged?.Invoke(this, new(nameof(DescriptionVisibility)));
+        PropertyChanged?.Invoke(this, new(nameof(ApplePriority)));
+        PropertyChanged?.Invoke(this, new(nameof(AppleTags)));
+        PropertyChanged?.Invoke(this, new(nameof(ApplePending)));
+        PropertyChanged?.Invoke(this, new(nameof(AppleSyncDescription)));
     }
+}
+
+public sealed class RepeatSchedule
+{
+    public long Frequency { get; set; }
+    public long Interval { get; set; } = 1;
+    public bool Supported { get; set; } = true;
+    [JsonIgnore] public string Label => !Supported ? "Custom repeat" : Interval == 1
+        ? Frequency switch { 1 => "Daily", 2 => "Weekly", 3 => "Monthly", 4 => "Yearly", _ => "Repeats" }
+        : $"Every {Interval} " + (Frequency switch { 1 => "days", 2 => "weeks", 3 => "months", 4 => "years", _ => "intervals" });
 }
 
 public sealed class ConflictItem
@@ -102,10 +139,21 @@ public sealed class ReminderTag
     [JsonPropertyName("n")] public long Count { get; set; }
 }
 
-public sealed class SyncException(string code, string message, string detail = "") : Exception(message)
+public sealed class UnsyncedReminder
 {
-    public string Code { get; } = code;
-    public string Detail { get; } = detail;
+    [JsonPropertyName("id")] public string Id { get; set; } = "";
+    [JsonPropertyName("title")] public string Title { get; set; } = "";
+    [JsonPropertyName("version")] public string Version { get; set; } = "";
+    [JsonPropertyName("pending_changes")] public long PendingChanges { get; set; }
+    [JsonPropertyName("conflicts")] public long Conflicts { get; set; }
+    [JsonPropertyName("is_new")] public bool IsNew { get; set; }
+    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
+    [JsonIgnore] public string Summary => string.Join(" · ", new[]
+    {
+        IsNew ? "New task" : null,
+        PendingChanges > 0 ? $"{PendingChanges} queued change{(PendingChanges == 1 ? "" : "s")}" : null,
+        Conflicts > 0 ? $"{Conflicts} conflict{(Conflicts == 1 ? "" : "s")}" : null
+    }.OfType<string>());
 }
 
 public sealed record NavEntry(string Label, string Glyph, NavKind Kind, string Key, long Count = 0, string? Color = null);
