@@ -89,6 +89,7 @@ internal sealed class UiPreferenceData
     public Dictionary<string, ListAppearance> Lists { get; set; } = [];
     public double? DetailPaneFraction { get; set; }
     public bool CompletionAnimation { get; set; } = true;
+    public string InterfaceStyle { get; set; } = "windows";
     public bool ICloudSetupCompleted { get; set; }
 }
 

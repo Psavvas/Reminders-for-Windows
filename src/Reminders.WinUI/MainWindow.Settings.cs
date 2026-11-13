@@ -84,6 +84,7 @@ public sealed partial class MainWindow
             if (IsSyncRecoveryPreview) syncStatus = JsonSerializer.SerializeToElement(new { pending_pushes = 3, conflicts = 1 });
             var choiceStyle = (Style)Application.Current.Resources["SettingsChoiceStyle"];
             var theme = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Match Windows", "Light", "Dark" }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
+            var interfaceStyle = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Windows (original)", "Apple-style" }, SelectedIndex = IsAppleStyle ? 1 : 0 };
             var paneSizing = new ComboBox { Style = choiceStyle, ItemsSource = new[] { "Automatic", "Custom" }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
             var detailWidth = new Slider { Header = "Preferred details width (%)", Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? .5, 0, 1) * 100 };
             var customLayout = new StackPanel { Spacing = 8, Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed };
@@ -98,7 +99,7 @@ public sealed partial class MainWindow
             defaultList.SelectedValue = _settings.Text("default_list_id", ""); if (defaultList.SelectedIndex < 0) defaultList.SelectedIndex = 0;
 
             var general = SettingsPage("General", "Appearance and reminder defaults.");
-            general.Children.Add(SettingsCard("Appearance", SettingsRow("Theme", null, theme), SettingsRow("Completion animation", "Animate reminders when completed.", animation, 60)));
+            general.Children.Add(SettingsCard("Appearance", SettingsRow("Interface style", null, interfaceStyle), SettingsRow("Theme", null, theme), SettingsRow("Completion animation", "Animate reminders when completed.", animation, 60)));
             general.Children.Add(SettingsCard("Layout", SettingsRow("Details pane", null, paneSizing), customLayout));
             general.Children.Add(SettingsCard("Reminders", SettingsRow("Default list", null, defaultList), SettingsRow("Due-date notifications", null, notifications, 60)));
 
@@ -380,7 +381,8 @@ public sealed partial class MainWindow
             var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 1, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
             _settings = _demo ? JsonSerializer.SerializeToElement(values) : await _sync.CallAsync("set_settings", values);
             _uiPreferences.CompletionAnimation = animation.IsOn; _uiPreferences.DetailPaneFraction = paneSizing.SelectedIndex == 0 ? null : detailWidth.Value / 100;
-            SaveUiPreferences(); UpdatePaneLayout(); ApplyTheme(themeValue);
+            _uiPreferences.InterfaceStyle = interfaceStyle.SelectedIndex == 1 ? "apple" : "windows";
+            SaveUiPreferences(); ApplyTheme(themeValue); ApplyInterfaceStyle();
         }
         catch (Exception error)
         {

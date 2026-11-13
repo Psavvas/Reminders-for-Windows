@@ -22,7 +22,7 @@ public sealed partial class MainWindow
         _updatingLayout = true;
         try
         {
-            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction,
+            var sizes = PaneSizing.Calculate(ReminderLayout.ActualWidth, GetLayoutFraction(_uiPreferences.DetailPaneFraction),
                 detailSelected: _selected is not null && !_draggingPane);
             // Star columns can shrink during measure; fixed pixel columns keep the
             // parent's desired width too large to deliver a smaller SizeChanged.
@@ -36,7 +36,7 @@ public sealed partial class MainWindow
             DetailsHost.Visibility = (sizes.Compact ? _selected is not null : sizes.Details > 0) ? Visibility.Visible : Visibility.Collapsed;
             PaneDivider.Visibility = sizes.Compact ? Visibility.Collapsed : Visibility.Visible;
             BackToReminders.Visibility = sizes.Compact ? Visibility.Visible : Visibility.Collapsed;
-            AddLabel.Visibility = sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
+            AddLabel.Visibility = IsAppleStyle || sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
             ArrangeDetailPair(DetailDateTime, DetailTime);
             ArrangeDetailPair(DetailRecurrence, DetailRepeatInterval);
             ArrangeDetailPair(DetailOptions, DetailFlagged);
@@ -44,10 +44,19 @@ public sealed partial class MainWindow
         finally { _updatingLayout = false; }
     }
 
-    private static void ArrangeDetailPair(Grid grid, FrameworkElement second)
+    private double? GetLayoutFraction(double? preference)
+    {
+        // Leave about two thirds of the content width for the list when space allows.
+        var available = ReminderLayout.ActualWidth - PaneSizing.DividerWidth;
+        return IsAppleStyle && preference is null && available >= PaneSizing.MinimumWidth * 2
+            ? Math.Max(PaneSizing.MinimumWidth / available, 0.35)
+            : preference;
+    }
+
+    private void ArrangeDetailPair(Grid grid, FrameworkElement second)
     {
         // Two equal columns must each fit the native time picker's 242-DIP minimum.
-        var stacked = grid.ActualWidth < 500;
+        var stacked = IsAppleStyle || grid.ActualWidth < 500;
         var paired = second.Visibility == Visibility.Visible;
         grid.ColumnDefinitions[1].Width = new GridLength(stacked || !paired ? 0 : 1, stacked || !paired ? GridUnitType.Pixel : GridUnitType.Star);
         grid.RowSpacing = stacked && paired ? 10 : 0;
@@ -63,7 +72,7 @@ public sealed partial class MainWindow
 
     private void ResizeDetails(double delta)
     {
-        _uiPreferences.DetailPaneFraction = PaneSizing.Resize(ReminderLayout.ActualWidth, _uiPreferences.DetailPaneFraction, delta);
+        _uiPreferences.DetailPaneFraction = PaneSizing.Resize(ReminderLayout.ActualWidth, GetLayoutFraction(_uiPreferences.DetailPaneFraction), delta);
         UpdatePaneLayout();
     }
 
@@ -78,7 +87,8 @@ public sealed partial class MainWindow
         // Accumulate from the original split so the pointer can reach an edge
         // past a minimum-width stop without hiding the captured thumb mid-drag.
         _paneDragDelta += args.HorizontalChange;
-        _uiPreferences.DetailPaneFraction = PaneSizing.Resize(ReminderLayout.ActualWidth, _dragOriginalFraction, _paneDragDelta);
+        _uiPreferences.DetailPaneFraction = _paneDragDelta == 0 ? _dragOriginalFraction
+            : PaneSizing.Resize(ReminderLayout.ActualWidth, GetLayoutFraction(_dragOriginalFraction), _paneDragDelta);
         UpdatePaneLayout();
     }
     private void PaneDivider_DragCompleted(object sender, DragCompletedEventArgs args)

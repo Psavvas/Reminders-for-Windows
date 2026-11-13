@@ -59,10 +59,13 @@ public sealed partial class MainWindow
         _searchTimer.Stop();
         AppleIdBox.Text = ""; PasswordBox.Password = ""; CodeBox.Text = "";
         _lastSignInFailure = null; _lastSyncRequest = DateTimeOffset.MinValue;
-        ConflictItem.Visibility = Visibility.Collapsed; AppInfoBar.IsOpen = false; GateError.IsOpen = false;
+        _appleSmartCounts.Clear();
+        AppleConflicts.Visibility = ConflictItem.Visibility = Visibility.Collapsed;
+        AppleSyncStatus.Text = "Ready to sync";
+        AppInfoBar.IsOpen = false; GateError.IsOpen = false;
         _uiPreferences = Services.UiPreferences.Load();
         SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
-        RebuildListNavigation(); RestoreNavigationSelection(); UpdatePaneLayout();
+        RebuildListNavigation(); ApplyInterfaceStyle();
     }
 
     private async Task ClearCacheAsync()

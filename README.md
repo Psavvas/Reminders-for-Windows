@@ -63,6 +63,12 @@ With the .NET 8 SDK or newer installed on Windows:
 Demo mode uses in-memory sample data, without opening the real cache or connecting
 to iCloud. For a normal unpackaged development launch, omit `-Demo`.
 
+Choose **Settings → General → Appearance → Interface style → Apple-style** for an alternate
+three-pane layout with colored sidebar icons, circular completion controls, and
+a rounded details form. **Windows (original)** switches back immediately. The
+choice is saved on this PC, and both styles support **Match Windows**, **Light**,
+and **Dark** under Theme. Demo-mode settings stay in memory.
+
 ## Before signing in
 
 On first launch, a five-screen guide explains this version's account setup:

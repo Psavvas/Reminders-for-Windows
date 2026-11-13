@@ -69,7 +69,11 @@ public sealed partial class MainWindow
         SetupStepTitle.Focus(FocusState.Programmatic);
     }
 
-    private void Root_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSetupCardHeight();
+    private void Root_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateSetupCardHeight();
+        UpdateAppleSidebarLayout();
+    }
     private void UpdateSetupCardHeight()
     {
         if (SetupCard is null || Root.ActualHeight <= 0) return;
