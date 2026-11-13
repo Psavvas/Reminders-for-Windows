@@ -80,7 +80,7 @@ public sealed partial class MainWindow : Window
         Navigation.Loaded += Navigation_Loaded;
         foreach (var item in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>()) AttachPaneHover(item);
         ReminderList.ItemsSource = _reminders;
-        DetailPriority.SelectedIndex = 0;
+        PopulatePriorityChoices(DetailPriority);
         _searchTimer.Tick += async (_, _) => { _searchTimer.Stop(); await LoadRemindersAsync(); };
         _statusTimer.Tick += async (_, _) =>
         {
@@ -788,18 +788,18 @@ public sealed partial class MainWindow : Window
             DetailList.ItemsSource = OrderedLists();
             DetailList.SelectedValue = reminder.ListId;
             AddSubtaskButton.IsEnabled = !reminder.Completed && !reminder.Deleted;
-            DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
+            DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => item.Tag is long value && value == reminder.Priority);
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
             var customRepeat = reminder.Recurrence?.Supported == false;
             DetailRepeatChoice.IsEnabled = !customRepeat;
             DetailRepeatChoice.SelectedIndex = customRepeat ? -1 : (int)(reminder.Recurrence?.Frequency ?? 0);
             DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
-            UpdateRepeatControls();
             DetailTags.Text = string.Join(", ", reminder.Tags.Select(t => "#" + t));
             DetailTagsSection.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            AppleDetailStatus.Text = _demo || _sync.IsLocalDemo ? "Stored on this PC."
-                : reminder.Dirty != 0 ? "Pending sync to iCloud." : "Changes sync automatically to iCloud.";
+            AppleDetailStatus.Text = !_demo && !_sync.IsLocalDemo && reminder.Dirty != 0 ? "Pending sync to iCloud." : "";
+            UpdateRepeatControls();
         }
         _detailBaseline = reminder is null ? null : CaptureDetailValues();
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;

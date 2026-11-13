@@ -16,9 +16,9 @@
    <SolidColorBrush x:Key="AppleRedBrush" Color="#FF3B30"/>
   </ResourceDictionary>
   <ResourceDictionary x:Key="Dark">
-   <SolidColorBrush x:Key="AppleSidebarBrush" Color="#242426"/>
+   <SolidColorBrush x:Key="AppleSidebarBrush" Color="#202022"/>
    <SolidColorBrush x:Key="AppleCanvasBrush" Color="#1C1C1E"/>
-   <SolidColorBrush x:Key="AppleFieldBrush" Color="#343437"/>
+   <SolidColorBrush x:Key="AppleFieldBrush" Color="#2C2C2E"/>
    <SolidColorBrush x:Key="AppleTextBrush" Color="#F5F5F7"/>
    <SolidColorBrush x:Key="AppleSecondaryBrush" Color="#A1A1A6"/>
    <SolidColorBrush x:Key="AppleDividerBrush" Color="#424245"/>
@@ -46,6 +46,15 @@
  </Style>
  <Style x:Key="WindowsDetailsHostStyle" TargetType="Grid">
   <Setter Property="Background" Value="{ThemeResource ApplicationPageBackgroundThemeBrush}"/>
+ </Style>
+ <Style x:Key="WindowsDetailFooterStyle" TargetType="Border">
+  <Setter Property="Background" Value="{ThemeResource ApplicationPageBackgroundThemeBrush}"/>
+ </Style>
+ <Style x:Key="AppleDeleteButtonStyle" TargetType="Button">
+  <Setter Property="Background" Value="{ThemeResource AppleHoverBrush}"/>
+  <Setter Property="Foreground" Value="{ThemeResource AppleRedBrush}"/>
+  <Setter Property="BorderThickness" Value="0"/>
+  <Setter Property="CornerRadius" Value="10"/>
  </Style>
  <Style x:Key="AppleToolbarButtonStyle" TargetType="Button">
   <Setter Property="Background" Value="Transparent"/>
@@ -95,7 +104,7 @@
       <VisualState x:Name="Indeterminate"/>
      </VisualStateGroup>
     </VisualStateManager.VisualStateGroups>
-    <Ellipse x:Name="Ring" Width="22" Height="22" Stroke="{ThemeResource AppleSecondaryBrush}" StrokeThickness="1.2"/>
+    <Ellipse x:Name="Ring" Width="20" Height="20" Stroke="{ThemeResource AppleSecondaryBrush}" StrokeThickness="1.2"/>
     <FontIcon x:Name="CheckMark" Glyph="&#xE73E;" FontSize="12" Foreground="White" Visibility="Collapsed"/>
    </Grid>
   </ControlTemplate></Setter.Value></Setter>

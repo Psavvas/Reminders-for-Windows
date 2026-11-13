@@ -18,6 +18,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     private string _title = "";
     private string _description = "";
     private bool _completed;
+    private long _priority;
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("list_id")] public string ListId { get; set; } = "";
     [JsonPropertyName("parent_id")] public string? ParentId { get; set; }
@@ -25,7 +26,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     [JsonPropertyName("title")] public string Title { get => _title; set => Set(ref _title, value); }
     [JsonPropertyName("description")] public string Description { get => _description; set => Set(ref _description, value); }
     [JsonPropertyName("due_date")] public string? DueDate { get; set; }
-    [JsonPropertyName("priority")] public long Priority { get; set; }
+    [JsonPropertyName("priority")] public long Priority { get => _priority; set => Set(ref _priority, value); }
     [JsonPropertyName("completed")] public bool Completed { get => _completed; set => Set(ref _completed, value); }
     [JsonPropertyName("flagged")] public bool Flagged { get; set; }
     [JsonPropertyName("all_day")] public bool AllDay { get; set; }
@@ -72,7 +73,21 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
             return $"{due:ddd, MMM d} · {due:t}";
         }
     }
-    [JsonIgnore] public string ApplePriority => Priority switch { 1 => "!!!", 5 => "!!", 9 => "!", _ => "" };
+    [JsonIgnore] public string PriorityMarks => FormatPriority(Priority).Marks;
+    [JsonIgnore] public string PriorityLabel => FormatPriority(Priority).Label;
+    internal static (string Marks, string Label) FormatPriority(long value) => value switch
+    {
+        9 => ("!", "Low priority"),
+        5 => ("!!", "Medium priority"),
+        1 => ("!!!", "High priority"),
+        _ => ("", "No priority")
+    };
+
+    [JsonIgnore] public Microsoft.UI.Xaml.Visibility AppleMetadataVisibility =>
+        PriorityMarks.Length > 0 || DueDate is not null || Recurrence is not null || Tags.Count > 0 || Dirty != 0
+            ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    [JsonIgnore] public string AppleScheduleText => Recurrence is null ? DueText
+        : DueText.Length == 0 ? Recurrence.Label : $"{DueText} · {Recurrence.Label}";
     [JsonIgnore] public string AppleTags => string.Join("  ", Tags.Select(tag => "#" + tag));
     [JsonIgnore] public string ApplePending => Dirty != 0 ? "•" : "";
     [JsonIgnore] public string AppleSyncDescription => Dirty != 0 ? "Waiting to sync" : "";
@@ -89,7 +104,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
             if (IsOverdue) parts.Add("Overdue");
             if (DueText.Length > 0) parts.Add(DueText);
             if (Recurrence is not null) parts.Add(Recurrence.Label);
-            if (Priority is 1 or 5 or 9) parts.Add(Priority switch { 1 => "High priority", 5 => "Medium priority", _ => "Low priority" });
+            if (PriorityMarks.Length > 0) parts.Add(PriorityMarks);
             if (Tags.Count > 0) parts.Add(string.Join("  ", Tags.Select(t => "#" + t)));
             if (Dirty != 0) parts.Add("Waiting to sync");
             return string.Join("  ·  ", parts);
@@ -100,7 +115,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         PropertyChanged?.Invoke(this, new(nameof(Metadata)));
         PropertyChanged?.Invoke(this, new(nameof(MetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(OverdueMetadataVisibility)));
-        PropertyChanged?.Invoke(this, new(nameof(DueText)));
+        PropertyChanged?.Invoke(this, new(nameof(AppleScheduleText)));
         PropertyChanged?.Invoke(this, new(nameof(AppleDueBrush)));
     }
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -110,7 +125,9 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         field = value; PropertyChanged?.Invoke(this, new(name)); PropertyChanged?.Invoke(this, new(nameof(DisplayTitle)));
         RefreshTimeMetadata();
         PropertyChanged?.Invoke(this, new(nameof(DescriptionVisibility)));
-        PropertyChanged?.Invoke(this, new(nameof(ApplePriority)));
+        PropertyChanged?.Invoke(this, new(nameof(PriorityMarks)));
+        PropertyChanged?.Invoke(this, new(nameof(PriorityLabel)));
+        PropertyChanged?.Invoke(this, new(nameof(AppleMetadataVisibility)));
         PropertyChanged?.Invoke(this, new(nameof(AppleTags)));
         PropertyChanged?.Invoke(this, new(nameof(ApplePending)));
         PropertyChanged?.Invoke(this, new(nameof(AppleSyncDescription)));

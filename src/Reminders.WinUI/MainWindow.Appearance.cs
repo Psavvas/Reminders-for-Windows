@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Reminders.Windows.Services;
@@ -42,28 +43,32 @@ public sealed partial class MainWindow
             ViewTitle.ClearValue(TextBlock.FontWeightProperty);
             ViewTitle.ClearValue(TextBlock.ForegroundProperty);
         }
-        ReminderHeader.Margin = apple ? new Thickness(28, 20, 24, 10) : new Thickness(24, 0, 24, 12);
+        ReminderHeader.Margin = apple ? new Thickness(28, 8, 24, 4) : new Thickness(24, 0, 24, 12);
         foreach (var button in new[] { ApplePaneButton, AppleSearchButton, AppleSortButton })
             button.Visibility = apple ? Visibility.Visible : Visibility.Collapsed;
         SortButton.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
         UpdateCompletedControls();
         ReminderFooter.Padding = apple ? new Thickness(28, 8, 24, 10) : new Thickness(24, 12, 24, 16);
-        DetailFields.Spacing = apple ? 20 : 16;
+        ApplyDetailStyle(apple);
         SaveButton.Content = apple ? "Save" : "Save changes";
+        SaveButton.HorizontalAlignment = apple ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
+        SaveButton.MinWidth = apple ? 0 : 140;
         AddButton.Height = apple ? 40 : 36;
         if (apple)
         {
             AddButton.Width = 40;
             AddButton.CornerRadius = new CornerRadius(20);
             AddButton.Padding = new Thickness(0);
-            DetailNotes.MinHeight = 160;
+            DetailNotes.MinHeight = 108;
             DetailTitle.Header = "TITLE";
+            SaveButton.CornerRadius = new CornerRadius(10);
         }
         else
         {
             foreach (var property in new[] { FrameworkElement.WidthProperty, Control.CornerRadiusProperty, Control.PaddingProperty })
                 AddButton.ClearValue(property);
             DetailNotes.ClearValue(FrameworkElement.MinHeightProperty);
+            SaveButton.ClearValue(Control.CornerRadiusProperty);
             DetailTitle.ClearValue(TextBox.HeaderProperty);
         }
         DetailNotes.Header = apple ? "NOTES" : "Notes";
@@ -78,18 +83,17 @@ public sealed partial class MainWindow
         DetailList.HeaderTemplate = headerTemplate;
         DetailDate.HeaderTemplate = headerTemplate;
         DetailTime.HeaderTemplate = headerTemplate;
-        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate, DetailTime })
-        {
-            if (apple) control.CornerRadius = new CornerRadius(12);
-            else
+        if (!apple)
+            foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate, DetailTime, DetailRepeatChoice, DetailRepeatInterval })
                 foreach (var property in new[] { Control.CornerRadiusProperty, Control.BackgroundProperty, Control.ForegroundProperty, Control.BorderBrushProperty, Control.BorderThicknessProperty })
                     control.ClearValue(property);
-        }
         if (apple) ApplyAppleColors();
         else
         {
             ReminderHost.ClearValue(Panel.BackgroundProperty);
             DetailsHost.ClearValue(Panel.BackgroundProperty);
+            ReminderLayout.ClearValue(Panel.BackgroundProperty);
+            DetailFooter.ClearValue(Border.BackgroundProperty);
             foreach (var button in new[] { AddButton, SaveButton })
             {
                 button.ClearValue(Control.BackgroundProperty);
@@ -104,20 +108,84 @@ public sealed partial class MainWindow
         UpdatePaneLayout();
     }
 
+    private void ApplyDetailStyle(bool apple)
+    {
+        DetailHeader.MinHeight = apple ? 0 : 64;
+        DetailHeader.Padding = apple ? new Thickness(20, 8, 20, 0) : new Thickness(20, 12, 20, 12);
+        DetailHeading.Visibility = DetailActions.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
+        DetailFields.Padding = apple ? new Thickness(20, 12, 20, 12) : new Thickness(20, 0, 20, 20);
+        DetailFields.Spacing = apple ? 14 : 16;
+        DetailScheduleHeading.Visibility = apple ? Visibility.Collapsed : Visibility.Visible;
+        AppleDeleteButton.Visibility = apple ? Visibility.Visible : Visibility.Collapsed;
+        AppleDeleteColumn.Width = apple ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        if (apple)
+        {
+            DetailScheduleCard.Padding = new Thickness(0);
+            DetailScheduleCard.BorderThickness = new Thickness(0);
+            DetailScheduleCard.Background = null;
+            if (DetailMore.Content is not null)
+            {
+                DetailMore.Content = null;
+                DetailFields.Children.Remove(DetailMore);
+                DetailFields.Children.Remove(AddSubtaskButton);
+                DetailFields.Children.Insert(4, DetailMoreFields);
+                DetailFields.Children.Insert(5, AddSubtaskButton);
+            }
+        }
+        else
+        {
+            DetailScheduleCard.ClearValue(Border.PaddingProperty);
+            DetailScheduleCard.ClearValue(Border.BorderThicknessProperty);
+            DetailScheduleCard.ClearValue(Border.BackgroundProperty);
+            if (DetailMore.Content is null)
+            {
+                DetailFields.Children.Remove(DetailMoreFields);
+                DetailFields.Children.Remove(AddSubtaskButton);
+                DetailMore.Content = DetailMoreFields;
+                DetailFields.Children.Insert(3, AddSubtaskButton);
+                DetailFields.Children.Insert(5, DetailMore);
+            }
+        }
+    }
+
+    private static void PopulatePriorityChoices(ComboBox combo)
+    {
+        foreach (var value in new long[] { 0, 9, 5, 1 })
+        {
+            var (marks, label) = ReminderItem.FormatPriority(value);
+            var item = new ComboBoxItem { Content = value == 0 ? "None" : marks, Tag = value };
+            AutomationProperties.SetName(item, label);
+            ToolTipService.SetToolTip(item, label);
+            combo.Items.Add(item);
+        }
+        combo.SelectedIndex = 0;
+    }
+
     private void ApplyAppleColors()
     {
         ReminderHost.Background = AppleBrush("AppleCanvasBrush");
         DetailsHost.Background = AppleBrush("AppleSidebarBrush");
-        foreach (var control in new Control[] { DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate, DetailTime })
-        {
-            control.Background = AppleBrush("AppleFieldBrush");
-            control.Foreground = AppleBrush("AppleTextBrush");
-            control.BorderBrush = AppleBrush("AppleFieldBrush");
-            control.BorderThickness = new Thickness(0);
-        }
+        DetailFooter.Background = AppleBrush("AppleSidebarBrush");
+        ReminderLayout.Background = AppleBrush("AppleDividerBrush");
+        StyleAppleFields(AppleBrush("AppleFieldBrush"), DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate,
+            DetailTime, DetailRepeatChoice, DetailRepeatInterval);
         AddButton.Background = AppleBrush("AppleBlueBrush"); AddButton.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
         SaveButton.Background = AppleBrush("AppleBlueBrush"); SaveButton.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
         UpdateViewAccent();
+    }
+
+    private void StyleAppleFields(Brush fill, params Control[] controls)
+    {
+        var highContrast = new AccessibilitySettings().HighContrast;
+        var foreground = AppleBrush("AppleTextBrush");
+        foreach (var control in controls)
+        {
+            control.Background = fill;
+            control.Foreground = foreground;
+            control.CornerRadius = new CornerRadius(10);
+            control.BorderBrush = highContrast ? control.Foreground : fill;
+            control.BorderThickness = new Thickness(highContrast ? 1 : 0);
+        }
     }
 
     private void UpdateViewAccent()
@@ -149,6 +217,7 @@ public sealed partial class MainWindow
         try
         {
             AppleSmartLists.Items.Clear(); AppleLists.Items.Clear(); AppleTags.Items.Clear();
+            AppleTagsSection.Visibility = _tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             foreach (var (label, scope, glyph, color) in new[]
             {
                 ("Today", "today", "\uE823", "#3478F6"), ("Upcoming", "upcoming", "\uE787", "#FF3B30"),
@@ -180,7 +249,7 @@ public sealed partial class MainWindow
 
     private ListViewItem AppleNavigationRow(NavEntry entry)
     {
-        var grid = new Grid { Padding = new Thickness(8, 8, 8, 8), ColumnSpacing = 12 };
+        var grid = new Grid { Padding = new Thickness(8, 5, 8, 5), ColumnSpacing = 10 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -253,7 +322,7 @@ public sealed partial class MainWindow
     private void UpdateAppleDetailVisibility()
     {
         AppleClearDue.Visibility = IsAppleStyle && DetailDate.Date is not null ? Visibility.Visible : Visibility.Collapsed;
-        AppleDetailStatus.Visibility = IsAppleStyle ? Visibility.Visible : Visibility.Collapsed;
+        AppleDetailStatus.Visibility = IsAppleStyle && !string.IsNullOrEmpty(AppleDetailStatus.Text) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void AppleShowCompleted_Click(object sender, RoutedEventArgs e) => ShowCompleted.IsOn = AppleShowCompleted.IsChecked == true;
