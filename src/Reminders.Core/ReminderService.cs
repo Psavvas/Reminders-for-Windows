@@ -363,9 +363,15 @@ public sealed partial class ReminderService : IAsyncDisposable
         {
             var names = reminders.Take(3).Select(r => r.Text("title")).Where(s => !string.IsNullOrEmpty(s)).ToArray();
             var count = reminders.Count;
+            var title = (missed, count) switch
+            {
+                (true, 1) => "1 reminder was due while you were away",
+                (true, _) => $"{count} reminders were due while you were away",
+                _ => $"{count} reminders are due"
+            };
             return J.Node(new
             {
-                title = missed ? $"{count} reminder{(count == 1 ? "" : "s")} were due while you were away" : $"{count} reminders are due",
+                title,
                 body = string.Join(", ", names) + (missed && count > 3 ? $", and {count - 3} more" : ""),
                 reminder_id = (string?)null, kind = "summary", summary_kind = missed ? "missed" : "due", count, names
             });
@@ -381,7 +387,7 @@ public sealed partial class ReminderService : IAsyncDisposable
             toasts.Add(J.Node(new
             {
                 title = string.IsNullOrEmpty(rawTitle) ? "Reminder" : rawTitle,
-                body = dueAt.ToString(allDay ? "ddd dd MMM" : "ddd dd MMM, HH:mm"),
+                body = allDay ? dueAt.ToString("ddd dd MMM") : $"{dueAt:ddd dd MMM}, {dueAt:t}",
                 reminder_id = reminder.Text("id"), kind = "reminder", raw_title = rawTitle, due_at = dueAt, all_day = allDay
             }));
         }

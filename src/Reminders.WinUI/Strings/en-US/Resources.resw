@@ -1136,7 +1136,7 @@ Any subtasks will also be deleted.</value>
     <value>{0} reminders were due while you were away</value>
   </data>
   <data name="NotifyMissedOne" xml:space="preserve">
-    <value>{0} reminder were due while you were away</value>
+    <value>{0} reminder was due while you were away</value>
   </data>
   <data name="NotifyNamesAndMore" xml:space="preserve">
     <value>{0}, and {1} more</value>
@@ -1146,7 +1146,7 @@ Any subtasks will also be deleted.</value>
     <value>, </value>
   </data>
   <data name="NotifyTimedDate" xml:space="preserve">
-    <value>{0:ddd dd MMM, HH:mm}</value>
+    <value>{0:ddd dd MMM}, {0:t}</value>
   </data>
   <data name="NoUnsyncedChangesOrConflicts" xml:space="preserve">
     <value>No unsynced changes or conflicts.</value>
