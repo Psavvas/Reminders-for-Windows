@@ -28,6 +28,29 @@ the backend or access the real cache. Sample lists and reminders live only in
 memory. The sign-in screen exposes the same path through an **Explore the UI
 with sample data** button.
 
+## UI strings
+
+The WinUI project stores its English UI text in `Strings/en-US/Resources.resw`.
+Use `x:Uid` for static XAML and enter each property as `ElementId.Property` in the
+catalog. Use the fully qualified WinUI namespace for attached properties, including
+tooltips and accessibility names. Use `L10n.Get` for dynamic labels and `L10n.Format`
+for complete messages with positional placeholders. Add a resource comment when a
+placeholder's meaning needs context and use separate keys for singular and plural
+sentences. C# lookups of XAML property resources use a slash, such as `DetailNotes/Header`.
+
+Keep display keys independent of navigation, sorting, and sync identifiers. The
+in-process backend can attach a resource key and arguments to an error or sync
+event. WinUI formats those messages and retains the original diagnostic messages
+for logging. Notification plans pass reminder names, counts, and dates to WinUI
+for display. Date and number formatting follows Windows regional settings.
+
+The portable build loads `Reminders.pri`. MSIX imports it into `resources.pri`
+under the package identity and verifies the default English strings during
+packaging. Run the Core and updater tests, then verify the x64 Demo and MSIX on
+Windows. Check a button and its accessible name, open the reminder editor and
+Settings, and repeat on Windows with a non-English display language to verify
+the English resource fallback.
+
 ## Reminder and sidebar controls
 
 Tasks with subtasks have an expand/collapse arrow. Select an unfinished task
