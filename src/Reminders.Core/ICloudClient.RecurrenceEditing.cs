@@ -6,10 +6,10 @@ internal sealed partial class ICloudClient
 {
     private async Task<JsonObject> ChangeRecurrence(JsonNode original, JsonObject patch, string? baseTag, CancellationToken token)
     {
-        if (patch.Flag("completed")) throw CoreException.Bad("Save the repeat change before completing this reminder.");
+        if (patch.Flag("completed")) throw CoreException.Bad("Save the repeat change before completing this reminder.").WithPresentation("ErrorSaveRepeatChangeBeforeCompletion");
         var id = original.Required("recordName");
         var identity = patch.Required("recurrence_id");
-        if (!Guid.TryParse(identity, out var editId)) throw CoreException.Bad("Refresh this reminder before changing its repeat.");
+        if (!Guid.TryParse(identity, out var editId)) throw CoreException.Bad("Refresh this reminder before changing its repeat.").WithPresentation("ErrorRepeatEditRefreshRequired");
         identity = editId.ToString().ToUpperInvariant();
         var ids = CloudKit.Field(original, "RecurrenceRuleIDs") as JsonArray ?? new();
         var map = J.Parse(CloudKit.Text(original, "ResolutionTokenMap"));
@@ -23,15 +23,15 @@ internal sealed partial class ICloudClient
             return recovered;
         }
         if (baseTag is not null && baseTag != original.Text("recordChangeTag"))
-            throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing its repeat.", ToReminder(original)!.ToJsonString());
-        if (ids.Count > 1) throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.");
+            throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing its repeat.", ToReminder(original)!.ToJsonString()).WithPresentation("ErrorRepeatEditReminderConflict");
+        if (ids.Count > 1) throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.").WithPresentation("EditCustomRepeatOnAppleDevice");
         var repeat = Recurrence.Validate(patch["recurrence"], patch.ContainsKey("due_date") ? patch.Text("due_date") : ToReminder(original)!.Text("due_date"));
         JsonNode? rule = null;
         if (ids.Count == 1)
         {
-            rule = (await Cloud.Lookup(RuleName(ids[0]!.ToString()), token)).FirstOrDefault() ?? throw CoreException.Bad("iCloud did not return this reminder's repeat rule.");
+            rule = (await Cloud.Lookup(RuleName(ids[0]!.ToString()), token)).FirstOrDefault() ?? throw CoreException.Bad("iCloud did not return this reminder's repeat rule.").WithPresentation("ErrorRepeatRuleMissing");
             if (!Recurrence.Describe(rule).Flag("supported") || CloudKit.Int(rule, "Deleted") != 0)
-                throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.");
+                throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.").WithPresentation("EditCustomRepeatOnAppleDevice");
         }
         var fields = UpdateFields(original, patch);
         var operations = new JsonArray();
@@ -74,7 +74,7 @@ internal sealed partial class ICloudClient
         catch (CoreException error) when (error.Code == "CONFLICT")
         {
             // Conflict UI expects a reminder, never a linked rule as a new task.
-            throw new CoreException("CONFLICT", "This reminder or its repeat changed on another device. Review the conflict before retrying.", ToReminder(original)!.ToJsonString());
+            throw new CoreException("CONFLICT", "This reminder or its repeat changed on another device. Review the conflict before retrying.", ToReminder(original)!.ToJsonString()).WithPresentation("ErrorRepeatEditConflict");
         }
         var merged = original.DeepClone();
         foreach (var pair in fields) merged["fields"]![pair.Key] = pair.Value?.DeepClone();

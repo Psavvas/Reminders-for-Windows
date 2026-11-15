@@ -16,7 +16,7 @@ public static class DemoAccount
     {
         if (string.IsNullOrEmpty(password) || !CryptographicOperations.FixedTimeEquals(
                 SHA256.HashData(Encoding.UTF8.GetBytes(password)), Convert.FromHexString(PasswordHash)))
-            throw new CoreException("AUTH_REQUIRED", "The username or password is incorrect.");
+            throw new CoreException("AUTH_REQUIRED", "The username or password is incorrect.").WithPresentation("ErrorInvalidLocalCredentials");
     }
 
     internal static void Seed(Cache cache)

@@ -29,12 +29,12 @@ internal sealed partial class ICloudClient : IDisposable
     public JsonObject Status => new() { ["authenticated"] = Connected && !PendingTwoFactor, ["apple_id"] = Account, ["needs_2fa"] = PendingTwoFactor, ["trusted_session"] = auth.State.Flag("trusted_session"), ["restoring"] = Restoring, ["can_restore"] = secrets.HasPassword(Account), ["two_factor"] = auth.TwoFactorStatus };
     public async Task<JsonNode> Connect(string? password, bool remember, bool acceptTerms, CancellationToken token)
     {
-        password ??= secrets.Password(Account) ?? throw new CoreException("AUTH_REQUIRED", "No saved iCloud credential is available");
+        password ??= secrets.Password(Account) ?? throw new CoreException("AUTH_REQUIRED", "No saved iCloud credential is available").WithPresentation("ErrorMissingSavedICloudCredential");
         try
         {
             await auth.SignIn(Account, password, acceptTerms, token); PendingTwoFactor = auth.RequiresTwoFactor; Connected = !PendingTwoFactor;
             if (remember) secrets.Password(Account, password); Persist();
-            if (PendingTwoFactor) throw new CoreException("2FA_REQUIRED", "Two-factor authentication required"); return Status;
+            if (PendingTwoFactor) throw new CoreException("2FA_REQUIRED", "Two-factor authentication required").WithPresentation("ErrorTwoFactorAuthenticationRequired"); return Status;
         }
         catch (CoreException ex) when (ex.Code == "2FA_REQUIRED") { PendingTwoFactor = true; Connected = false; if (remember) secrets.Password(Account, password); Persist(); throw; }
     }
@@ -65,10 +65,10 @@ internal sealed partial class ICloudClient : IDisposable
         candidate.Diagnostic += message => Diagnostic?.Invoke(message);
         try
         {
-            if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification in Apple's sign-in window.");
+            if (!await candidate.Resume(token)) throw new CoreException("2FA_REQUIRED", "Finish verification in Apple's sign-in window.").WithPresentation("ErrorFinishVerificationInAppleWindow");
             var account = candidate.State.Required("apple_id", 320).Trim().ToLowerInvariant();
             if (expectedAccount is not null && !string.Equals(expectedAccount, account, StringComparison.OrdinalIgnoreCase))
-                throw new CoreException("AUTH_REQUIRED", "Apple returned a different account. Please sign in again.");
+                throw new CoreException("AUTH_REQUIRED", "Apple returned a different account. Please sign in again.").WithPresentation("ErrorAppleAccountMismatch");
             // Cookie-only handoff learns the identity from iCloud's validation,
             // never from page text. Check queued edits before saving or switching.
             validateAccount?.Invoke(account);
@@ -87,7 +87,7 @@ internal sealed partial class ICloudClient : IDisposable
     internal void Persist() { auth.SaveCookies(); secrets.Session(Account, auth.State.ToJsonString()); }
     public void Invalidate() { Connected = false; PendingTwoFactor = false; }
     public void SignOut() { secrets.Delete(Account); Invalidate(); auth.Dispose(); auth = new AppleAuth(null, handlerFactory); auth.Diagnostic += message => Diagnostic?.Invoke(message); }
-    private CloudKit Cloud => Connected && !PendingTwoFactor ? new(auth) : throw new CoreException("AUTH_REQUIRED", "Not signed in to iCloud");
+    private CloudKit Cloud => Connected && !PendingTwoFactor ? new(auth) : throw new CoreException("AUTH_REQUIRED", "Not signed in to iCloud").WithPresentation("ErrorNotSignedInToICloud");
     public Task<string?> Cursor(CancellationToken token) => Cloud.Cursor(token);
     public Task<(JsonArray Records, string? Cursor)> Changes(string? cursor, CancellationToken token) => Cloud.Changes(cursor, ["Reminder", "List", "Hashtag", "RecurrenceRule"], token);
     public async Task<JsonArray> Lists(CancellationToken token)
@@ -151,7 +151,7 @@ internal sealed partial class ICloudClient : IDisposable
             if (!patch.ContainsKey(json)) continue;
             var document = CloudKit.Field(record, cloud)?.ToString();
             if (document is null && CloudKit.Field(record, cloud + "Asset") is not null)
-                throw CoreException.Bad("Edit this reminder's large text document on an Apple device.");
+                throw CoreException.Bad("Edit this reminder's large text document on an Apple device.").WithPresentation("ErrorReminderDocumentTooLarge");
             fields[cloud] = CloudKit.String(AppleDocument.Edit(document, patch.Text(json) ?? "")); tokens.Add(logical);
         }
         foreach (var (json, cloud) in new[] { ("priority", "Priority"), ("completed", "Completed"), ("flagged", "Flagged"), ("deleted", "Deleted"), ("all_day", "AllDay") }) if (patch.ContainsKey(json)) { fields[cloud] = CloudKit.Number(patch.Number(json, patch.Flag(json) ? 1 : 0)); tokens.Add(json == "all_day" ? "allDay" : json); }
@@ -186,18 +186,18 @@ internal sealed partial class ICloudClient : IDisposable
             var parent = (await Cloud.Lookup(parentId, token)).FirstOrDefault();
             if (parent is null || CloudKit.Int(parent, "Deleted") != 0 || CloudKit.Int(parent, "Completed") != 0
                 || CloudKit.Field(parent, "List").Text("recordName") != payload.Text("list_id"))
-                throw CoreException.Bad("The parent task is no longer available in this list. Refresh before adding a subtask.");
+                throw CoreException.Bad("The parent task is no longer available in this list. Refresh before adding a subtask.").WithPresentation("ErrorSubtaskParentUnavailable");
         }
         var result = await Cloud.Modify(operations, token);
         return MergeResult(new JsonObject { ["recordName"] = id, ["fields"] = fields.DeepClone() }, result);
     }
     public async Task<JsonObject> Update(string id, JsonObject patch, string? baseTag, CancellationToken token)
     {
-        var original = (await Cloud.Lookup(id, token)).FirstOrDefault() ?? throw CoreException.Bad($"No such reminder: {id}"); var remoteTag = original.Text("recordChangeTag");
+        var original = (await Cloud.Lookup(id, token)).FirstOrDefault() ?? throw CoreException.Bad($"No such reminder: {id}").WithPresentation("ErrorNoSuchReminder", id); var remoteTag = original.Text("recordChangeTag");
         if (patch.ContainsKey("recurrence")) return await ChangeRecurrence(original, patch, baseTag, token);
         if (patch.Flag("completed") && CloudKit.Field(original, "RecurrenceRuleIDs") is JsonArray { Count: > 0 })
             return await CompleteRecurring(original, patch, baseTag, token);
-        if (baseTag is not null && baseTag != remoteTag) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", ToReminder(original)?.ToJsonString() ?? "{}");
+        if (baseTag is not null && baseTag != remoteTag) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", ToReminder(original)?.ToJsonString() ?? "{}").WithPresentation("ErrorReminderEditConflict");
         var fields = UpdateFields(original, patch); var result = await Cloud.Modify(CloudKit.Operation("update", id, remoteTag, (JsonObject)fields.DeepClone()), token);
         var target = original["fields"] as JsonObject ?? new(); original["fields"] = null; original["fields"] = target;
         foreach (var p in fields) target[p.Key] = p.Value?.DeepClone();

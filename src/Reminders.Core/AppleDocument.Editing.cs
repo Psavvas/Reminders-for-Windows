@@ -90,7 +90,7 @@ internal static partial class AppleDocument
         }
         catch (Exception error) when (error is FormatException or InvalidDataException or IOException or OverflowException or InvalidOperationException)
         {
-            throw CoreException.Bad("This reminder's text document could not be edited safely. Refresh it or edit the text on an Apple device.");
+            throw CoreException.Bad("This reminder's text document could not be edited safely. Refresh it or edit the text on an Apple device.").WithPresentation("ErrorReminderDocumentEditUnsafe");
         }
     }
 

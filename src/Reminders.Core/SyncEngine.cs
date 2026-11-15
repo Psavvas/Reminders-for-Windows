@@ -12,7 +12,8 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
     {
         await clientGate.WaitAsync(token); try { return await action(); } finally { clientGate.Release(); }
     }
-    private void Progress(string message) => emit("sync_progress", J.Node(new { message }));
+    private void Progress(string key, string message) =>
+        emit("sync_progress", J.Node(new { message, presentation = new PresentationMessage(key) }));
     public async Task<JsonNode> Sync(bool full, CancellationToken token)
     {
         if (full) Interlocked.Exchange(ref fullRequested, 1); var ticket = Interlocked.Increment(ref requested);
@@ -28,7 +29,7 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(10));
                 try
                 {
-                    Progress("Uploading queued changes...");
+                    Progress("SyncProgressUploading", "Uploading queued changes...");
                     var push = await Recover(() => Push(deadline.Token), deadline.Token);
                     var needsFull = force || cache.Meta("sync_cursor") is null || cache.Meta("cloudkit_read_protocol") != "4";
                     var pull = await Recover(() => needsFull ? Full(deadline.Token) : Delta(deadline.Token), deadline.Token);
@@ -40,17 +41,17 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
                     }
                     if (push.Number("pushed") == 0 && cache.PendingCount > 0)
                     {
-                        emit("sync_warning", new CoreException("DEPENDENCY_PENDING", "Some subtasks are waiting for their parent tasks to sync. Review unsynced changes in Settings.").Body);
+                        emit("sync_warning", new CoreException("DEPENDENCY_PENDING", "Some subtasks are waiting for their parent tasks to sync. Review unsynced changes in Settings.").WithPresentation("ErrorSubtaskUploadAwaitingParent").Body);
                         return new JsonObject { ["push"] = push, ["pull"] = pull };
                     }
                     if (Interlocked.Read(ref requested) == generation && cache.Pending(1).Count == 0)
                     {
-                        if (cache.Conflicts.Count > 0) emit("sync_warning", new CoreException("CONFLICT", "Review the conflicting changes in Settings.").Body);
+                        if (cache.Conflicts.Count > 0) emit("sync_warning", new CoreException("CONFLICT", "Review the conflicting changes in Settings.").WithPresentation("ErrorSyncConflictNeedsReview").Body);
                         else emit("sync_finished", pull.DeepClone());
                         return new JsonObject { ["push"] = push, ["pull"] = pull };
                     }
                 }
-                catch (OperationCanceledException) when (!token.IsCancellationRequested) { if (force) Interlocked.Exchange(ref fullRequested, 1); throw new CoreException("NETWORK", "Sync timed out after 10 minutes. Cached reminders are available; try syncing again."); }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { if (force) Interlocked.Exchange(ref fullRequested, 1); throw new CoreException("NETWORK", "Sync timed out after 10 minutes. Cached reminders are available; try syncing again.").WithPresentation("ErrorSyncTimedOut"); }
                 catch { if (force) Interlocked.Exchange(ref fullRequested, 1); throw; }
             }
         }
@@ -63,17 +64,18 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
         {
             var restored = await WithClient(async () =>
             {
-                if (client.PendingTwoFactor) throw new CoreException("2FA_REQUIRED", "Enter the verification code to finish signing in.");
+                if (client.PendingTwoFactor) throw new CoreException("2FA_REQUIRED", "Enter the verification code to finish signing in.").WithPresentation("ErrorVerificationCodeRequired");
                 client.Invalidate(); var ok = await client.Restore(token); emit("auth_changed", client.Status);
-                if (!ok && client.RestoreRetryable) throw new CoreException("NETWORK", "Couldn't reach iCloud. Sync will try again shortly.", client.RestoreDetail);
+                if (!ok && client.RestoreRetryable) throw new CoreException("NETWORK", "Couldn't reach iCloud. Sync will try again shortly.", client.RestoreDetail).WithPresentation("ErrorICloudUnavailableWillRetry");
                 return ok;
             }, token);
-            if (!restored) throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired. Please sign in again."); return await operation();
+            if (!restored) throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired. Please sign in again.").WithPresentation("ErrorICloudSessionExpiredSignIn"); return await operation();
         }
     }
     private async Task<JsonNode> Full(CancellationToken token)
     {
-        emit("sync_started", J.Node(new { mode = "full", determinate = false })); Progress("Downloading reminders, lists, tags and repeat schedules...");
+        emit("sync_started", J.Node(new { mode = "full", determinate = false }));
+        Progress("SyncProgressDownloadingAll", "Downloading reminders, lists, tags and repeat schedules...");
         // One paginated zone stream replaces N list queries and separate tag
         // history reads. Its cursor describes exactly the snapshot we apply.
         var (records, cursor) = await WithClient(() => client.Changes(null, token), token);
@@ -85,7 +87,8 @@ internal sealed class SyncEngine(Cache cache, ICloudClient client, SemaphoreSlim
     }
     private async Task<JsonNode> Delta(CancellationToken token)
     {
-        emit("sync_started", J.Node(new { mode = "delta", determinate = false })); Progress("Downloading changed reminders...");
+        emit("sync_started", J.Node(new { mode = "delta", determinate = false }));
+        Progress("SyncProgressDownloadingChanges", "Downloading changed reminders...");
         var (records, cursor) = await WithClient(() => client.Changes(cache.Meta("sync_cursor"), token), token);
         cache.ApplyRecords(records);
         if (cursor is not null) cache.SetMeta("sync_cursor", cursor); cache.SetMeta("last_sync", TimeUtil.Now);

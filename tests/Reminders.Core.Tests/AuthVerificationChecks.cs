@@ -144,6 +144,8 @@ internal static class AuthVerificationChecks
                 check(accountStatus == 500 && error.Code == "NETWORK", "account setup failure remains a network error");
                 check(error.Message.Contains("accepted the verification code") && error.Message.Contains("HTTP 500"),
                     "account setup failure distinguishes accepted code from failed account sign-in");
+                check(error.GetPresentation() is { Key: "ErrorVerificationAccepted", Arguments: [" (HTTP 500)"] },
+                    "accepted verification carries the stable UI message and HTTP suffix");
                 check(auth.RequiresTwoFactor, "account setup failure does not authenticate the session");
             }
             check(diagnostics.Any(message => message.Contains("code_accepted=True")), "diagnostics record verification outcome");
