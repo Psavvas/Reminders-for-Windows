@@ -16,9 +16,9 @@ public sealed partial class MainWindow
             {
                 var confirm = new ContentDialog
                 {
-                    XamlRoot = Root.XamlRoot, Title = "Sign out without saving?",
-                    Content = "The changes in the open reminder haven't been saved.",
-                    PrimaryButtonText = "Sign out", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close
+                    XamlRoot = Root.XamlRoot, Title = L10n.Get("SignOutWithoutSaving"),
+                    Content = L10n.Get("SignOutUnsavedChangesWarning"),
+                    PrimaryButtonText = L10n.Get("SignOut"), CloseButtonText = L10n.Get("Cancel"), DefaultButton = ContentDialogButton.Close
                 };
                 if (await confirm.ShowAsync() != ContentDialogResult.Primary) return;
             }
@@ -26,7 +26,7 @@ public sealed partial class MainWindow
         }
         _accountBusy = true;
         _searchTimer.Stop(); _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop();
-        SetGateState("Signing out…");
+        SetGateState(L10n.Get("SigningOut"));
         try
         {
             // Local/sample accounts do not own the saved iCloud credentials.
@@ -34,7 +34,7 @@ public sealed partial class MainWindow
             await _sync.DisposeAsync();
             _demo = false;
             ClearAccountView();
-            ShowLogin(); GateStatus.Text = "You're signed out";
+            ShowLogin(); GateStatus.Text = L10n.Get("YoureSignedOut");
         }
         catch (Exception error)
         {
@@ -42,9 +42,9 @@ public sealed partial class MainWindow
             if (_sync.IsRunning)
             {
                 await BootAsync();
-                ShowInfo("Couldn't sign out", error.Message, InfoBarSeverity.Error);
+                ShowInfo(L10n.Get("CouldntSignOut"), L10n.Error(error), InfoBarSeverity.Error);
             }
-            else { ShowLogin(); GateError.Message = error.Message; GateError.IsOpen = true; }
+            else { ShowLogin(); GateError.Message = L10n.Error(error); GateError.IsOpen = true; }
         }
         finally { _accountBusy = false; }
     }
@@ -54,8 +54,8 @@ public sealed partial class MainWindow
         _accountEpoch++; _reminderLoads.Invalidate(); _navigationLoads.Invalidate();
         ShowDetail(null); _lists.Clear(); _tags.Clear(); _demoRows.Clear(); _collapsedSubtasks.Clear();
         DetailListName.Text = "";
-        _view = new("Today", "", NavKind.Smart, "today"); SetReminderRows([]);
-        ViewTitle.Text = "Today"; ViewSubtitle.Text = ""; SearchBox.Text = ""; RowCount.Text = "";
+        _view = new(L10n.Get("Today"), "", NavKind.Smart, "today"); SetReminderRows([]);
+        ViewTitle.Text = L10n.Get("Today"); ViewSubtitle.Text = ""; SearchBox.Text = ""; RowCount.Text = "";
         _searchTimer.Stop();
         AppleIdBox.Text = ""; PasswordBox.Password = ""; CodeBox.Text = "";
         _lastSignInFailure = null; _lastSyncRequest = DateTimeOffset.MinValue;
@@ -77,27 +77,27 @@ public sealed partial class MainWindow
             var status = await _sync.CallAsync("sync_status", new { });
             var pending = status.Number("pending_pushes") + status.Number("conflicts");
             var panel = new StackPanel { Spacing = 14, MaxWidth = 460 };
-            panel.Children.Add(new TextBlock { Text = "Remove downloaded reminders and sync history from this PC, then download a fresh copy from iCloud. Your sign-in and app preferences are kept.", TextWrapping = TextWrapping.Wrap });
-            panel.Children.Add(new TextBlock { Text = "Reminders already saved in iCloud will remain there. Changes saved only on this PC will be lost.", TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock { Text = L10n.Get("ClearCacheDescription"), TextWrapping = TextWrapping.Wrap });
+            panel.Children.Add(new TextBlock { Text = L10n.Get("ClearCacheLocalChangesWarning"), TextWrapping = TextWrapping.Wrap });
             if (_selected is not null && _detailDirty)
-                panel.Children.Add(new TextBlock { Text = "The unsaved edits in the open reminder will also be discarded.", TextWrapping = TextWrapping.Wrap });
-            var discard = new CheckBox { Content = "Discard unsynced changes and conflicts", IsChecked = false, Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed };
+                panel.Children.Add(new TextBlock { Text = L10n.Get("ClearCacheUnsavedEditorWarning"), TextWrapping = TextWrapping.Wrap });
+            var discard = new CheckBox { Content = L10n.Get("DiscardUnsyncedChangesAndConflicts"), IsChecked = false, Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed };
             if (pending > 0)
-                panel.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Warning, Title = $"{pending} unsynced change{(pending == 1 ? "" : "s")} or conflict{(pending == 1 ? "" : "s")}", Message = "These will be discarded. Clear the cache only if you no longer need them or iCloud keeps refusing them." });
+                panel.Children.Add(new InfoBar { IsOpen = true, IsClosable = false, Severity = InfoBarSeverity.Warning, Title = L10n.Format(pending == 1 ? "PendingChangesOrConflictOne" : "PendingChangesOrConflictMany", pending), Message = L10n.Get("ClearCachePendingChangesDescription") });
             panel.Children.Add(discard);
-            var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "Clear app cache?", Content = panel,
-                PrimaryButtonText = "Clear cache", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close, IsPrimaryButtonEnabled = pending == 0 };
+            var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = L10n.Get("ClearAppCache"), Content = panel,
+                PrimaryButtonText = L10n.Get("ClearCache"), CloseButtonText = L10n.Get("Cancel"), DefaultButton = ContentDialogButton.Close, IsPrimaryButtonEnabled = pending == 0 };
             discard.Checked += (_, _) => dialog.IsPrimaryButtonEnabled = true;
             discard.Unchecked += (_, _) => dialog.IsPrimaryButtonEnabled = pending == 0;
             confirmed = await dialog.ShowAsync() == ContentDialogResult.Primary;
             discardPending = discard.IsChecked == true;
         }
-        catch (Exception error) { ShowInfo("Couldn't clear cache", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntClearCache"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { _dialogOpen = false; }
         if (!confirmed) return;
         _accountBusy = true;
         _searchTimer.Stop(); _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop();
-        SetGateState("Clearing the app cache…");
+        SetGateState(L10n.Get("ClearingTheAppCache"));
         try
         {
             await _sync.CallAsync("clear_cache", new { discard_pending = discardPending });
@@ -105,15 +105,15 @@ public sealed partial class MainWindow
             _accountBusy = false;
             await BootAsync();
             if (AuthGate.Visibility == Visibility.Collapsed)
-                ShowInfo("Cache cleared", "Downloading a fresh copy of your iCloud reminders…", InfoBarSeverity.Informational);
-            else if (LoginFields.Visibility == Visibility.Visible) GateStatus.Text = "Cache cleared. Sign in to download your reminders.";
+                ShowInfo(L10n.Get("CacheCleared"), L10n.Get("CacheRefreshInProgress"), InfoBarSeverity.Informational);
+            else if (LoginFields.Visibility == Visibility.Visible) GateStatus.Text = L10n.Get("CacheClearedSignInPrompt");
         }
         catch (Exception error)
         {
             _accountBusy = false;
             await BootAsync();
-            ShowInfo("Couldn't clear cache", error.Message, InfoBarSeverity.Error);
-            if (AuthGate.Visibility != Visibility.Collapsed) { GateError.Message = error.Message; GateError.IsOpen = true; }
+            ShowInfo(L10n.Get("CouldntClearCache"), L10n.Error(error), InfoBarSeverity.Error);
+            if (AuthGate.Visibility != Visibility.Collapsed) { GateError.Message = L10n.Error(error); GateError.IsOpen = true; }
         }
         finally { _accountBusy = false; }
     }

@@ -1,0 +1,1947 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="AboutAppDisclaimer" xml:space="preserve">
+    <value>Reminders for Windows is an independent app and is not affiliated with, endorsed by, or sponsored by Apple Inc. or Microsoft Corporation. iCloud is a trademark of Apple Inc. Windows is a trademark of Microsoft Corporation. Sync uses unofficial iCloud interfaces that may change or stop working without notice.</value>
+  </data>
+  <data name="AboutSettingsDescription" xml:space="preserve">
+    <value>App information and support.</value>
+  </data>
+  <data name="AboutThisApp" xml:space="preserve">
+    <value>About this app</value>
+  </data>
+  <data name="AcceptAndContinue" xml:space="preserve">
+    <value>Accept and continue</value>
+  </data>
+  <data name="AcceptingTerms" xml:space="preserve">
+    <value>Accepting terms…</value>
+  </data>
+  <data name="Account" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="AccountFreePopupTest" xml:space="preserve">
+    <value>Account-free popup test</value>
+  </data>
+  <data name="AddButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Add reminder</value>
+  </data>
+  <data name="AddButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Add reminder (Ctrl+N)</value>
+  </data>
+  <data name="AddLabel.Text" xml:space="preserve">
+    <value>Add reminder</value>
+  </data>
+  <data name="AddReminder" xml:space="preserve">
+    <value>Add reminder</value>
+  </data>
+  <data name="AddSubtask" xml:space="preserve">
+    <value>Add subtask</value>
+  </data>
+  <data name="AddSubtaskButton.Content" xml:space="preserve">
+    <value>Add subtask</value>
+  </data>
+  <data name="AddSubtaskParentChanged" xml:space="preserve">
+    <value>The parent task changed. Reopen it before adding a subtask.</value>
+  </data>
+  <data name="AddSubtaskUnsavedChangesWarning" xml:space="preserve">
+    <value>Save the open task before adding a subtask.</value>
+  </data>
+  <data name="AllDay" xml:space="preserve">
+    <value>All day</value>
+  </data>
+  <data name="AllDayTextBlock.Text" xml:space="preserve">
+    <value>All day</value>
+  </data>
+  <data name="AllNavigationViewItem.Content" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="AnimateRemindersWhenCompleted" xml:space="preserve">
+    <value>Animate reminders when completed.</value>
+  </data>
+  <data name="AppCache" xml:space="preserve">
+    <value>App cache</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="AppleAccountServiceUnavailable" xml:space="preserve">
+    <value>Apple's iCloud account service returned HTTP {0}. Reload Apple sign-in to try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleAccountSettingsDescription" xml:space="preserve">
+    <value>Manage the Apple Account used for your reminders.</value>
+  </data>
+  <data name="AppleDeviceSignIn.Content" xml:space="preserve">
+    <value>Sign in with an Apple device</value>
+  </data>
+  <data name="AppleIdBox.Header" xml:space="preserve">
+    <value>Apple ID</value>
+  </data>
+  <data name="AppleIdBox.PlaceholderText" xml:space="preserve">
+    <value>you@icloud.com</value>
+  </data>
+  <data name="AppleSignInConnecting" xml:space="preserve">
+    <value>Connecting your Apple session to the app…</value>
+  </data>
+  <data name="AppleSignInCouldNotOpen" xml:space="preserve">
+    <value>Apple sign-in could not open. Check Microsoft Edge WebView2 Runtime, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInDialogTitle" xml:space="preserve">
+    <value>Apple sign-in · icloud.com</value>
+  </data>
+  <data name="AppleSignInImportFailed" xml:space="preserve">
+    <value>The app could not read or save Apple's sign-in session. Reload Apple sign-in to try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInImportNetwork" xml:space="preserve">
+    <value>Apple's page finished verification, but the app could not connect to iCloud to save the session. Reload Apple sign-in and try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInImportPending" xml:space="preserve">
+    <value>Apple has not finished verifying this session. Finish signing in on Apple's page, then choose Continue in app.</value>
+  </data>
+  <data name="AppleSignInImportRejected" xml:space="preserve">
+    <value>iCloud did not accept the session returned by Apple's page. Reload Apple sign-in and try again.</value>
+  </data>
+  <data name="AppleSignInImportTerms" xml:space="preserve">
+    <value>Apple requires updated iCloud terms. Finish those on Apple's page, then try again.</value>
+  </data>
+  <data name="AppleSignInInstructions" xml:space="preserve">
+    <value>Sign in on Apple's page below. Choose Trust when offered to remember this PC. The window will close when connected; if your reminders appear here, choose Continue in app.</value>
+  </data>
+  <data name="AppleSignInNavigationBlocked" xml:space="preserve">
+    <value>This page cannot open in Apple sign-in. Return to the sign-in page or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInNavigationFailed" xml:space="preserve">
+    <value>Apple's sign-in page could not load. Reload to try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInPopupFailed" xml:space="preserve">
+    <value>Apple's sign-in window could not open. Reload and try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppleSignInRateLimited" xml:space="preserve">
+    <value>Apple is limiting sign-in requests (HTTP 429). Wait a little, then reload Apple sign-in.</value>
+  </data>
+  <data name="AppleSignInServiceUnavailable" xml:space="preserve">
+    <value>Apple's sign-in service returned HTTP {0}. Reload Apple sign-in to try again, or cancel and use text verification.</value>
+  </data>
+  <data name="AppTitle" xml:space="preserve">
+    <value>Reminders for Windows</value>
+  </data>
+  <data name="Automatic" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="BackToReminders.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Back to reminders</value>
+  </data>
+  <data name="BackToReminders.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Back to reminders</value>
+  </data>
+  <data name="Blue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="CacheCleared" xml:space="preserve">
+    <value>Cache cleared</value>
+  </data>
+  <data name="CacheClearedSignInPrompt" xml:space="preserve">
+    <value>Cache cleared. Sign in to download your reminders.</value>
+  </data>
+  <data name="CacheClearPendingChangesWarning" xml:space="preserve">
+    <value>{0} unsynced changes or conflicts. Clearing the cache will ask before discarding them.</value>
+  </data>
+  <data name="CachedRemindersAvailable" xml:space="preserve">
+    <value>Cached reminders and queued edits remain available.</value>
+  </data>
+  <data name="CacheRefreshInProgress" xml:space="preserve">
+    <value>Downloading a fresh copy of your iCloud reminders…</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="ChangeIconAndColor" xml:space="preserve">
+    <value>Change icon and color</value>
+  </data>
+  <data name="ChangesDiscarded" xml:space="preserve">
+    <value>Changes discarded</value>
+  </data>
+  <data name="ChangesDiscardedRefreshFailed" xml:space="preserve">
+    <value>Changes discarded; refresh failed</value>
+  </data>
+  <data name="CheckForUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>Checking…</value>
+  </data>
+  <data name="CheckingForUpdates" xml:space="preserve">
+    <value>Checking for updates</value>
+  </data>
+  <data name="CheckingICloudForChanges" xml:space="preserve">
+    <value>Checking iCloud for changes…</value>
+  </data>
+  <data name="CheckingYourAccount" xml:space="preserve">
+    <value>Checking your account…</value>
+  </data>
+  <data name="ClearAppCache" xml:space="preserve">
+    <value>Clear app cache?</value>
+  </data>
+  <data name="ClearAppCacheAction" xml:space="preserve">
+    <value>Clear app cache</value>
+  </data>
+  <data name="ClearCache" xml:space="preserve">
+    <value>Clear cache</value>
+  </data>
+  <data name="ClearCacheDescription" xml:space="preserve">
+    <value>Remove downloaded reminders and sync history from this PC, then download a fresh copy from iCloud. Your sign-in and app preferences are kept.</value>
+  </data>
+  <data name="ClearCacheLocalChangesWarning" xml:space="preserve">
+    <value>Reminders already saved in iCloud will remain there. Changes saved only on this PC will be lost.</value>
+  </data>
+  <data name="ClearCachePendingChangesDescription" xml:space="preserve">
+    <value>These will be discarded. Clear the cache only if you no longer need them or iCloud keeps refusing them.</value>
+  </data>
+  <data name="ClearCacheSettingsDescription" xml:space="preserve">
+    <value>Remove downloaded reminders and sync history, then download a fresh copy. Sign-in and app preferences are kept.</value>
+  </data>
+  <data name="ClearCacheUnsavedEditorWarning" xml:space="preserve">
+    <value>The unsaved edits in the open reminder will also be discarded.</value>
+  </data>
+  <data name="ClearingTheAppCache" xml:space="preserve">
+    <value>Clearing the app cache…</value>
+  </data>
+  <data name="ClearSelection" xml:space="preserve">
+    <value>Clear selection</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="CodeBox.Header" xml:space="preserve">
+    <value>Verification code</value>
+  </data>
+  <data name="CollapseSubtasksOf" xml:space="preserve">
+    <value>Collapse subtasks of {0}</value>
+  </data>
+  <data name="Color" xml:space="preserve">
+    <value>Color</value>
+  </data>
+  <data name="CompletedNavigationViewItem.Content" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="CompleteParentWithRepeatingSubtasks" xml:space="preserve">
+    <value>Complete repeating subtasks individually before completing their parent.</value>
+  </data>
+  <data name="CompletionAnimation" xml:space="preserve">
+    <value>Completion animation</value>
+  </data>
+  <data name="ConflictCountMany" xml:space="preserve">
+    <value>{0} conflicts</value>
+  </data>
+  <data name="ConflictCountOne" xml:space="preserve">
+    <value>{0} conflict</value>
+  </data>
+  <data name="ConflictItem.Content" xml:space="preserve">
+    <value>Sync conflicts</value>
+  </data>
+  <data name="ContactPaulSavvas" xml:space="preserve">
+    <value>Contact Paul Savvas</value>
+  </data>
+  <data name="ContinueInApp" xml:space="preserve">
+    <value>Continue in app</value>
+  </data>
+  <data name="ContinueOnAppleSSignInTextBlock.Text" xml:space="preserve">
+    <value>Continue on Apple's sign-in page.</value>
+  </data>
+  <data name="CopiedSignInError" xml:space="preserve">
+    <value>Reminders for Windows {0}
+{1}
+{2}
+{3}</value>
+    <comment>{0} app version, {1} error title, {2} error reason, {3} next step.</comment>
+  </data>
+  <data name="CopyErrorDetailsButton.Content" xml:space="preserve">
+    <value>Copy error details</value>
+  </data>
+  <data name="CouldNotCheckForUpdates" xml:space="preserve">
+    <value>Could not check for updates</value>
+  </data>
+  <data name="CouldNotInstallUpdate" xml:space="preserve">
+    <value>Could not install update</value>
+  </data>
+  <data name="CouldntAddReminder" xml:space="preserve">
+    <value>Couldn't add reminder</value>
+  </data>
+  <data name="CouldntClearCache" xml:space="preserve">
+    <value>Couldn't clear cache</value>
+  </data>
+  <data name="CouldntCompleteAction" xml:space="preserve">
+    <value>Couldn't complete action</value>
+  </data>
+  <data name="CouldntCopyTheError" xml:space="preserve">
+    <value>Couldn't copy the error</value>
+  </data>
+  <data name="CouldntCustomizeList" xml:space="preserve">
+    <value>Couldn't customize list</value>
+  </data>
+  <data name="CouldntDeleteReminder" xml:space="preserve">
+    <value>Couldn't delete reminder</value>
+  </data>
+  <data name="CouldntDiscardChanges" xml:space="preserve">
+    <value>Couldn't discard changes</value>
+  </data>
+  <data name="CouldntLeaveTask" xml:space="preserve">
+    <value>Couldn't leave task</value>
+  </data>
+  <data name="CouldntLoadChanges" xml:space="preserve">
+    <value>Couldn't load changes</value>
+  </data>
+  <data name="CouldntLoadReminders" xml:space="preserve">
+    <value>Couldn't load reminders</value>
+  </data>
+  <data name="CouldntOpenPrivacyPolicy" xml:space="preserve">
+    <value>Couldn't open privacy policy</value>
+  </data>
+  <data name="CouldntOpenReleases" xml:space="preserve">
+    <value>Couldn't open releases</value>
+  </data>
+  <data name="CouldntOpenSettings" xml:space="preserve">
+    <value>Couldn't open settings</value>
+  </data>
+  <data name="CouldntOpenTheBrowser" xml:space="preserve">
+    <value>Couldn't open the browser</value>
+  </data>
+  <data name="CouldntSaveListOrder" xml:space="preserve">
+    <value>Couldn't save list order</value>
+  </data>
+  <data name="CouldntSaveReminder" xml:space="preserve">
+    <value>Couldn't save reminder</value>
+  </data>
+  <data name="CouldntSignIn" xml:space="preserve">
+    <value>Couldn't sign in</value>
+  </data>
+  <data name="CouldntSignOut" xml:space="preserve">
+    <value>Couldn't sign out</value>
+  </data>
+  <data name="CouldntUpdateReminder" xml:space="preserve">
+    <value>Couldn't update reminder</value>
+  </data>
+  <data name="Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="CustomRepeat" xml:space="preserve">
+    <value>Custom repeat</value>
+  </data>
+  <data name="Daily" xml:space="preserve">
+    <value>Daily</value>
+  </data>
+  <data name="DailyComboBoxItem.Content" xml:space="preserve">
+    <value>Daily</value>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="DefaultList" xml:space="preserve">
+    <value>Default list</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="DeletedNavigationViewItem.Content" xml:space="preserve">
+    <value>Deleted</value>
+  </data>
+  <data name="DeleteReminder" xml:space="preserve">
+    <value>Delete reminder?</value>
+  </data>
+  <data name="DeleteReminderDetails" xml:space="preserve">
+    <value>{0}
+
+Any subtasks will also be deleted.</value>
+    <comment>{0} is the user-entered reminder title.</comment>
+  </data>
+  <data name="DeleteTaskMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Delete task</value>
+  </data>
+  <data name="DemoMode" xml:space="preserve">
+    <value>Demo mode</value>
+  </data>
+  <data name="DemoModeDescription" xml:space="preserve">
+    <value>Sample data stays in memory. Nothing is connected to iCloud.</value>
+  </data>
+  <data name="DemoSyncUnavailable" xml:space="preserve">
+    <value>Sample reminders do not sync with iCloud.</value>
+  </data>
+  <data name="DetailAllDay.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>All day</value>
+  </data>
+  <data name="DetailDate.Header" xml:space="preserve">
+    <value>Due date</value>
+  </data>
+  <data name="DetailDate.PlaceholderText" xml:space="preserve">
+    <value>No date</value>
+  </data>
+  <data name="DetailFlagged.Header" xml:space="preserve">
+    <value>Flagged</value>
+  </data>
+  <data name="DetailList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Task list</value>
+  </data>
+  <data name="DetailList.Header" xml:space="preserve">
+    <value>List</value>
+  </data>
+  <data name="DetailList.PlaceholderText" xml:space="preserve">
+    <value>Choose a list</value>
+  </data>
+  <data name="DetailMore.Header" xml:space="preserve">
+    <value>More options</value>
+  </data>
+  <data name="DetailNotes.Header" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="DetailNotes.PlaceholderText" xml:space="preserve">
+    <value>Add notes…</value>
+  </data>
+  <data name="DetailPriority.Header" xml:space="preserve">
+    <value>Priority</value>
+  </data>
+  <data name="DetailRepeatChoice.Header" xml:space="preserve">
+    <value>Repeat</value>
+  </data>
+  <data name="DetailRepeatChoice.PlaceholderText" xml:space="preserve">
+    <value>Custom repeat</value>
+  </data>
+  <data name="DetailRepeatInterval.Header" xml:space="preserve">
+    <value>Every</value>
+  </data>
+  <data name="DetailsPane" xml:space="preserve">
+    <value>Details pane</value>
+  </data>
+  <data name="DetailsPaneSizingDescription" xml:space="preserve">
+    <value>Splits stay readable. At either end of the slider, opening a task fills the content area. Use Back to return to the list.</value>
+  </data>
+  <data name="DetailTime.Header" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="DetailTitle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Task title</value>
+  </data>
+  <data name="DetailTitle.PlaceholderText" xml:space="preserve">
+    <value>Task title</value>
+  </data>
+  <data name="DiscardCancelled" xml:space="preserve">
+    <value>Discard cancelled</value>
+  </data>
+  <data name="DiscardChanges" xml:space="preserve">
+    <value>Discard changes</value>
+  </data>
+  <data name="DiscardChangesCheckingICloud" xml:space="preserve">
+    <value>Checking the latest iCloud copies…</value>
+  </data>
+  <data name="DiscardChangesOpenEditorWarning" xml:space="preserve">
+    <value>If you select the open reminder, its unsaved editor changes will also be discarded.</value>
+  </data>
+  <data name="DiscardChangesRefreshPrompt" xml:space="preserve">
+    <value>Refresh the list to see the restored reminders.</value>
+  </data>
+  <data name="DiscardChangesResult" xml:space="preserve">
+    <value>Removed {0} local-only tasks and restored {1} iCloud tasks. Your other reminders and cache were kept.</value>
+    <comment>{0} is the number of removed local-only tasks. {1} is the number restored from iCloud.</comment>
+  </data>
+  <data name="DiscardChangesReviewInstructions" xml:space="preserve">
+    <value>Choose the local changes to discard. New tasks that exist only on this PC will be removed. Tasks already in iCloud will return to their latest iCloud version. This does not delete tasks from iCloud.</value>
+  </data>
+  <data name="DiscardSelected" xml:space="preserve">
+    <value>Discard selected</value>
+  </data>
+  <data name="DiscardSelectedChangesDescription" xml:space="preserve">
+    <value>Remove selected local-only tasks or restore selected tasks from iCloud without clearing the app cache.</value>
+  </data>
+  <data name="DiscardSelectedWithCount" xml:space="preserve">
+    <value>Discard selected ({0})</value>
+  </data>
+  <data name="DiscardUnsyncedChanges" xml:space="preserve">
+    <value>Discard unsynced changes</value>
+  </data>
+  <data name="DiscardUnsyncedChangesAndConflicts" xml:space="preserve">
+    <value>Discard unsynced changes and conflicts</value>
+  </data>
+  <data name="Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="DownloadingUpdate" xml:space="preserve">
+    <value>Downloading update</value>
+  </data>
+  <data name="DueDate" xml:space="preserve">
+    <value>Due date</value>
+  </data>
+  <data name="DueDateAllDay" xml:space="preserve">
+    <value>{0:ddd, MMM d}</value>
+  </data>
+  <data name="DueDateAndTime" xml:space="preserve">
+    <value>{0:ddd, MMM d} · {0:t}</value>
+  </data>
+  <data name="DueDateNotifications" xml:space="preserve">
+    <value>Due-date notifications</value>
+  </data>
+  <data name="DueDateRadioMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Due date</value>
+  </data>
+  <data name="DueTodayAt" xml:space="preserve">
+    <value>Today, {0:t}</value>
+  </data>
+  <data name="DueTomorrowAt" xml:space="preserve">
+    <value>Tomorrow, {0:t}</value>
+  </data>
+  <data name="EditCustomRepeatOnAppleDevice" xml:space="preserve">
+    <value>Edit this custom repeat on an Apple device to preserve its schedule.</value>
+  </data>
+  <data name="EditorPreviewWindowTitle" xml:space="preserve">
+    <value>Reminders for Windows · Editor preview</value>
+  </data>
+  <data name="EditorUnsavedChangesWarning" xml:space="preserve">
+    <value>The changes to this task haven't been saved.</value>
+  </data>
+  <data name="EmptyServiceResponse" xml:space="preserve">
+    <value>The {0} response was empty.</value>
+  </data>
+  <data name="EmptyStateMessage.Text" xml:space="preserve">
+    <value>Add a reminder to get started.</value>
+  </data>
+  <data name="EmptyStateTitle.Text" xml:space="preserve">
+    <value>No reminders yet</value>
+  </data>
+  <data name="EnterAppleDeviceCode" xml:space="preserve">
+    <value>Enter the verification code shown on your Apple device</value>
+  </data>
+  <data name="EnterCodeForPhoneNumber" xml:space="preserve">
+    <value>Enter the code we texted to {0}</value>
+    <comment>{0} is the masked phone number supplied by Apple.</comment>
+  </data>
+  <data name="EnterGenericVerificationCode" xml:space="preserve">
+    <value>Enter the six-digit code Apple sent you</value>
+  </data>
+  <data name="EnterTextedCode" xml:space="preserve">
+    <value>Enter the code we texted you</value>
+  </data>
+  <data name="ErrorAppleAccountMismatch" xml:space="preserve">
+    <value>Apple returned a different account. Please sign in again.</value>
+  </data>
+  <data name="ErrorCacheClearNeedsConfirmation" xml:space="preserve">
+    <value>Confirm discarding unsynced changes and conflicts before clearing the cache.</value>
+  </data>
+  <data name="ErrorCouldNotReachICloud" xml:space="preserve">
+    <value>Could not reach iCloud</value>
+  </data>
+  <data name="ErrorCredentialTooLarge" xml:space="preserve">
+    <value>The credential is too large for Windows Credential Manager</value>
+  </data>
+  <data name="ErrorCustomRepeatCompletion" xml:space="preserve">
+    <value>This reminder has a custom repeat rule. Complete it on an Apple device to preserve its schedule.</value>
+  </data>
+  <data name="ErrorCustomRepeatOnAppleDevice" xml:space="preserve">
+    <value>Complete this custom repeat on an Apple device to preserve its schedule.</value>
+  </data>
+  <data name="ErrorDeviceCodeUnsupported" xml:space="preserve">
+    <value>Apple won't verify a device code from this app. Choose Text me a code instead.</value>
+  </data>
+  <data name="ErrorDiscardDuplicateSelection" xml:space="preserve">
+    <value>Select each reminder only once.</value>
+  </data>
+  <data name="ErrorDiscardNeedsConfirmation" xml:space="preserve">
+    <value>Confirm which unsynced changes to discard.</value>
+  </data>
+  <data name="ErrorDiscardNoSelection" xml:space="preserve">
+    <value>Select the reminders to discard.</value>
+  </data>
+  <data name="ErrorDiscardRefreshRequired" xml:space="preserve">
+    <value>Refresh iCloud before discarding these changes.</value>
+  </data>
+  <data name="ErrorDiscardReminderIncomplete" xml:space="preserve">
+    <value>iCloud returned an incomplete reminder. No local changes were discarded.</value>
+  </data>
+  <data name="ErrorDiscardRemindersMissing" xml:space="preserve">
+    <value>iCloud did not return every requested reminder. No local changes were discarded.</value>
+  </data>
+  <data name="ErrorDiscardSelectionChanged" xml:space="preserve">
+    <value>These reminders changed while you were reviewing them. Refresh the list and choose again.</value>
+  </data>
+  <data name="ErrorDiscardSelectionSize" xml:space="preserve">
+    <value>Select between 1 and 1,000 reminders to discard.</value>
+  </data>
+  <data name="ErrorDiscardSubtasksRequired" xml:space="preserve">
+    <value>Also select the subtasks before discarding a new parent task.</value>
+  </data>
+  <data name="ErrorDueDateOutsideRange" xml:space="preserve">
+    <value>due date is outside the supported range</value>
+  </data>
+  <data name="ErrorFieldMustBeText" xml:space="preserve">
+    <value>{0} must be text</value>
+  </data>
+  <data name="ErrorFieldTooLong" xml:space="preserve">
+    <value>{0} is longer than the supported {1} bytes</value>
+  </data>
+  <data name="ErrorFinishVerificationInAppleWindow" xml:space="preserve">
+    <value>Finish verification in Apple's sign-in window.</value>
+  </data>
+  <data name="ErrorICloudAcknowledgmentIncomplete" xml:space="preserve">
+    <value>iCloud did not acknowledge every changed record. The operation will be retried.</value>
+  </data>
+  <data name="ErrorICloudPaginationLimit" xml:space="preserve">
+    <value>iCloud pagination stopped advancing or exceeded 1,000 pages</value>
+  </data>
+  <data name="ErrorICloudResponseTooLarge" xml:space="preserve">
+    <value>iCloud returned an unexpectedly large response</value>
+  </data>
+  <data name="ErrorICloudSessionExpired" xml:space="preserve">
+    <value>Your iCloud session expired.</value>
+  </data>
+  <data name="ErrorICloudSessionExpiredSignIn" xml:space="preserve">
+    <value>Your iCloud session expired. Please sign in again.</value>
+  </data>
+  <data name="ErrorICloudSessionTooLarge" xml:space="preserve">
+    <value>The iCloud session is unexpectedly large</value>
+  </data>
+  <data name="ErrorICloudSignInFailed" xml:space="preserve">
+    <value>iCloud sign-in failed</value>
+  </data>
+  <data name="ErrorICloudSignInRejected" xml:space="preserve">
+    <value>iCloud rejected the sign-in</value>
+  </data>
+  <data name="ErrorICloudTermsNotAccepted" xml:space="preserve">
+    <value>Apple did not accept the updated iCloud terms.</value>
+  </data>
+  <data name="ErrorICloudUnavailableWillRetry" xml:space="preserve">
+    <value>Couldn't reach iCloud. Sync will try again shortly.</value>
+  </data>
+  <data name="ErrorInsecureICloudUrl" xml:space="preserve">
+    <value>An insecure iCloud URL was rejected</value>
+  </data>
+  <data name="ErrorInvalidCloudKitResponse" xml:space="preserve">
+    <value>Invalid CloudKit response</value>
+  </data>
+  <data name="ErrorInvalidDueDate" xml:space="preserve">
+    <value>invalid due date</value>
+  </data>
+  <data name="ErrorInvalidDueDateFormat" xml:space="preserve">
+    <value>due date must be ISO-8601 or epoch millis</value>
+  </data>
+  <data name="ErrorInvalidICloudReminder" xml:space="preserve">
+    <value>iCloud returned an invalid reminder.</value>
+  </data>
+  <data name="ErrorInvalidICloudSignInChallenge" xml:space="preserve">
+    <value>iCloud returned an invalid sign-in challenge</value>
+  </data>
+  <data name="ErrorInvalidICloudSignInParameters" xml:space="preserve">
+    <value>iCloud returned invalid sign-in parameters</value>
+  </data>
+  <data name="ErrorInvalidListOrder" xml:space="preserve">
+    <value>List order must contain list identifiers.</value>
+  </data>
+  <data name="ErrorInvalidLocalCredentials" xml:space="preserve">
+    <value>The username or password is incorrect.</value>
+  </data>
+  <data name="ErrorInvalidRepeatInterval" xml:space="preserve">
+    <value>Choose a daily, weekly, monthly or yearly repeat with an interval from 1 to 999.</value>
+  </data>
+  <data name="ErrorLocalAccountCannotClearCache" xml:space="preserve">
+    <value>Local-account reminders are stored only on this PC and are not a downloadable cache.</value>
+  </data>
+  <data name="ErrorLocalAccountCannotRestore" xml:space="preserve">
+    <value>Local-account reminders have no iCloud copy to restore.</value>
+  </data>
+  <data name="ErrorLocalAccountNoICloud" xml:space="preserve">
+    <value>This account only stores reminders on this PC.</value>
+  </data>
+  <data name="ErrorLocalAccountStillActive" xml:space="preserve">
+    <value>Leave the local account before signing in again.</value>
+  </data>
+  <data name="ErrorLocalSignInRequired" xml:space="preserve">
+    <value>Use the local sign-in flow for this account.</value>
+  </data>
+  <data name="ErrorMissingAppleSession" xml:space="preserve">
+    <value>Missing Apple session.</value>
+  </data>
+  <data name="ErrorMissingConflictId" xml:space="preserve">
+    <value>missing conflict id</value>
+  </data>
+  <data name="ErrorMissingField" xml:space="preserve">
+    <value>missing {0}</value>
+  </data>
+  <data name="ErrorMissingSavedICloudCredential" xml:space="preserve">
+    <value>No saved iCloud credential is available</value>
+  </data>
+  <data name="ErrorMissingWebAuthToken" xml:space="preserve">
+    <value>Apple did not issue a web authentication token</value>
+  </data>
+  <data name="ErrorNoAppleIDProvided" xml:space="preserve">
+    <value>No Apple ID provided</value>
+  </data>
+  <data name="ErrorNoSuchReminder" xml:space="preserve">
+    <value>No such reminder: {0}</value>
+  </data>
+  <data name="ErrorNotSignedInToICloud" xml:space="preserve">
+    <value>Not signed in to iCloud</value>
+  </data>
+  <data name="ErrorReminderDocumentEditUnsafe" xml:space="preserve">
+    <value>This reminder's text document could not be edited safely. Refresh it or edit the text on an Apple device.</value>
+  </data>
+  <data name="ErrorReminderDocumentTooLarge" xml:space="preserve">
+    <value>Edit this reminder's large text document on an Apple device.</value>
+  </data>
+  <data name="ErrorReminderEditConflict" xml:space="preserve">
+    <value>This reminder changed on another device while you were editing it.</value>
+  </data>
+  <data name="ErrorReminderListUnavailable" xml:space="preserve">
+    <value>Choose an existing reminder list.</value>
+  </data>
+  <data name="ErrorReminderOperationRefused" xml:space="preserve">
+    <value>iCloud refused a reminder operation. Review unsynced changes under Sync &amp; storage in Settings.</value>
+  </data>
+  <data name="ErrorReminderOperationRejected" xml:space="preserve">
+    <value>iCloud rejected a reminder operation</value>
+  </data>
+  <data name="ErrorRemindersServiceUnavailable" xml:space="preserve">
+    <value>This iCloud session did not expose the Reminders service</value>
+  </data>
+  <data name="ErrorReminderUnavailable" xml:space="preserve">
+    <value>This task is no longer available.</value>
+  </data>
+  <data name="ErrorRepeatCompletionConflict" xml:space="preserve">
+    <value>This repeating reminder changed on another device.</value>
+  </data>
+  <data name="ErrorRepeatCompletionLargeDocument" xml:space="preserve">
+    <value>Complete this reminder with a large text document on an Apple device.</value>
+  </data>
+  <data name="ErrorRepeatCompletionMultipleRules" xml:space="preserve">
+    <value>Complete reminders with multiple repeat rules on an Apple device to preserve their schedule.</value>
+  </data>
+  <data name="ErrorRepeatCompletionNeedsDueDate" xml:space="preserve">
+    <value>Set a due date before completing this repeating reminder.</value>
+  </data>
+  <data name="ErrorRepeatCompletionRefreshRequired" xml:space="preserve">
+    <value>Refresh this reminder before completing its repeat.</value>
+  </data>
+  <data name="ErrorRepeatEditConflict" xml:space="preserve">
+    <value>This reminder or its repeat changed on another device. Review the conflict before retrying.</value>
+  </data>
+  <data name="ErrorRepeatEditRefreshRequired" xml:space="preserve">
+    <value>Refresh this reminder before changing its repeat.</value>
+  </data>
+  <data name="ErrorRepeatEditReminderConflict" xml:space="preserve">
+    <value>This reminder changed on another device while you were editing its repeat.</value>
+  </data>
+  <data name="ErrorRepeatNeedsDueDate" xml:space="preserve">
+    <value>A repeating reminder needs a due date.</value>
+  </data>
+  <data name="ErrorRepeatOutsideDateRange" xml:space="preserve">
+    <value>The next repeat is outside the supported date range.</value>
+  </data>
+  <data name="ErrorRepeatRuleMissing" xml:space="preserve">
+    <value>iCloud did not return this reminder's repeat rule.</value>
+  </data>
+  <data name="ErrorRepeatWithSubtasksCompletion" xml:space="preserve">
+    <value>Complete a repeating task with subtasks on an Apple device to preserve its schedule.</value>
+  </data>
+  <data name="ErrorSavedICloudSessionUnreadable" xml:space="preserve">
+    <value>Could not read the saved iCloud session</value>
+  </data>
+  <data name="ErrorSaveRepeatChangeBeforeCompletion" xml:space="preserve">
+    <value>Save the repeat change before completing this reminder.</value>
+  </data>
+  <data name="ErrorSignInAttemptExpired" xml:space="preserve">
+    <value>That sign-in attempt has expired. Enter your password again.</value>
+  </data>
+  <data name="ErrorSubtaskListMismatch" xml:space="preserve">
+    <value>A subtask must use its parent's list.</value>
+  </data>
+  <data name="ErrorSubtaskParentMustBeUnfinished" xml:space="preserve">
+    <value>Choose an unfinished parent task.</value>
+  </data>
+  <data name="ErrorSubtaskParentUnavailable" xml:space="preserve">
+    <value>The parent task is no longer available in this list. Refresh before adding a subtask.</value>
+  </data>
+  <data name="ErrorSubtaskReparentingUnsupported" xml:space="preserve">
+    <value>Create a subtask from its parent task. Changing a task's parent is not supported.</value>
+  </data>
+  <data name="ErrorSubtaskUploadAwaitingParent" xml:space="preserve">
+    <value>Some subtasks are waiting for their parent tasks to sync. Review unsynced changes in Settings.</value>
+  </data>
+  <data name="ErrorSwitchAccountNeedsSync" xml:space="preserve">
+    <value>Sync queued changes with this account before switching accounts.</value>
+  </data>
+  <data name="ErrorSwitchAccountNeedsSyncOrCacheClear" xml:space="preserve">
+    <value>Sync queued changes or sign out and clear the cache before switching accounts.</value>
+  </data>
+  <data name="ErrorSyncConflictNeedsReview" xml:space="preserve">
+    <value>Review the conflicting changes in Settings.</value>
+  </data>
+  <data name="ErrorSyncOperationFailed" xml:space="preserve">
+    <value>The sync operation failed</value>
+  </data>
+  <data name="ErrorSyncRequestRejected" xml:space="preserve">
+    <value>iCloud rejected the sync request (HTTP {0}).</value>
+  </data>
+  <data name="ErrorSyncTimedOut" xml:space="preserve">
+    <value>Sync timed out after 10 minutes. Cached reminders are available; try syncing again.</value>
+  </data>
+  <data name="ErrorTagEditingUnavailable" xml:space="preserve">
+    <value>Tag editing is unavailable. Manage tags in Apple Reminders.</value>
+  </data>
+  <data name="ErrorTrustedPhoneMissing" xml:space="preserve">
+    <value>Apple has no trusted phone number for this account. Add one at appleid.apple.com.</value>
+  </data>
+  <data name="ErrorTwoFactorAuthenticationRequired" xml:space="preserve">
+    <value>Two-factor authentication required</value>
+  </data>
+  <data name="ErrorUnknownMethod" xml:space="preserve">
+    <value>unknown method '{0}'</value>
+  </data>
+  <data name="ErrorUnsafeICloudServiceUrl" xml:space="preserve">
+    <value>iCloud returned an unsafe service URL</value>
+  </data>
+  <data name="ErrorUnsupportedRepeatFrequency" xml:space="preserve">
+    <value>Choose a daily, weekly, monthly or yearly repeat.</value>
+  </data>
+  <data name="ErrorUnsupportedRepeatInterval" xml:space="preserve">
+    <value>This reminder's repeat interval is not supported.</value>
+  </data>
+  <data name="ErrorUnsupportedUpdateArchitecture" xml:space="preserve">
+    <value>Unsupported update architecture.</value>
+  </data>
+  <data name="ErrorUpdateAssetSource" xml:space="preserve">
+    <value>The update download is not a release asset from this repository.</value>
+  </data>
+  <data name="ErrorUpdateChecksumMissing" xml:space="preserve">
+    <value>This release has no valid SHA-256 checksum. Download it manually from GitHub.</value>
+  </data>
+  <data name="ErrorUpdatedICloudTermsRequired" xml:space="preserve">
+    <value>Apple requires you to accept updated iCloud terms.</value>
+  </data>
+  <data name="ErrorUpdatedReminderMissing" xml:space="preserve">
+    <value>iCloud did not return the changed reminder.</value>
+  </data>
+  <data name="ErrorUpdateInstallationUnavailable" xml:space="preserve">
+    <value>Automatic installation is available for installer builds only.</value>
+  </data>
+  <data name="ErrorUpdateInstallerLaunch" xml:space="preserve">
+    <value>Windows could not start the update installer.</value>
+  </data>
+  <data name="ErrorUpdateInstallerMissing" xml:space="preserve">
+    <value>This release does not include the {0} installer yet.</value>
+  </data>
+  <data name="ErrorUpdateInstallerSize" xml:space="preserve">
+    <value>The update installer size is invalid.</value>
+  </data>
+  <data name="ErrorUpdateSizeExceeded" xml:space="preserve">
+    <value>The downloaded update exceeds its expected size.</value>
+  </data>
+  <data name="ErrorUpdateVerificationFailed" xml:space="preserve">
+    <value>Update verification failed. The installer was not run.</value>
+  </data>
+  <data name="ErrorVerificationAccepted" xml:space="preserve">
+    <value>Apple accepted the verification code, but iCloud account sign-in failed{0}. Try again, or sign in at iCloud.com to check your account.</value>
+    <comment>{0} is an optional HTTP status suffix, including the leading space and parentheses.</comment>
+  </data>
+  <data name="ErrorVerificationAppleReason" xml:space="preserve">
+    <value>{0} Use the code from the most recent message.</value>
+  </data>
+  <data name="ErrorVerificationCodeLength" xml:space="preserve">
+    <value>The verification code must contain six digits</value>
+  </data>
+  <data name="ErrorVerificationCodeRequired" xml:space="preserve">
+    <value>Enter the verification code to finish signing in.</value>
+  </data>
+  <data name="ErrorVerificationIncomplete" xml:space="preserve">
+    <value>Apple has not finished verifying this session. Please try signing in again.</value>
+  </data>
+  <data name="ErrorVerificationNoAppleReason" xml:space="preserve">
+    <value>Apple refused that code without saying why (HTTP {0}). Use the code from the most recent message.</value>
+  </data>
+  <data name="ErrorVerificationTrustFailed" xml:space="preserve">
+    <value>Apple accepted the code but did not establish session trust. Please sign in again.</value>
+  </data>
+  <data name="ErrorVerificationWrongCode" xml:space="preserve">
+    <value>Incorrect verification code. Check the six digits, or ask for a new code.</value>
+  </data>
+  <data name="Every" xml:space="preserve">
+    <value>Every</value>
+  </data>
+  <data name="EveryDays" xml:space="preserve">
+    <value>Every (days)</value>
+  </data>
+  <data name="EveryMonths" xml:space="preserve">
+    <value>Every (months)</value>
+  </data>
+  <data name="EveryWeeks" xml:space="preserve">
+    <value>Every (weeks)</value>
+  </data>
+  <data name="EveryYears" xml:space="preserve">
+    <value>Every (years)</value>
+  </data>
+  <data name="ExpandSubtasksOf" xml:space="preserve">
+    <value>Expand subtasks of {0}</value>
+  </data>
+  <data name="ExploreTheUIWithSampleDataButton.Content" xml:space="preserve">
+    <value>Explore the UI with sample data</value>
+  </data>
+  <data name="FilteredByTag" xml:space="preserve">
+    <value>Filtered by tag</value>
+  </data>
+  <data name="FirstListInSidebar" xml:space="preserve">
+    <value>First list in sidebar</value>
+  </data>
+  <data name="Flagged" xml:space="preserve">
+    <value>Flagged</value>
+  </data>
+  <data name="GateStatus.Text" xml:space="preserve">
+    <value>Starting the sync service…</value>
+  </data>
+  <data name="General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="GeneralSettingsDescription" xml:space="preserve">
+    <value>Appearance and reminder defaults.</value>
+  </data>
+  <data name="Gray" xml:space="preserve">
+    <value>Gray</value>
+  </data>
+  <data name="Green" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="Heart" xml:space="preserve">
+    <value>Heart</value>
+  </data>
+  <data name="High" xml:space="preserve">
+    <value>High</value>
+  </data>
+  <data name="HighComboBoxItem.Content" xml:space="preserve">
+    <value>High</value>
+  </data>
+  <data name="HighPriority" xml:space="preserve">
+    <value>High priority</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="ICloudAccount" xml:space="preserve">
+    <value>iCloud account</value>
+  </data>
+  <data name="ICloudSetup" xml:space="preserve">
+    <value>iCloud setup</value>
+  </data>
+  <data name="ICloudSetupAndTroubleshooting" xml:space="preserve">
+    <value>iCloud setup and troubleshooting</value>
+  </data>
+  <data name="ICloudSync" xml:space="preserve">
+    <value>iCloud sync</value>
+  </data>
+  <data name="ICloudTermsDescription" xml:space="preserve">
+    <value>Apple needs you to accept its updated terms before syncing.</value>
+  </data>
+  <data name="Icon" xml:space="preserve">
+    <value>Icon</value>
+  </data>
+  <data name="Inbox" xml:space="preserve">
+    <value>Inbox</value>
+  </data>
+  <data name="InstallAndRestart" xml:space="preserve">
+    <value>Install and restart</value>
+  </data>
+  <data name="InstallUpdate" xml:space="preserve">
+    <value>Install update?</value>
+  </data>
+  <data name="ItsDetailsWillAppearHereTextBlock.Text" xml:space="preserve">
+    <value>Its details will appear here.</value>
+  </data>
+  <data name="KeepICloud" xml:space="preserve">
+    <value>Keep iCloud</value>
+  </data>
+  <data name="KeepThisPC" xml:space="preserve">
+    <value>Keep this PC</value>
+  </data>
+  <data name="LastSyncedAt" xml:space="preserve">
+    <value>Last synced {0:g}</value>
+  </data>
+  <data name="Later" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="Layout" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="LeaveLocalAccount" xml:space="preserve">
+    <value>Leave local account</value>
+  </data>
+  <data name="LeaveSampleData" xml:space="preserve">
+    <value>Leave sample data</value>
+  </data>
+  <data name="LeaveSessionDescription" xml:space="preserve">
+    <value>Leave this session to return to sign-in.</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Links" xml:space="preserve">
+    <value>Links</value>
+  </data>
+  <data name="List" xml:space="preserve">
+    <value>List</value>
+  </data>
+  <data name="ListAppearanceStorageDescription" xml:space="preserve">
+    <value>Icon, color, and list order are saved on this PC.</value>
+  </data>
+  <data name="LocalAccount" xml:space="preserve">
+    <value>Local account</value>
+  </data>
+  <data name="LocalAccountClearCacheUnavailable" xml:space="preserve">
+    <value>These reminders exist only on this PC, so clearing a downloaded cache is unavailable.</value>
+  </data>
+  <data name="LocalAccountRecoveryDescription" xml:space="preserve">
+    <value>These reminders exist only on this PC. There is no iCloud copy to restore.</value>
+  </data>
+  <data name="LocalAccountSettingsDescription" xml:space="preserve">
+    <value>Manage your local session.</value>
+  </data>
+  <data name="LocalAccountStartedDescription" xml:space="preserve">
+    <value>Reminders are saved on this PC. iCloud sync is off.</value>
+  </data>
+  <data name="LocalAccountSyncDisabled" xml:space="preserve">
+    <value>This account stores reminders on this PC. iCloud sync is off.</value>
+  </data>
+  <data name="LocalStorage" xml:space="preserve">
+    <value>Local storage</value>
+  </data>
+  <data name="LogFolder" xml:space="preserve">
+    <value>Log folder</value>
+  </data>
+  <data name="Low" xml:space="preserve">
+    <value>Low</value>
+  </data>
+  <data name="LowComboBoxItem.Content" xml:space="preserve">
+    <value>Low</value>
+  </data>
+  <data name="LowPriority" xml:space="preserve">
+    <value>Low priority</value>
+  </data>
+  <data name="ManageTagsInAppleRemindersTextBlock.Text" xml:space="preserve">
+    <value>Manage tags in Apple Reminders.</value>
+  </data>
+  <data name="ManualRadioMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="MarkReminderCompleteCheckBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Mark reminder complete</value>
+  </data>
+  <data name="MatchingReminderCountMany" xml:space="preserve">
+    <value>{0:N0} matching reminders</value>
+  </data>
+  <data name="MatchingReminderCountOne" xml:space="preserve">
+    <value>{0} matching reminder</value>
+  </data>
+  <data name="MatchWindows" xml:space="preserve">
+    <value>Match Windows</value>
+  </data>
+  <data name="Medium" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="MediumComboBoxItem.Content" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="MediumPriority" xml:space="preserve">
+    <value>Medium priority</value>
+  </data>
+  <data name="MinutesBetweenAutomaticSyncs" xml:space="preserve">
+    <value>Minutes between automatic syncs.</value>
+  </data>
+  <data name="Monthly" xml:space="preserve">
+    <value>Monthly</value>
+  </data>
+  <data name="MonthlyComboBoxItem.Content" xml:space="preserve">
+    <value>Monthly</value>
+  </data>
+  <data name="MoreOptions" xml:space="preserve">
+    <value>More options</value>
+  </data>
+  <data name="MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="MyListsNavigationViewItemHeader.Content" xml:space="preserve">
+    <value>My lists</value>
+  </data>
+  <data name="Navigation.PaneTitle" xml:space="preserve">
+    <value>Reminders for Windows</value>
+  </data>
+  <data name="Never" xml:space="preserve">
+    <value>Never</value>
+  </data>
+  <data name="NeverComboBoxItem.Content" xml:space="preserve">
+    <value>Never</value>
+  </data>
+  <data name="NeverSynced" xml:space="preserve">
+    <value>No completed sync yet</value>
+  </data>
+  <data name="NewReminder" xml:space="preserve">
+    <value>New reminder</value>
+  </data>
+  <data name="NewReminderTitlePlaceholder" xml:space="preserve">
+    <value>What needs doing?</value>
+  </data>
+  <data name="NewSubtask" xml:space="preserve">
+    <value>New subtask</value>
+  </data>
+  <data name="NewTask" xml:space="preserve">
+    <value>New task</value>
+  </data>
+  <data name="Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="NoChangesToDiscard" xml:space="preserve">
+    <value>There are no unsynced changes to discard.</value>
+  </data>
+  <data name="NoChangesWereDiscarded" xml:space="preserve">
+    <value>No changes were discarded.</value>
+  </data>
+  <data name="NoMatchingReminders" xml:space="preserve">
+    <value>No matching reminders</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="NoneComboBoxItem.Content" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="NoRemindersHere" xml:space="preserve">
+    <value>No reminders here</value>
+  </data>
+  <data name="NotifyAllDayDate" xml:space="preserve">
+    <value>{0:ddd dd MMM}</value>
+  </data>
+  <data name="NotifyDueMany" xml:space="preserve">
+    <value>{0} reminders are due</value>
+  </data>
+  <data name="NotifyMissedMany" xml:space="preserve">
+    <value>{0} reminders were due while you were away</value>
+  </data>
+  <data name="NotifyMissedOne" xml:space="preserve">
+    <value>{0} reminder were due while you were away</value>
+  </data>
+  <data name="NotifyNamesAndMore" xml:space="preserve">
+    <value>{0}, and {1} more</value>
+    <comment>{0} is a list of reminder titles. {1} is the number of additional reminders.</comment>
+  </data>
+  <data name="NotifyNameSeparator" xml:space="preserve">
+    <value>, </value>
+  </data>
+  <data name="NotifyTimedDate" xml:space="preserve">
+    <value>{0:ddd dd MMM, HH:mm}</value>
+  </data>
+  <data name="NoUnsyncedChangesOrConflicts" xml:space="preserve">
+    <value>No unsynced changes or conflicts.</value>
+  </data>
+  <data name="NoUpdateAvailable" xml:space="preserve">
+    <value>No newer stable release is available.</value>
+  </data>
+  <data name="OpenAddressInBrowser" xml:space="preserve">
+    <value>Open this address in your browser: {0}</value>
+  </data>
+  <data name="OpenDiagnosticLogFolderButton.Content" xml:space="preserve">
+    <value>Open diagnostic-log folder</value>
+  </data>
+  <data name="OpenFolderInExplorer" xml:space="preserve">
+    <value>Open this folder in File Explorer: {0}</value>
+  </data>
+  <data name="OpenReleases" xml:space="preserve">
+    <value>Open releases</value>
+  </data>
+  <data name="OpenYourBrowser" xml:space="preserve">
+    <value>Open your browser</value>
+  </data>
+  <data name="Orange" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="OrEnterYourAccountForTextTextBlock.Text" xml:space="preserve">
+    <value>Or enter your account for text verification</value>
+  </data>
+  <data name="Overdue" xml:space="preserve">
+    <value>Overdue</value>
+  </data>
+  <data name="PaneDivider.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Resize reminder details</value>
+  </data>
+  <data name="PaneDivider.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Drag to resize. At either edge, selecting a task opens full-width details. Double-click or press Home for automatic sizing. Arrow keys resize.</value>
+  </data>
+  <data name="PasswordBox.Header" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PendingChangesOrConflictMany" xml:space="preserve">
+    <value>{0} unsynced changes or conflicts</value>
+  </data>
+  <data name="PendingChangesOrConflictOne" xml:space="preserve">
+    <value>{0} unsynced change or conflict</value>
+  </data>
+  <data name="Pink" xml:space="preserve">
+    <value>Pink</value>
+  </data>
+  <data name="PreferredDetailsWidth" xml:space="preserve">
+    <value>Preferred details width (%)</value>
+  </data>
+  <data name="PreparingDownload" xml:space="preserve">
+    <value>Preparing download…</value>
+  </data>
+  <data name="Priority" xml:space="preserve">
+    <value>Priority</value>
+  </data>
+  <data name="PriorityRadioMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Priority</value>
+  </data>
+  <data name="PrivacyPolicy" xml:space="preserve">
+    <value>Privacy policy</value>
+  </data>
+  <data name="PrivacyPolicyHyperlinkButton.Content" xml:space="preserve">
+    <value>Privacy policy</value>
+  </data>
+  <data name="PrivacyPolicyMissing" xml:space="preserve">
+    <value>The bundled privacy policy is missing.</value>
+  </data>
+  <data name="Purple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="QueuedChangeCountMany" xml:space="preserve">
+    <value>{0} queued changes</value>
+  </data>
+  <data name="QueuedChangeCountOne" xml:space="preserve">
+    <value>{0} queued change</value>
+  </data>
+  <data name="QueuedChangesReviewDescription" xml:space="preserve">
+    <value>{0} queued changes or conflicts. Review the affected tasks before discarding anything.</value>
+  </data>
+  <data name="RecoveryPreviewWindowTitle" xml:space="preserve">
+    <value>Reminders for Windows · Recovery preview</value>
+  </data>
+  <data name="Red" xml:space="preserve">
+    <value>Red</value>
+  </data>
+  <data name="RefreshList" xml:space="preserve">
+    <value>Refresh list</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Reload</value>
+  </data>
+  <data name="Reminder" xml:space="preserve">
+    <value>Reminder</value>
+  </data>
+  <data name="ReminderCountMany" xml:space="preserve">
+    <value>{0:N0} reminders</value>
+  </data>
+  <data name="ReminderCountOne" xml:space="preserve">
+    <value>{0} reminder</value>
+  </data>
+  <data name="ReminderListEmptyDescription" xml:space="preserve">
+    <value>Add a reminder whenever you need one.</value>
+  </data>
+  <data name="ReminderMetadataSeparator" xml:space="preserve">
+    <value>  ·  </value>
+  </data>
+  <data name="Reminders" xml:space="preserve">
+    <value>Reminders</value>
+  </data>
+  <data name="RemindersAppearWhenCompleted" xml:space="preserve">
+    <value>Reminders will appear here when you complete them.</value>
+  </data>
+  <data name="RemindersAppearWhenDeleted" xml:space="preserve">
+    <value>Reminders will appear here when you delete them.</value>
+  </data>
+  <data name="ReminderSavedRefreshFailed" xml:space="preserve">
+    <value>Reminder saved; refresh failed</value>
+  </data>
+  <data name="ReminderSectionAfternoon" xml:space="preserve">
+    <value>Afternoon</value>
+  </data>
+  <data name="ReminderSectionAllDay" xml:space="preserve">
+    <value>All day</value>
+  </data>
+  <data name="ReminderSectionEvening" xml:space="preserve">
+    <value>Evening</value>
+  </data>
+  <data name="ReminderSectionLater" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="ReminderSectionMorning" xml:space="preserve">
+    <value>Morning</value>
+  </data>
+  <data name="ReminderSectionNextMonth" xml:space="preserve">
+    <value>Next month</value>
+  </data>
+  <data name="ReminderSectionNextWeek" xml:space="preserve">
+    <value>Next week</value>
+  </data>
+  <data name="ReminderSectionNextYear" xml:space="preserve">
+    <value>Next year</value>
+  </data>
+  <data name="ReminderSectionNoDate" xml:space="preserve">
+    <value>No date</value>
+  </data>
+  <data name="ReminderSectionOverdue" xml:space="preserve">
+    <value>Overdue</value>
+  </data>
+  <data name="ReminderSectionThisMonth" xml:space="preserve">
+    <value>This month</value>
+  </data>
+  <data name="ReminderSectionThisWeek" xml:space="preserve">
+    <value>This week</value>
+  </data>
+  <data name="ReminderSectionThisYear" xml:space="preserve">
+    <value>This year</value>
+  </data>
+  <data name="ReminderSectionToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="ReminderSectionTomorrow" xml:space="preserve">
+    <value>Tomorrow</value>
+  </data>
+  <data name="RemindersForWindowsIconImage.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Reminders for Windows icon</value>
+  </data>
+  <data name="RemindersForWindowsTextBlock.Text" xml:space="preserve">
+    <value>Reminders for Windows</value>
+  </data>
+  <data name="RemindersStayOnThisPC" xml:space="preserve">
+    <value>Reminders stay on this PC.</value>
+  </data>
+  <data name="Repeat" xml:space="preserve">
+    <value>Repeat</value>
+  </data>
+  <data name="RepeatEveryDays" xml:space="preserve">
+    <value>Every {0} days</value>
+  </data>
+  <data name="RepeatEveryIntervals" xml:space="preserve">
+    <value>Every {0} intervals</value>
+  </data>
+  <data name="RepeatEveryMonths" xml:space="preserve">
+    <value>Every {0} months</value>
+  </data>
+  <data name="RepeatEveryWeeks" xml:space="preserve">
+    <value>Every {0} weeks</value>
+  </data>
+  <data name="RepeatEveryYears" xml:space="preserve">
+    <value>Every {0} years</value>
+  </data>
+  <data name="RepeatNeedsDueDate" xml:space="preserve">
+    <value>Set a due date for this repeat.</value>
+  </data>
+  <data name="Repeats" xml:space="preserve">
+    <value>Repeats</value>
+  </data>
+  <data name="ResendCode.Content" xml:space="preserve">
+    <value>Send a new code</value>
+  </data>
+  <data name="ResolveConflictDescription" xml:space="preserve">
+    <value>Keep the version edited on this PC, or the current iCloud version?</value>
+  </data>
+  <data name="ResolveSyncConflict" xml:space="preserve">
+    <value>Resolve sync conflict</value>
+  </data>
+  <data name="RestartSignIn.Content" xml:space="preserve">
+    <value>Start a new sign-in</value>
+  </data>
+  <data name="RestoringSelectedReminders" xml:space="preserve">
+    <value>Restoring selected reminders</value>
+  </data>
+  <data name="ReturnToReminders" xml:space="preserve">
+    <value>Return to reminders</value>
+  </data>
+  <data name="ReturnToSignIn" xml:space="preserve">
+    <value>Return to sign-in</value>
+  </data>
+  <data name="ReviewICloudSetupButton.Content" xml:space="preserve">
+    <value>Review iCloud setup</value>
+  </data>
+  <data name="ReviewSyncSettings" xml:space="preserve">
+    <value>Review sync settings</value>
+  </data>
+  <data name="SampleData" xml:space="preserve">
+    <value>Sample data</value>
+  </data>
+  <data name="Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SaveButton.Content" xml:space="preserve">
+    <value>Save changes</value>
+  </data>
+  <data name="SaveChanges" xml:space="preserve">
+    <value>Save changes</value>
+  </data>
+  <data name="SaveTaskChanges" xml:space="preserve">
+    <value>Save task changes?</value>
+  </data>
+  <data name="SaveYourChangesFirst" xml:space="preserve">
+    <value>Save your changes first</value>
+  </data>
+  <data name="Schedule" xml:space="preserve">
+    <value>Schedule</value>
+  </data>
+  <data name="ScheduleTextBlock.Text" xml:space="preserve">
+    <value>Schedule</value>
+  </data>
+  <data name="School" xml:space="preserve">
+    <value>School</value>
+  </data>
+  <data name="SearchBox.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search reminders</value>
+  </data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve">
+    <value>Search reminders</value>
+  </data>
+  <data name="SearchEmptyDescription" xml:space="preserve">
+    <value>Try another search or clear the search field.</value>
+  </data>
+  <data name="SelectAll" xml:space="preserve">
+    <value>Select all</value>
+  </data>
+  <data name="SelectAReminderTextBlock.Text" xml:space="preserve">
+    <value>Select a reminder</value>
+  </data>
+  <data name="SelectedChangesDiscarded" xml:space="preserve">
+    <value>Selected changes discarded</value>
+  </data>
+  <data name="SetADueDate" xml:space="preserve">
+    <value>Set a due date</value>
+  </data>
+  <data name="SetDueDate" xml:space="preserve">
+    <value>Set due date</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsAndStorageHyperlinkButton.Content" xml:space="preserve">
+    <value>Settings and storage</value>
+  </data>
+  <data name="SettingsCategories" xml:space="preserve">
+    <value>Settings categories</value>
+  </data>
+  <data name="SettingsCategory" xml:space="preserve">
+    <value>Settings category</value>
+  </data>
+  <data name="SetupAndHelp" xml:space="preserve">
+    <value>Setup and help</value>
+  </data>
+  <data name="SetupBack.Content" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="SetupDataProtectionDetails" xml:space="preserve">
+    <value>On Mac, open System Settings → your name → iCloud → Advanced Data Protection. If it is on, review Apple's guidance before choosing whether to turn it off.</value>
+  </data>
+  <data name="SetupDataProtectionDetailsHeading" xml:space="preserve">
+    <value>Mac instructions</value>
+  </data>
+  <data name="SetupDataProtectionInstructions" xml:space="preserve">
+    <value>On iPhone or iPad
+Settings → your name → iCloud → Advanced Data Protection</value>
+  </data>
+  <data name="SetupDataProtectionLink" xml:space="preserve">
+    <value>Read Apple's protection guidance</value>
+  </data>
+  <data name="SetupDataProtectionNote" xml:space="preserve">
+    <value>Turning this off changes encryption protection for your whole iCloud account. You can keep it on and use Apple's Reminders instead.</value>
+  </data>
+  <data name="SetupDataProtectionSummary" xml:space="preserve">
+    <value>This app currently requires Advanced Data Protection to be off.</value>
+  </data>
+  <data name="SetupDataProtectionTitle" xml:space="preserve">
+    <value>Check Advanced Data Protection</value>
+  </data>
+  <data name="SetupDemo.Content" xml:space="preserve">
+    <value>Try sample data</value>
+  </data>
+  <data name="SetupGuideHeading.Text" xml:space="preserve">
+    <value>iCloud setup</value>
+  </data>
+  <data name="SetupHelpLink.Content" xml:space="preserve">
+    <value>iCloud setup and troubleshooting</value>
+  </data>
+  <data name="SetupImportantNote.Title" xml:space="preserve">
+    <value>Before you change this</value>
+  </data>
+  <data name="SetupNext.Content" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="SetupRemindersDetails" xml:space="preserve">
+    <value>On Mac, open System Settings → your name → iCloud, then enable Reminders. If you have not used iCloud Reminders before, create a list in the iCloud section of Apple's Reminders app.</value>
+  </data>
+  <data name="SetupRemindersDetailsHeading" xml:space="preserve">
+    <value>Mac and account details</value>
+  </data>
+  <data name="SetupRemindersInstructions" xml:space="preserve">
+    <value>On iPhone or iPad
+Settings → your name → iCloud → See All (or Show All)
+Turn on Reminders.</value>
+  </data>
+  <data name="SetupRemindersLink" xml:space="preserve">
+    <value>Open iCloud Reminders</value>
+  </data>
+  <data name="SetupRemindersNote" xml:space="preserve">
+    <value>Sign in with your regular Apple Account password. App-specific passwords do not work with this app.</value>
+  </data>
+  <data name="SetupRemindersSummary" xml:space="preserve">
+    <value>Use the Apple Account that holds your reminder lists.</value>
+  </data>
+  <data name="SetupRemindersTitle" xml:space="preserve">
+    <value>Turn on iCloud Reminders</value>
+  </data>
+  <data name="SetupReturn.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Close setup</value>
+  </data>
+  <data name="SetupStepCount" xml:space="preserve">
+    <value>Step {0} of {1}</value>
+    <comment>{0} current step, {1} total steps.</comment>
+  </data>
+  <data name="SetupSupportActions.Header" xml:space="preserve">
+    <value>Get help with this error</value>
+  </data>
+  <data name="SetupVerificationDetails" xml:space="preserve">
+    <value>Open Settings → your name → Sign-In &amp; Security → Two-Factor Authentication on your Apple device. Enable two-factor authentication and check that a trusted phone number can receive text messages. You can also manage trusted numbers at account.apple.com.</value>
+  </data>
+  <data name="SetupVerificationDetailsHeading" xml:space="preserve">
+    <value>Verification options</value>
+  </data>
+  <data name="SetupVerificationInstructions" xml:space="preserve">
+    <value>Keep a trusted Apple device or phone nearby.
+You'll choose a verification method when you sign in.</value>
+  </data>
+  <data name="SetupVerificationLink" xml:space="preserve">
+    <value>Manage your Apple Account</value>
+  </data>
+  <data name="SetupVerificationNote" xml:space="preserve">
+    <value>Choose Sign in with an Apple device to use Apple's device prompts, then choose Trust when offered. For native text verification, use the six digits in the most recent SMS. Your trusted session is remembered on this PC until Apple expires or revokes it.</value>
+  </data>
+  <data name="SetupVerificationSummary" xml:space="preserve">
+    <value>Verify with an Apple device or a text message.</value>
+  </data>
+  <data name="SetupVerificationTitle" xml:space="preserve">
+    <value>Choose verification</value>
+  </data>
+  <data name="SetupVerifyListsDetails" xml:space="preserve">
+    <value>Open iCloud Reminders using the link below. Finish any account setup and accept any updated iCloud terms Apple shows. Confirm your iCloud lists appear, then return here to sign in. Keep a trusted Apple device or phone nearby for verification.</value>
+  </data>
+  <data name="SetupVerifyListsDetailsHeading" xml:space="preserve">
+    <value>Troubleshooting</value>
+  </data>
+  <data name="SetupVerifyListsInstructions" xml:space="preserve">
+    <value>Open iCloud Reminders below and sign in.
+Accept any updated terms, then check that your lists appear.</value>
+  </data>
+  <data name="SetupVerifyListsLink" xml:space="preserve">
+    <value>Open iCloud Reminders</value>
+  </data>
+  <data name="SetupVerifyListsNote" xml:space="preserve">
+    <value>If the browser works but this app fails, review the exact error and the setup guide. The app cannot inspect these account settings, so a sign-in failure alone does not prove one is wrong. Troubleshooting also lets you open the diagnostic-log folder.</value>
+  </data>
+  <data name="SetupVerifyListsSummary" xml:space="preserve">
+    <value>Make sure your reminders are available on iCloud.com.</value>
+  </data>
+  <data name="SetupVerifyListsTitle" xml:space="preserve">
+    <value>Check your lists</value>
+  </data>
+  <data name="SetupWebAccessDetails" xml:space="preserve">
+    <value>In your Apple device's iCloud settings, turn on Access iCloud Data on the Web. On newer versions, open iCloud.com (or Data Access on iCloud.com) in those settings and turn on Allow Data Access.</value>
+  </data>
+  <data name="SetupWebAccessDetailsHeading" xml:space="preserve">
+    <value>Other settings labels</value>
+  </data>
+  <data name="SetupWebAccessInstructions" xml:space="preserve">
+    <value>In your Apple device's iCloud settings, turn on Access iCloud Data on the Web.</value>
+  </data>
+  <data name="SetupWebAccessLink" xml:space="preserve">
+    <value>Read Apple's web-access guidance</value>
+  </data>
+  <data name="SetupWebAccessNote" xml:space="preserve">
+    <value>Advanced Data Protection normally turns web access off. Check web access separately, even after changing Advanced Data Protection. If browser access asks for extra device approval, this app does not handle that approval flow.</value>
+  </data>
+  <data name="SetupWebAccessSummary" xml:space="preserve">
+    <value>Let this app reach your reminders through iCloud's web services.</value>
+  </data>
+  <data name="SetupWebAccessTitle" xml:space="preserve">
+    <value>Allow web access</value>
+  </data>
+  <data name="ShareTheErrorAndAppTextBlock.Text" xml:space="preserve">
+    <value>Share the error and app.log with support. Do not send passwords or verification codes.</value>
+  </data>
+  <data name="Shopping" xml:space="preserve">
+    <value>Shopping</value>
+  </data>
+  <data name="ShowCompleted.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Show completed reminders</value>
+  </data>
+  <data name="ShowCompleted.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Show completed reminders</value>
+  </data>
+  <data name="ShowCompleted.OffContent" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="ShowCompleted.OnContent" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="SignedIn" xml:space="preserve">
+    <value>Signed in</value>
+  </data>
+  <data name="SignIn" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="SignInCodeAcceptedNext" xml:space="preserve">
+    <value>The code was accepted. Check that this account can open Reminders on iCloud.com and finish any account setup or updated terms there. Review web access, then try signing in again.</value>
+  </data>
+  <data name="SignInCodeAcceptedTitle" xml:space="preserve">
+    <value>Code accepted; account sign-in failed</value>
+  </data>
+  <data name="SignInDeliveryNext" xml:space="preserve">
+    <value>Check that your trusted phone number can receive SMS, then try again. Review the setup guide if a text arrives but verification still fails.</value>
+  </data>
+  <data name="SignInDeliveryTitle" xml:space="preserve">
+    <value>Could not request a verification code</value>
+  </data>
+  <data name="SignInErrorCopied" xml:space="preserve">
+    <value>Error copied</value>
+  </data>
+  <data name="SignInErrorCopiedDescription" xml:space="preserve">
+    <value>Paste it into your support message. You can also attach app.log from the diagnostic-log folder.</value>
+  </data>
+  <data name="SignInErrorCopyFailedDescription" xml:space="preserve">
+    <value>Select and copy the error message, or use app.log from the diagnostic-log folder.</value>
+  </data>
+  <data name="SignInFailureDetails" xml:space="preserve">
+    <value>{0}
+
+{1}</value>
+    <comment>{0} error reason. {1} troubleshooting instructions.</comment>
+  </data>
+  <data name="SigningIn" xml:space="preserve">
+    <value>Signing in…</value>
+  </data>
+  <data name="SigningOut" xml:space="preserve">
+    <value>Signing out…</value>
+  </data>
+  <data name="SigningYouBackIn" xml:space="preserve">
+    <value>Signing you back in…</value>
+  </data>
+  <data name="SignInMissingPhoneNext" xml:space="preserve">
+    <value>Choose Use Apple-device verification to finish on Apple's sign-in page, or add a trusted phone number that can receive SMS in your Apple Account settings.</value>
+  </data>
+  <data name="SignInMissingPhoneTitle" xml:space="preserve">
+    <value>A trusted phone number is needed</value>
+  </data>
+  <data name="SignInNeeded" xml:space="preserve">
+    <value>Sign-in needed</value>
+  </data>
+  <data name="SignInNetworkNext" xml:space="preserve">
+    <value>Check your internet connection and try again. If iCloud.com works but this app still fails, review the setup guide and open the diagnostic-log folder. This error does not confirm that your password or account settings are wrong.</value>
+  </data>
+  <data name="SignInNetworkTitle" xml:space="preserve">
+    <value>Could not finish connecting to iCloud</value>
+  </data>
+  <data name="SignInReasonUnknown" xml:space="preserve">
+    <value>Sign-in did not finish.</value>
+  </data>
+  <data name="SignInReasonWithHttpStatus" xml:space="preserve">
+    <value>{0} ({1})</value>
+    <comment>{0} error reason. {1} HTTP status, such as HTTP 503.</comment>
+  </data>
+  <data name="SignInRejectedNext" xml:space="preserve">
+    <value>Check the Apple Account and regular password on iCloud.com. A verification session may also have expired; start a new sign-in if needed. Review the account setup before trying again.</value>
+  </data>
+  <data name="SignInRejectedTitle" xml:space="preserve">
+    <value>Apple rejected this sign-in attempt</value>
+  </data>
+  <data name="SignInRequestTimedOut" xml:space="preserve">
+    <value>The iCloud request timed out. Please try again.</value>
+  </data>
+  <data name="SignInTermsNext" xml:space="preserve">
+    <value>Open iCloud.com with the same account, review and accept Apple's updated terms, then sign in here again.</value>
+  </data>
+  <data name="SignInTermsTitle" xml:space="preserve">
+    <value>Updated iCloud terms need attention</value>
+  </data>
+  <data name="SignInTestWindowTitle" xml:space="preserve">
+    <value>Reminders for Windows · Sign-in test</value>
+  </data>
+  <data name="SignInToICloud" xml:space="preserve">
+    <value>Sign in to iCloud</value>
+  </data>
+  <data name="SignInToResumeSyncing" xml:space="preserve">
+    <value>Sign in to resume syncing</value>
+  </data>
+  <data name="SignInUnknownNext" xml:space="preserve">
+    <value>The app could not determine the exact cause. Check the same account in iCloud.com, review the setup guide, and use the diagnostic log if the issue continues.</value>
+  </data>
+  <data name="SignInUnknownTitle" xml:space="preserve">
+    <value>Sign-in did not finish</value>
+  </data>
+  <data name="SignInVerificationNext" xml:space="preserve">
+    <value>For text verification, enter the six digits from the most recent SMS. To use a code from another Apple device, choose Use Apple-device verification and finish on Apple's page. Review the setup guide if verification still fails.</value>
+  </data>
+  <data name="SignInVerificationTitle" xml:space="preserve">
+    <value>Verification did not finish</value>
+  </data>
+  <data name="SignInWithTextVerificationButton.Content" xml:space="preserve">
+    <value>Sign in with text verification</value>
+  </data>
+  <data name="SignOut" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="SignOutDescription" xml:space="preserve">
+    <value>Sign out on this PC. Downloaded reminders and queued edits will be kept until you sign back in or clear the cache.</value>
+  </data>
+  <data name="SignOutUnsavedChangesWarning" xml:space="preserve">
+    <value>The changes in the open reminder haven't been saved.</value>
+  </data>
+  <data name="SignOutWithoutSaving" xml:space="preserve">
+    <value>Sign out without saving?</value>
+  </data>
+  <data name="SizePanesAutomaticallyMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Size panes automatically</value>
+  </data>
+  <data name="SomeChangesHaventSynced" xml:space="preserve">
+    <value>Some changes haven't synced</value>
+  </data>
+  <data name="SortButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Sort</value>
+  </data>
+  <data name="SortButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Sort reminders</value>
+  </data>
+  <data name="Star" xml:space="preserve">
+    <value>Star</value>
+  </data>
+  <data name="SubtaskOf" xml:space="preserve">
+    <value>Subtask of {0}</value>
+  </data>
+  <data name="SyncConflict" xml:space="preserve">
+    <value>Sync conflict</value>
+  </data>
+  <data name="SyncConflictCountMany" xml:space="preserve">
+    <value>{0} sync conflicts</value>
+  </data>
+  <data name="SyncConflictCountOne" xml:space="preserve">
+    <value>1 sync conflict</value>
+  </data>
+  <data name="SyncConflictDescription" xml:space="preserve">
+    <value>This reminder also changed in iCloud. Open sync conflicts to choose which version to keep.</value>
+  </data>
+  <data name="SyncDownloadPreview" xml:space="preserve">
+    <value>Downloading reminders, lists, tags and repeat schedules…</value>
+  </data>
+  <data name="SyncFailed" xml:space="preserve">
+    <value>Sync failed</value>
+  </data>
+  <data name="Syncing" xml:space="preserve">
+    <value>Syncing</value>
+  </data>
+  <data name="SyncInterval" xml:space="preserve">
+    <value>Sync interval</value>
+  </data>
+  <data name="SyncNow" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="SyncNowNavigationViewItem.Content" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="SyncProgressDownloadingAll" xml:space="preserve">
+    <value>Downloading reminders, lists, tags and repeat schedules...</value>
+  </data>
+  <data name="SyncProgressDownloadingChanges" xml:space="preserve">
+    <value>Downloading changed reminders...</value>
+  </data>
+  <data name="SyncProgressFallback" xml:space="preserve">
+    <value>Processing {0}...</value>
+  </data>
+  <data name="SyncProgressFallbackReminders" xml:space="preserve">
+    <value>Processing reminders...</value>
+  </data>
+  <data name="SyncProgressUploading" xml:space="preserve">
+    <value>Uploading queued changes...</value>
+  </data>
+  <data name="SyncRequestedNotice" xml:space="preserve">
+    <value>Sync requested. Changes will be checked in the background.</value>
+  </data>
+  <data name="SyncServiceNotRunning" xml:space="preserve">
+    <value>The sync service is not running.</value>
+  </data>
+  <data name="SyncServiceStarting" xml:space="preserve">
+    <value>Starting the sync service…</value>
+  </data>
+  <data name="SyncServiceUnavailable" xml:space="preserve">
+    <value>The sync service isn't available.</value>
+  </data>
+  <data name="SyncSettingsDescription" xml:space="preserve">
+    <value>Keep your reminders up to date and recover from sync problems.</value>
+  </data>
+  <data name="SyncStorage" xml:space="preserve">
+    <value>Sync &amp; storage</value>
+  </data>
+  <data name="SyncWarningConflictDescription" xml:space="preserve">
+    <value>Review sync conflicts to choose which version to keep.</value>
+  </data>
+  <data name="SyncWarningRejectedChangeDescription" xml:space="preserve">
+    <value>iCloud refused a queued change. Your edits are saved on this PC. Review Sync &amp; storage for details.</value>
+  </data>
+  <data name="Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="TagsTextBlock.Text" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="TaskActionsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Task actions</value>
+  </data>
+  <data name="TaskActionsButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Task actions</value>
+  </data>
+  <data name="TaskDetailsTextBlock.Text" xml:space="preserve">
+    <value>Task details</value>
+  </data>
+  <data name="TaskSavedRefreshFailed" xml:space="preserve">
+    <value>Task saved; refresh failed</value>
+  </data>
+  <data name="TaskTitle" xml:space="preserve">
+    <value>Task title</value>
+  </data>
+  <data name="TextCode.Content" xml:space="preserve">
+    <value>Text me a code</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="ThisPCRemembersYourTrustedSessionTextBlock.Text" xml:space="preserve">
+    <value>This PC remembers your trusted session. Apple may occasionally require verification again.</value>
+  </data>
+  <data name="ThisSamplePreviewCannotDiscardReminders" xml:space="preserve">
+    <value>This sample preview cannot discard reminders.</value>
+  </data>
+  <data name="Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="TitleRadioMenuFlyoutItem.Text" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="Today" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="TodayNavigationViewItem.Content" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Travel" xml:space="preserve">
+    <value>Travel</value>
+  </data>
+  <data name="TryAgainShortly" xml:space="preserve">
+    <value>Try again in a moment.</value>
+  </data>
+  <data name="UnsyncedChanges" xml:space="preserve">
+    <value>Unsynced changes</value>
+  </data>
+  <data name="UnsyncedRemindersToDiscard" xml:space="preserve">
+    <value>Unsynced reminders to discard</value>
+  </data>
+  <data name="UnsyncedSummarySeparator" xml:space="preserve">
+    <value> · </value>
+  </data>
+  <data name="UntitledReminder" xml:space="preserve">
+    <value>Untitled reminder</value>
+  </data>
+  <data name="UpcomingNavigationViewItem.Content" xml:space="preserve">
+    <value>Upcoming</value>
+  </data>
+  <data name="UpdateAvailableTitle" xml:space="preserve">
+    <value>Reminders for Windows {0} is available</value>
+  </data>
+  <data name="UpdateButton.Content" xml:space="preserve">
+    <value>Install and restart</value>
+  </data>
+  <data name="UpdateCheckInProgress" xml:space="preserve">
+    <value>An update check is already running</value>
+  </data>
+  <data name="UpdateCheckTimedOut" xml:space="preserve">
+    <value>The update check took too long. Please try again.</value>
+  </data>
+  <data name="UpdatedICloudTerms" xml:space="preserve">
+    <value>Updated iCloud terms</value>
+  </data>
+  <data name="UpdateDownloadProgress" xml:space="preserve">
+    <value>{0:F0}% downloaded</value>
+  </data>
+  <data name="UpdateInstallConfirmation" xml:space="preserve">
+    <value>Reminders for Windows will close while the update installs, then reopen. Save any unfinished reminder edits first.</value>
+  </data>
+  <data name="UpdateInstallDescription" xml:space="preserve">
+    <value>Install the update and restart when you're ready. Your reminders and sign-in will be kept.</value>
+  </data>
+  <data name="UpdateReleaseLinkDescription" xml:space="preserve">
+    <value>Download the new release from GitHub for this portable or packaged build.</value>
+  </data>
+  <data name="UploadFailed" xml:space="preserve">
+    <value>Upload failed</value>
+  </data>
+  <data name="UploadRetryDescription" xml:space="preserve">
+    <value>Your edit is saved locally and will be retried.</value>
+  </data>
+  <data name="UseAppleDeviceVerificationHyperlinkButton.Content" xml:space="preserve">
+    <value>Use Apple-device verification</value>
+  </data>
+  <data name="UseICloudListColor" xml:space="preserve">
+    <value>Use iCloud list color</value>
+  </data>
+  <data name="VerificationCode" xml:space="preserve">
+    <value>Verification code</value>
+  </data>
+  <data name="VerifyCode.Content" xml:space="preserve">
+    <value>Verify</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="ViewSourceOnGitHub" xml:space="preserve">
+    <value>View source on GitHub</value>
+  </data>
+  <data name="ViewTitle.Text" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="WaitingToSync" xml:space="preserve">
+    <value>Waiting to sync</value>
+  </data>
+  <data name="Weekly" xml:space="preserve">
+    <value>Weekly</value>
+  </data>
+  <data name="WeeklyComboBoxItem.Content" xml:space="preserve">
+    <value>Weekly</value>
+  </data>
+  <data name="Work" xml:space="preserve">
+    <value>Work</value>
+  </data>
+  <data name="Yearly" xml:space="preserve">
+    <value>Yearly</value>
+  </data>
+  <data name="YearlyComboBoxItem.Content" xml:space="preserve">
+    <value>Yearly</value>
+  </data>
+  <data name="YoureSignedOut" xml:space="preserve">
+    <value>You're signed out</value>
+  </data>
+  <data name="YoureUpToDate" xml:space="preserve">
+    <value>You're up to date</value>
+  </data>
+  <data name="YourICloudRemindersAtHomeOnTextBlock.Text" xml:space="preserve">
+    <value>Your iCloud reminders, at home on Windows.</value>
+  </data>
+</root>

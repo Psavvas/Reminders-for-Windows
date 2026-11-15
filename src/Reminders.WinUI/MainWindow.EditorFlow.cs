@@ -28,9 +28,9 @@ public sealed partial class MainWindow
         {
             var dialog = new ContentDialog
             {
-                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = "Save task changes?",
-                Content = "The changes to this task haven't been saved.", PrimaryButtonText = "Save changes",
-                SecondaryButtonText = "Discard changes", CloseButtonText = "Cancel",
+                XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = L10n.Get("SaveTaskChanges"),
+                Content = L10n.Get("EditorUnsavedChangesWarning"), PrimaryButtonText = L10n.Get("SaveChanges"),
+                SecondaryButtonText = L10n.Get("DiscardChanges"), CloseButtonText = L10n.Get("Cancel"),
                 DefaultButton = ContentDialogButton.Primary, IsPrimaryButtonEnabled = SaveButton.IsEnabled
             };
             var choice = await dialog.ShowAsync();
@@ -38,7 +38,7 @@ public sealed partial class MainWindow
             if (choice != ContentDialogResult.Secondary) return false;
             _detailDirty = false; return true;
         }
-        catch (Exception error) { ShowInfo("Couldn't leave task", error.Message, InfoBarSeverity.Error); return false; }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntLeaveTask"), L10n.Error(error), InfoBarSeverity.Error); return false; }
         finally { _detailTransition = false; _dialogOpen = false; }
     }
 
@@ -83,7 +83,7 @@ public sealed partial class MainWindow
         }
         catch (Exception error)
         {
-            ShowInfo(saved ? "Task saved; refresh failed" : "Couldn't save reminder", error.Message, InfoBarSeverity.Error);
+            ShowInfo(saved ? L10n.Get("TaskSavedRefreshFailed") : L10n.Get("CouldntSaveReminder"), L10n.Error(error), InfoBarSeverity.Error);
             return saved;
         }
         finally

@@ -19,5 +19,7 @@
     <Compile Include="..\..\src\Reminders.WinUI\Services\AppLog.cs" Link="AppLog.cs" />
     <Compile Include="..\..\src\Reminders.WinUI\Services\SyncClient.cs" Link="SyncClient.cs" />
     <Compile Include="..\..\src\Reminders.WinUI\Services\SyncException.cs" Link="SyncException.cs" />
+    <EmbeddedResource Include="..\..\src\Reminders.WinUI\Strings\en-US\Resources.resw" LogicalName="EnglishUiResources.resw" />
+    <EmbeddedResource Include="..\..\src\Reminders.WinUI\MainWindow.xaml" LogicalName="MainWindow.xaml" />
   </ItemGroup>
 </Project>

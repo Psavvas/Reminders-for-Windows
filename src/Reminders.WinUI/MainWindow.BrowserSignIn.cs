@@ -19,14 +19,14 @@ public sealed partial class MainWindow
         var views = new List<WebView2> { browser };
         var parents = new Dictionary<WebView2, WebView2>();
         var pendingPopups = new List<Task>();
-        var message = new TextBlock { Text = AppleSignInPolicy.Instructions, TextWrapping = TextWrapping.Wrap };
+        var message = new TextBlock { Text = L10n.Get("AppleSignInInstructions"), TextWrapping = TextWrapping.Wrap };
         var panel = new StackPanel { Spacing = 12 }; panel.Children.Add(message); panel.Children.Add(host);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Apple sign-in · icloud.com", Content = panel,
-            CloseButtonText = "Cancel", PrimaryButtonText = "Continue in app", IsPrimaryButtonEnabled = false,
-            SecondaryButtonText = "Reload", IsSecondaryButtonEnabled = false };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = L10n.Get("AppleSignInDialogTitle"), Content = panel,
+            CloseButtonText = L10n.Get("Cancel"), PrimaryButtonText = L10n.Get("ContinueInApp"), IsPrimaryButtonEnabled = false,
+            SecondaryButtonText = L10n.Get("Reload"), IsSecondaryButtonEnabled = false };
         dialog.Resources["ContentDialogMaxWidth"] = 1000d;
 #if DEBUG
-        if (AppleSignInPreview.Enabled) dialog.Title = "Account-free popup test";
+        if (AppleSignInPreview.Enabled) dialog.Title = L10n.Get("AccountFreePopupTest");
 #endif
         var importing = false; var finished = false; var closed = false; var remindersObserved = false;
         var authHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         void ShowFailure(AppleSignInFailure failure)
         {
             AppLog.Info(failure.Diagnostic);
-            if (!closed && !finished) message.Text = failure.Message;
+            if (!closed && !finished) message.Text = L10n.Message(failure.Message);
         }
 
         void ReturnToParent(WebView2 view)
@@ -53,13 +53,13 @@ public sealed partial class MainWindow
             if (!parents.Remove(view, out var parent)) return;
             host.Children.Remove(view); views.Remove(view); view.Close();
             parent.Visibility = Visibility.Visible;
-            dialog.SecondaryButtonText = parents.ContainsKey(parent) ? "Back" : "Reload";
+            dialog.SecondaryButtonText = parents.ContainsKey(parent) ? L10n.Get("Back") : L10n.Get("Reload");
         }
 
         void CheckNavigation(CoreWebView2NavigationCompletedEventArgs e)
         {
             if (closed || finished || e.IsSuccess || e.WebErrorStatus is CoreWebView2WebErrorStatus.OperationCanceled or CoreWebView2WebErrorStatus.ConnectionAborted) return;
-            ShowFailure(new("Apple's sign-in page could not load. Reload to try again, or cancel and use text verification.",
+            ShowFailure(new(new("AppleSignInNavigationFailed"),
                 $"apple sign-in: stage=navigation error={e.WebErrorStatus} HTTP {e.HttpStatusCode}"));
         }
 
@@ -78,7 +78,7 @@ public sealed partial class MainWindow
                 if (e.Uri != "about:blank" && (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) || !AppleSignInPolicy.IsAppleUri(uri)))
                 {
                     e.Cancel = true;
-                    ShowFailure(new("This page cannot open in Apple sign-in. Return to the sign-in page or cancel and use text verification.", "apple sign-in: stage=navigation blocked_destination"));
+                    ShowFailure(new(new("AppleSignInNavigationBlocked"), "apple sign-in: stage=navigation blocked_destination"));
                 }
             };
             core.NavigationCompleted += (_, e) => CheckNavigation(e);
@@ -128,13 +128,13 @@ public sealed partial class MainWindow
                 // parent. This preserves window.opener and Apple's messages.
                 e.NewWindow = child.CoreWebView2;
                 parents.Add(child, parent); parent.Visibility = Visibility.Collapsed;
-                dialog.SecondaryButtonText = "Back";
+                dialog.SecondaryButtonText = L10n.Get("Back");
                 AppLog.Info("apple sign-in: stage=popup opened");
             }
             catch (Exception error)
             {
                 if (child is not null) { host.Children.Remove(child); views.Remove(child); child.Close(); }
-                ShowFailure(new("Apple's sign-in window could not open. Reload and try again, or cancel and use text verification.",
+                ShowFailure(new(new("AppleSignInPopupFailed"),
                     $"apple sign-in: stage=popup type={error.GetType().Name} hresult=0x{error.HResult:X8}"));
             }
             finally { deferral.Complete(); }
@@ -176,7 +176,7 @@ public sealed partial class MainWindow
             try
             {
                 importing = true;
-                message.Text = "Connecting your Apple session to the app…";
+                message.Text = L10n.Get("AppleSignInConnecting");
                 dialog.IsPrimaryButtonEnabled = false; dialog.IsSecondaryButtonEnabled = false;
                 AppLog.Info("apple sign-in: stage=import started");
                 var cookies = await core.CookieManager.GetCookiesAsync("");
@@ -233,7 +233,7 @@ public sealed partial class MainWindow
             catch (OperationCanceledException) when (closed) { }
             catch (Exception error)
             {
-                ShowFailure(new("Apple sign-in could not open. Check Microsoft Edge WebView2 Runtime, or cancel and use text verification.",
+                ShowFailure(new(new("AppleSignInCouldNotOpen"),
                     $"apple sign-in: stage=initialization type={error.GetType().Name} hresult=0x{error.HResult:X8}"));
             }
         }
@@ -254,7 +254,7 @@ public sealed partial class MainWindow
             e.Cancel = true;
             var current = views.LastOrDefault(v => v.Visibility == Visibility.Visible);
             if (current is not null && parents.ContainsKey(current)) { ReturnToParent(current); return; }
-            authHeaders.Clear(); remindersObserved = false; message.Text = AppleSignInPolicy.Instructions;
+            authHeaders.Clear(); remindersObserved = false; message.Text = L10n.Get("AppleSignInInstructions");
             AppLog.Info("apple sign-in: stage=page reload");
             NavigateStart();
         };

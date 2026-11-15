@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Automation;
 using Reminders.Windows.Services;
+using Reminders.Core;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Reminders.Windows;
@@ -24,15 +25,15 @@ public sealed partial class MainWindow
         Navigation.IsEnabled = false;
         AuthGate.IsEnabled = false;
         SetupGuide.Visibility = Visibility.Visible;
-        SetupGuideHeading.Text = firstRun ? "iCloud setup" : "Setup and help";
+        SetupGuideHeading.Text = firstRun ? L10n.Get("ICloudSetup") : L10n.Get("SetupAndHelp");
         SetupReturn.Visibility = firstRun ? Visibility.Collapsed : Visibility.Visible;
-        var returnLabel = AuthGate.Visibility == Visibility.Visible ? "Return to sign-in" : "Return to reminders";
+        var returnLabel = AuthGate.Visibility == Visibility.Visible ? L10n.Get("ReturnToSignIn") : L10n.Get("ReturnToReminders");
         AutomationProperties.SetName(SetupReturn, returnLabel);
         ToolTipService.SetToolTip(SetupReturn, returnLabel);
         SetupFailure.IsOpen = _lastSignInFailure is not null;
         SetupFailure.Visibility = _lastSignInFailure is null ? Visibility.Collapsed : Visibility.Visible;
         SetupFailure.Title = _lastSignInFailure?.Title ?? "";
-        SetupFailure.Message = _lastSignInFailure is { } failure ? failure.Reason + "\n\n" + failure.NextStep : "";
+        SetupFailure.Message = _lastSignInFailure is { } failure ? L10n.Format("SignInFailureDetails", failure.Reason, failure.NextStep) : "";
         SetupSupportActions.Visibility = _lastSignInFailure is null ? Visibility.Collapsed : Visibility.Visible;
         SetupSupportActions.IsExpanded = false;
         SetupGuideNotice.IsOpen = false;
@@ -44,7 +45,7 @@ public sealed partial class MainWindow
     {
         UpdateSetupCardHeight();
         var step = ICloudSetupGuide.Steps[_setupStep];
-        SetupStepCount.Text = $"Step {_setupStep + 1} of {ICloudSetupGuide.Steps.Count}";
+        SetupStepCount.Text = L10n.Format("SetupStepCount", _setupStep + 1, ICloudSetupGuide.Steps.Count);
         SetupProgress.Maximum = ICloudSetupGuide.Steps.Count;
         SetupProgress.Value = _setupStep + 1;
         SetupStepIcon.Glyph = step.Glyph;
@@ -64,7 +65,7 @@ public sealed partial class MainWindow
         SetupBack.IsEnabled = _setupStep > 0;
         SetupBack.Visibility = _setupStep > 0 ? Visibility.Visible : Visibility.Collapsed;
         SetupDemo.Visibility = _setupFirstRun && _setupStep == 0 ? Visibility.Visible : Visibility.Collapsed;
-        SetupNext.Content = _setupStep < ICloudSetupGuide.Steps.Count - 1 ? "Next" : _setupFirstRun ? "Sign in" : "Done";
+        SetupNext.Content = _setupStep < ICloudSetupGuide.Steps.Count - 1 ? L10n.Get("Next") : _setupFirstRun ? L10n.Get("SignIn") : L10n.Get("Done");
         SetupGuideScroll.ChangeView(null, 0, null, true);
         SetupStepTitle.Focus(FocusState.Programmatic);
     }
@@ -126,9 +127,9 @@ public sealed partial class MainWindow
         try
         {
             if (!await global::Windows.System.Launcher.LaunchUriAsync(new Uri(ICloudSetupGuide.Steps[_setupStep].Link)))
-                ShowSetupNotice("Open your browser", ICloudSetupGuide.Steps[_setupStep].Link);
+                ShowSetupNotice(L10n.Get("OpenYourBrowser"), ICloudSetupGuide.Steps[_setupStep].Link);
         }
-        catch { ShowSetupNotice("Couldn't open the browser", "Open this address in your browser: " + ICloudSetupGuide.Steps[_setupStep].Link); }
+        catch { ShowSetupNotice(L10n.Get("CouldntOpenTheBrowser"), L10n.Format("OpenAddressInBrowser", ICloudSetupGuide.Steps[_setupStep].Link)); }
     }
 
     private void ShowSignInError(Exception error, SignInStage stage)
@@ -136,17 +137,17 @@ public sealed partial class MainWindow
         if (stage == SignInStage.Password && Reminders.Core.DemoAccount.IsDemoUsername(AppleIdBox.Text))
         {
             _lastSignInFailure = null;
-            GateError.Title = "Couldn't sign in";
-            GateError.Message = error.Message;
+            GateError.Title = L10n.Get("CouldntSignIn");
+            GateError.Message = L10n.Error(error);
             GateError.IsOpen = true;
             return;
         }
         var syncError = error as SyncException;
         var code = error is OperationCanceledException ? "NETWORK" : syncError?.Code;
-        var message = error is OperationCanceledException ? "The iCloud request timed out. Please try again." : error.Message;
-        _lastSignInFailure = SignInTroubleshooting.Explain(code, message, syncError?.Detail, stage);
+        var message = error is OperationCanceledException ? L10n.Get("SignInRequestTimedOut") : L10n.Error(error);
+        _lastSignInFailure = SignInTroubleshooting.Explain(code, message, syncError?.Detail, stage, L10n.Message, error.GetPresentation()?.Key);
         GateError.Title = _lastSignInFailure.Title;
-        GateError.Message = _lastSignInFailure.Reason + "\n\n" + _lastSignInFailure.NextStep;
+        GateError.Message = L10n.Format("SignInFailureDetails", _lastSignInFailure.Reason, _lastSignInFailure.NextStep);
         GateError.IsOpen = true;
     }
 
@@ -156,11 +157,11 @@ public sealed partial class MainWindow
         try
         {
             var data = new DataPackage();
-            data.SetText($"Reminders for Windows {AppUpdater.CurrentVersion.ToString(3)}\n{failure.Title}\n{failure.Reason}\n{failure.NextStep}");
+            data.SetText(L10n.Format("CopiedSignInError", AppUpdater.CurrentVersion.ToString(3), failure.Title, failure.Reason, failure.NextStep));
             Clipboard.SetContent(data);
-            ShowSetupNotice("Error copied", "Paste it into your support message. You can also attach app.log from the diagnostic-log folder.");
+            ShowSetupNotice(L10n.Get("SignInErrorCopied"), L10n.Get("SignInErrorCopiedDescription"));
         }
-        catch { ShowSetupNotice("Couldn't copy the error", "Select and copy the error message, or use app.log from the diagnostic-log folder."); }
+        catch { ShowSetupNotice(L10n.Get("CouldntCopyTheError"), L10n.Get("SignInErrorCopyFailedDescription")); }
     }
 
     private async void OpenAuthLogs_Click(object sender, RoutedEventArgs e)
@@ -169,9 +170,9 @@ public sealed partial class MainWindow
         {
             Directory.CreateDirectory(AppLog.FolderPath);
             if (!await global::Windows.System.Launcher.LaunchFolderPathAsync(AppLog.FolderPath))
-                ShowSetupNotice("Log folder", AppLog.FolderPath);
+                ShowSetupNotice(L10n.Get("LogFolder"), AppLog.FolderPath);
         }
-        catch { ShowSetupNotice("Log folder", "Open this folder in File Explorer: " + AppLog.FolderPath); }
+        catch { ShowSetupNotice(L10n.Get("LogFolder"), L10n.Format("OpenFolderInExplorer", AppLog.FolderPath)); }
     }
 
     private void ShowSetupNotice(string title, string message)

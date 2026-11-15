@@ -1,3 +1,4 @@
+using Reminders.Core;
 using Microsoft.UI.Windowing;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
@@ -41,7 +42,7 @@ public sealed partial class MainWindow : Window
     private readonly List<ReminderItem> _demoRows = [];
     private readonly HashSet<string> _collapsedSubtasks = [];
     private ReminderItem? _selected;
-    private NavEntry _view = new("Today", "", NavKind.Smart, "today");
+    private NavEntry _view = new(L10n.Get("Today"), "", NavKind.Smart, "today");
     private string _sort = "manual";
     private bool _verificationBusy;
     private bool _loadingDetail;
@@ -66,6 +67,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = L10n.Get("AppTitle");
         DetailDateTime.SizeChanged += EditorPair_SizeChanged;
         DetailRecurrence.SizeChanged += EditorPair_SizeChanged;
         DetailOptions.SizeChanged += EditorPair_SizeChanged;
@@ -143,13 +145,13 @@ public sealed partial class MainWindow : Window
             if (Environment.GetCommandLineArgs().Contains("--preview-new-reminder", StringComparer.OrdinalIgnoreCase))
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () => await ShowNewReminderAsync());
             if (Environment.GetCommandLineArgs().Contains("--preview-banner", StringComparer.OrdinalIgnoreCase))
-                ShowInfo("Syncing", "Downloading reminders, lists, tags and repeat schedules…", InfoBarSeverity.Informational);
+                ShowInfo(L10n.Get("Syncing"), L10n.Get("SyncDownloadPreview"), InfoBarSeverity.Informational);
             return;
         }
         if (Environment.GetCommandLineArgs().Contains("--preview-settings", StringComparer.OrdinalIgnoreCase))
         {
             LoadDemo();
-            if (IsSyncRecoveryPreview) Title = "Reminders for Windows · Recovery preview";
+            if (IsSyncRecoveryPreview) Title = L10n.Get("RecoveryPreviewWindowTitle");
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () => await ShowSettingsAsync(IsSyncRecoveryPreview ? 1 : 0));
             return;
         }
@@ -164,7 +166,7 @@ public sealed partial class MainWindow : Window
         if (Environment.GetCommandLineArgs().Contains("--preview-sign-in-error", StringComparer.OrdinalIgnoreCase))
         {
             ShowLogin();
-            ShowSignInError(new SyncException("NETWORK", "Apple accepted the verification code, but iCloud account sign-in failed (HTTP 500).", "HTTP 500: preview"), SignInStage.Verification);
+            ShowSignInError(new SyncException("NETWORK", "Apple accepted the verification code, but iCloud account sign-in failed (HTTP 500).", "HTTP 500: preview").WithPresentation("ErrorVerificationAccepted", " (HTTP 500)"), SignInStage.Verification);
             return;
         }
 #endif
@@ -187,11 +189,11 @@ public sealed partial class MainWindow : Window
     private async Task BootAsync()
     {
         if (_accountBusy) return;
-        SetGateState("Starting the sync service…");
+        SetGateState(L10n.Get("SyncServiceStarting"));
         try
         {
             if (!_sync.IsRunning) await _sync.StartAsync();
-            SetGateState("Checking your account…");
+            SetGateState(L10n.Get("CheckingYourAccount"));
             var status = await _sync.CallAsync("auth_status", new { });
             if (_accountBusy) return;
             _settings = await _sync.CallAsync("settings", new { });
@@ -212,16 +214,16 @@ public sealed partial class MainWindow : Window
                 if (_accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
                 _statusTimer.Start(); _notificationTimer.Start(); _syncTimer.Start();
                 if (status.Flag("authenticated")) await RequestAutoSyncAsync();
-                if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo("Sign in to resume syncing", "Cached reminders and queued edits remain available.", InfoBarSeverity.Warning);
+                if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo(L10n.Get("SignInToResumeSyncing"), L10n.Get("CachedRemindersAvailable"), InfoBarSeverity.Warning);
                 return;
             }
-            if (status.Flag("restoring")) { SetGateState("Signing you back in…"); return; }
+            if (status.Flag("restoring")) { SetGateState(L10n.Get("SigningYouBackIn")); return; }
             ShowLogin();
         }
         catch (Exception error)
         {
-            SetGateState("The sync service isn't available.", false);
-            GateError.Message = error.Message; GateError.IsOpen = true;
+            SetGateState(L10n.Get("SyncServiceUnavailable"), false);
+            GateError.Message = L10n.Error(error); GateError.IsOpen = true;
         }
     }
 
@@ -233,7 +235,7 @@ public sealed partial class MainWindow : Window
     }
     private void ShowLogin()
     {
-        AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = "Sign in to iCloud"; LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
+        AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = L10n.Get("SignInToICloud"); LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
         if (string.IsNullOrWhiteSpace(AppleIdBox.Text)) AppleDeviceSignIn.Focus(FocusState.Programmatic);
         else AppleIdBox.Focus(FocusState.Programmatic);
         SetupHelpLink.IsEnabled = true;
@@ -313,21 +315,24 @@ public sealed partial class MainWindow : Window
                 SetReminderRows(rows);
             });
         }
-        catch (Exception error) { ShowInfo("Couldn't load reminders", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntLoadReminders"), L10n.Error(error), InfoBarSeverity.Error); }
     }
     private void UpdateRows()
     {
         RebuildReminderSections(force: true);
         EmptyState.Visibility = _reminders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         var searching = !string.IsNullOrWhiteSpace(SearchBox.Text);
-        EmptyStateTitle.Text = searching ? "No matching reminders" : "No reminders here";
-        EmptyStateMessage.Text = searching ? "Try another search or clear the search field."
+        EmptyStateTitle.Text = searching ? L10n.Get("NoMatchingReminders") : L10n.Get("NoRemindersHere");
+        EmptyStateMessage.Text = searching ? L10n.Get("SearchEmptyDescription")
             : _view.Kind == NavKind.Smart && _view.Key is "completed" or "deleted"
-                ? "Reminders will appear here when you " + (_view.Key == "completed" ? "complete" : "delete") + " them."
-                : "Add a reminder whenever you need one.";
+                ? L10n.Get(_view.Key == "completed" ? "RemindersAppearWhenCompleted" : "RemindersAppearWhenDeleted")
+                : L10n.Get("ReminderListEmptyDescription");
         var count = _reminders.Count(row => !row.ContextOnly);
-        var matching = _reminders.Any(row => row.ContextOnly) ? " matching" : "";
-        RowCount.Text = count == 1 ? $"1{matching} reminder" : $"{count:N0}{matching} reminders";
+        var matching = _reminders.Any(row => row.ContextOnly);
+        var countKey = matching
+            ? (count == 1 ? "MatchingReminderCountOne" : "MatchingReminderCountMany")
+            : (count == 1 ? "ReminderCountOne" : "ReminderCountMany");
+        RowCount.Text = L10n.Format(countKey, count);
     }
     private void SetReminderRows(IEnumerable<ReminderItem> rows)
     {
@@ -376,12 +381,12 @@ public sealed partial class MainWindow : Window
             return;
         }
         var groups = ReminderGrouping.Group(families, _view.Key, _sort, DateTimeOffset.Now);
-        var signature = JsonSerializer.Serialize(groups.Select(group => new { group.Title, Ids = group.Items.SelectMany(family => family.Rows).Select(row => new { row.Item.Id, row.Hidden, row.Depth }) }));
+        var signature = JsonSerializer.Serialize(groups.Select(group => new { group.Section, Ids = group.Items.SelectMany(family => family.Rows).Select(row => new { row.Item.Id, row.Hidden, row.Depth }) }));
         if (!force && signature == _sectionSignature) return;
         _regrouping = true;
         try
         {
-            _sectionView.Source = groups.Select(group => new ReminderSection(group.Title, group.Items.SelectMany(Visible))).ToList();
+            _sectionView.Source = groups.Select(group => new ReminderSection(L10n.Get($"ReminderSection{group.Section}"), group.Items.SelectMany(Visible))).ToList();
             ReminderList.ItemsSource = _sectionView.View;
             ReminderList.SelectedItem = _reminders.FirstOrDefault(row => row.Id == _selected?.Id);
             _sectionSignature = signature;
@@ -396,7 +401,7 @@ public sealed partial class MainWindow : Window
         {
             var status = await _sync.CallAsync("sync_status", new { });
             if (_windowClosed || accountEpoch != _accountEpoch || _accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
-            var conflicts = status.Number("conflicts"); ConflictItem.Visibility = conflicts > 0 ? Visibility.Visible : Visibility.Collapsed; ConflictItem.Content = conflicts == 1 ? "1 sync conflict" : $"{conflicts} sync conflicts";
+            var conflicts = status.Number("conflicts"); ConflictItem.Visibility = conflicts > 0 ? Visibility.Visible : Visibility.Collapsed; ConflictItem.Content = conflicts == 1 ? L10n.Get("SyncConflictCountOne") : L10n.Format("SyncConflictCountMany", conflicts);
         }
         catch { }
     }
@@ -411,11 +416,32 @@ public sealed partial class MainWindow : Window
             if (!plan.TryGetProperty("toasts", out var toasts)) return;
             foreach (var toast in toasts.EnumerateArray())
             {
-                var notification = new AppNotificationBuilder().AddText(toast.Text("title", "Reminder")).AddText(toast.Text("body", "")).BuildNotification();
+                var (title, body) = NotificationText(toast);
+                var notification = new AppNotificationBuilder().AddText(title).AddText(body).BuildNotification();
                 AppNotificationManager.Default.Show(notification);
             }
         }
         catch { }
+    }
+
+    private static (string Title, string Body) NotificationText(JsonElement toast)
+    {
+        if (toast.Property("names") is { ValueKind: JsonValueKind.Array } names)
+        {
+            var count = toast.Number("count");
+            var missed = toast.Text("summary_kind") == "missed";
+            var titleKey = missed ? (count == 1 ? "NotifyMissedOne" : "NotifyMissedMany") : "NotifyDueMany";
+            var body = string.Join(L10n.Get("NotifyNameSeparator"), names.EnumerateArray().Select(name => name.GetString()));
+            if (missed && count > 3) body = L10n.Format("NotifyNamesAndMore", body, count - 3);
+            return (L10n.Format(titleKey, count), body);
+        }
+        if (toast.Property("due_at") is { ValueKind: JsonValueKind.String } date && date.TryGetDateTimeOffset(out var due))
+        {
+            var rawTitle = toast.Text("raw_title");
+            return (rawTitle.Length > 0 ? rawTitle : L10n.Get("Reminder"),
+                L10n.Format(toast.Flag("all_day") ? "NotifyAllDayDate" : "NotifyTimedDate", due));
+        }
+        return (toast.Text("title", L10n.Get("Reminder")), toast.Text("body"));
     }
     private async Task BackgroundSyncAsync()
     {
@@ -429,12 +455,12 @@ public sealed partial class MainWindow : Window
         if (_demo || _accountBusy || AuthGate.Visibility != Visibility.Collapsed || !_sync.IsRunning) return;
         _lastSyncRequest = DateTimeOffset.UtcNow;
         try { await _sync.CallAsync("sync", new { }); }
-        catch (Exception error) { ShowInfo("Sync failed", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("SyncFailed"), L10n.Error(error), InfoBarSeverity.Error); }
     }
 
     private async void SignIn_Click(object sender, RoutedEventArgs e)
     {
-        SetGateState("Signing in…");
+        SetGateState(L10n.Get("SigningIn"));
         try
         {
             if (Reminders.Core.DemoAccount.IsDemoUsername(AppleIdBox.Text))
@@ -450,7 +476,7 @@ public sealed partial class MainWindow : Window
                 await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password });
             }
             PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync();
-            if (_sync.IsLocalDemo) ShowInfo("Local account", "Reminders are saved on this PC. iCloud sync is off.", InfoBarSeverity.Informational);
+            if (_sync.IsLocalDemo) ShowInfo(L10n.Get("LocalAccount"), L10n.Get("LocalAccountStartedDescription"), InfoBarSeverity.Informational);
         }
         catch (SyncException error) when (error.Code == "2FA_REQUIRED") { await RequestCodeAsync(); }
         catch (SyncException error) when (error.Code == "TERMS_REQUIRED") { await AcceptTermsAsync(); }
@@ -458,10 +484,10 @@ public sealed partial class MainWindow : Window
     }
     private async Task AcceptTermsAsync()
     {
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Updated iCloud terms", Content = "Apple needs you to accept its updated terms before syncing.", PrimaryButtonText = "Accept and continue", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary };
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = L10n.Get("UpdatedICloudTerms"), Content = L10n.Get("ICloudTermsDescription"), PrimaryButtonText = L10n.Get("AcceptAndContinue"), CloseButtonText = L10n.Get("Cancel"), DefaultButton = ContentDialogButton.Primary };
         if (await dialog.ShowAsync() == ContentDialogResult.Primary)
         {
-            SetGateState("Accepting terms…");
+            SetGateState(L10n.Get("AcceptingTerms"));
             try { await _sync.CallAsync("login", new { apple_id = AppleIdBox.Text.Trim(), password = PasswordBox.Password, accept_terms = true }); PasswordBox.Password = ""; _lastSignInFailure = null; await BootAsync(); }
             catch (SyncException error) when (error.Code == "2FA_REQUIRED") { await RequestCodeAsync(); }
             catch (Exception error) { ShowLogin(); ShowSignInError(error, SignInStage.Password); }
@@ -523,7 +549,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
-            GateStatus.Text = "Verification code";
+            GateStatus.Text = L10n.Get("VerificationCode");
             ShowSignInError(error, SignInStage.Delivery);
         }
         finally { _verificationBusy = false; SetVerificationControlsEnabled(true); }
@@ -568,10 +594,10 @@ public sealed partial class MainWindow : Window
         return delivery.Text("method", "") switch
         {
             "sms" => delivery.Text("number", "") is { Length: > 0 } number
-                ? $"Enter the code we texted to {number}"
-                : "Enter the code we texted you",
-            "trusted_device" => "Enter the verification code shown on your Apple device",
-            _ => "Enter the six-digit code Apple sent you",
+                ? L10n.Format("EnterCodeForPhoneNumber", number)
+                : L10n.Get("EnterTextedCode"),
+            "trusted_device" => L10n.Get("EnterAppleDeviceCode"),
+            _ => L10n.Get("EnterGenericVerificationCode"),
         };
     }
 
@@ -587,7 +613,7 @@ public sealed partial class MainWindow : Window
         _demoRows.Clear(); _demoRows.AddRange(DemoData.CreateReminders());
         LoadDemoRows();
         RestoreNavigationSelection();
-        ShowInfo("Demo mode", "Sample data stays in memory. Nothing is connected to iCloud.", InfoBarSeverity.Informational);
+        ShowInfo(L10n.Get("DemoMode"), L10n.Get("DemoModeDescription"), InfoBarSeverity.Informational);
     }
 
     private async void Navigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -597,7 +623,7 @@ public sealed partial class MainWindow : Window
         if (args.SelectedItemContainer?.Tag?.ToString() is not string tag) return;
         if (tag is "sync" or "conflicts") { RestoreNavigationSelection(); return; }
         var split = tag.Split(':', 2); if (split.Length != 2) return;
-        var target = new NavEntry(args.SelectedItemContainer.Content?.ToString() ?? "Reminders", "", split[0] switch { "list" => NavKind.List, "tag" => NavKind.Tag, _ => NavKind.Smart }, split[1]);
+        var target = new NavEntry(args.SelectedItemContainer.Content?.ToString() ?? L10n.Get("Reminders"), "", split[0] switch { "list" => NavKind.List, "tag" => NavKind.Tag, _ => NavKind.Smart }, split[1]);
         if (_savingDetail || _detailTransition || _dialogOpen) { RestoreNavigationSelection(); return; }
         if (target.Kind == _view.Kind && target.Key == _view.Key) return;
         if (_detailDirty)
@@ -606,7 +632,7 @@ public sealed partial class MainWindow : Window
             if (!await ConfirmLeaveDetailAsync()) return;
         }
         _reminderLoads.Invalidate(); _view = target; RestoreNavigationSelection();
-        ViewTitle.Text = _view.Label; ViewSubtitle.Text = _view.Kind == NavKind.Tag ? "Filtered by tag" : "";
+        ViewTitle.Text = _view.Label; ViewSubtitle.Text = _view.Kind == NavKind.Tag ? L10n.Get("FilteredByTag") : "";
         ViewSubtitle.Visibility = string.IsNullOrEmpty(ViewSubtitle.Text) ? Visibility.Collapsed : Visibility.Visible;
         ShowDetail(null); await LoadRemindersAsync();
     }
@@ -731,7 +757,7 @@ public sealed partial class MainWindow : Window
             _completing.Remove(reminder.Id);
             if (_demo) LoadDemoRows(); else await RefreshAllAsync();
         }
-        catch (Exception error) { if (!saved) reminder.Completed = !completed; ShowInfo(saved ? "Reminder saved; refresh failed" : "Couldn't update reminder", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { if (!saved) reminder.Completed = !completed; ShowInfo(saved ? L10n.Get("ReminderSavedRefreshFailed") : L10n.Get("CouldntUpdateReminder"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { checkbox.IsEnabled = true; _completing.Remove(reminder.Id); }
 
     }
@@ -760,7 +786,7 @@ public sealed partial class MainWindow : Window
         if (reminder is not null)
         {
             DetailTitle.Text = reminder.Title; DetailNotes.Text = reminder.Description;
-            DetailListName.Text = _lists.FirstOrDefault(list => list.Id == reminder.ListId)?.Title ?? "Reminder";
+            DetailListName.Text = _lists.FirstOrDefault(list => list.Id == reminder.ListId)?.Title ?? L10n.Get("Reminder");
             DetailList.ItemsSource = OrderedLists();
             DetailList.SelectedValue = reminder.ListId;
             AddSubtaskButton.IsEnabled = !reminder.Completed && !reminder.Deleted;
@@ -798,12 +824,12 @@ public sealed partial class MainWindow : Window
         var repeats = DetailRepeatChoice.SelectedIndex > 0;
         DetailRepeatInterval.IsEnabled = DetailRepeatChoice.IsEnabled && repeats;
         DetailRepeatInterval.Visibility = repeats ? Visibility.Visible : Visibility.Collapsed;
-        DetailRepeatInterval.Header = DetailRepeatChoice.SelectedIndex switch { 1 => "Every (days)", 2 => "Every (weeks)", 3 => "Every (months)", 4 => "Every (years)", _ => "Every" };
+        DetailRepeatInterval.Header = DetailRepeatChoice.SelectedIndex switch { 1 => L10n.Get("EveryDays"), 2 => L10n.Get("EveryWeeks"), 3 => L10n.Get("EveryMonths"), 4 => L10n.Get("EveryYears"), _ => L10n.Get("Every") };
         DetailAllDayRow.Visibility = DetailDate.Date is not null ? Visibility.Visible : Visibility.Collapsed;
         DetailTime.IsEnabled = DetailDate.Date is not null && !DetailAllDay.IsOn;
         DetailTime.Visibility = DetailTime.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
-        var hint = !DetailRepeatChoice.IsEnabled ? "Edit this custom repeat on an Apple device to preserve its schedule."
-            : repeats && DetailDate.Date is null ? "Set a due date for this repeat." : "";
+        var hint = !DetailRepeatChoice.IsEnabled ? L10n.Get("EditCustomRepeatOnAppleDevice")
+            : repeats && DetailDate.Date is null ? L10n.Get("RepeatNeedsDueDate") : "";
         DetailRepeatHint.Text = hint;
         DetailRepeatHint.Visibility = hint.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdatePaneLayout();
@@ -833,7 +859,7 @@ public sealed partial class MainWindow : Window
         _dialogOpen = true;
         try
         {
-            var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Delete reminder?", Content = target.DisplayTitle + "\n\nAny subtasks will also be deleted.", PrimaryButtonText = "Delete", CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Close };
+            var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = L10n.Get("DeleteReminder"), Content = L10n.Format("DeleteReminderDetails", target.DisplayTitle), PrimaryButtonText = L10n.Get("Delete"), CloseButtonText = L10n.Get("Cancel"), DefaultButton = ContentDialogButton.Close };
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
             if (_demo)
             {
@@ -844,7 +870,7 @@ public sealed partial class MainWindow : Window
             if (_selected?.Id == target.Id) ShowDetail(null);
             await LoadRemindersAsync();
         }
-        catch (Exception error) { ShowInfo("Couldn't delete reminder", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntDeleteReminder"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { _dialogOpen = false; }
     }
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
@@ -860,7 +886,7 @@ public sealed partial class MainWindow : Window
             var conflicts = await _sync.CallAsync<List<ConflictItem>>("conflicts", new { });
             foreach (var conflict in conflicts)
             {
-                var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Resolve sync conflict", Content = "Keep the version edited on this PC, or the current iCloud version?", PrimaryButtonText = "Keep this PC", SecondaryButtonText = "Keep iCloud", CloseButtonText = "Later" };
+                var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = L10n.Get("ResolveSyncConflict"), Content = L10n.Get("ResolveConflictDescription"), PrimaryButtonText = L10n.Get("KeepThisPC"), SecondaryButtonText = L10n.Get("KeepICloud"), CloseButtonText = L10n.Get("Later") };
                 var result = await dialog.ShowAsync(); if (result == ContentDialogResult.None) break;
                 await _sync.CallAsync("resolve_conflict", new { id = conflict.Id, keep = result == ContentDialogResult.Primary ? "local" : "remote" });
             }
@@ -892,13 +918,13 @@ public sealed partial class MainWindow : Window
             if (_availableUpdate is null)
             {
                 notice.IsOpen = false;
-                if (manual) { notice.Severity = InfoBarSeverity.Success; notice.Title = "You're up to date"; notice.Message = "No newer stable release is available."; notice.IsOpen = true; action.Visibility = Visibility.Collapsed; }
+                if (manual) { notice.Severity = InfoBarSeverity.Success; notice.Title = L10n.Get("YoureUpToDate"); notice.Message = L10n.Get("NoUpdateAvailable"); notice.IsOpen = true; action.Visibility = Visibility.Collapsed; }
                 return;
             }
             notice.Severity = InfoBarSeverity.Informational;
-            notice.Title = $"Reminders for Windows {_availableUpdate.Version} is available";
-            notice.Message = AppUpdater.CanInstall ? "Install the update and restart when you're ready. Your reminders and sign-in will be kept." : "Download the new release from GitHub for this portable or packaged build.";
-            action.Content = AppUpdater.CanInstall ? "Install and restart" : "Open releases";
+            notice.Title = L10n.Format("UpdateAvailableTitle", _availableUpdate.Version);
+            notice.Message = AppUpdater.CanInstall ? L10n.Get("UpdateInstallDescription") : L10n.Get("UpdateReleaseLinkDescription");
+            action.Content = AppUpdater.CanInstall ? L10n.Get("InstallAndRestart") : L10n.Get("OpenReleases");
             action.Visibility = Visibility.Visible;
             notice.IsOpen = true;
         }
@@ -909,8 +935,8 @@ public sealed partial class MainWindow : Window
             AppLog.Error("Could not check for updates", error);
             if (manual)
             {
-                notice.Severity = InfoBarSeverity.Error; notice.Title = "Could not check for updates";
-                notice.Message = error is OperationCanceledException ? "The update check took too long. Please try again." : error.Message;
+                notice.Severity = InfoBarSeverity.Error; notice.Title = L10n.Get("CouldNotCheckForUpdates");
+                notice.Message = error is OperationCanceledException ? L10n.Get("UpdateCheckTimedOut") : L10n.Error(error);
                 notice.IsOpen = true; action.Visibility = Visibility.Collapsed;
             }
         }
@@ -932,14 +958,14 @@ public sealed partial class MainWindow : Window
         UpdateButton.IsEnabled = false;
         try
         {
-            var confirmation = new ContentDialog { XamlRoot = Root.XamlRoot, Title = "Install update?", Content = "Reminders for Windows will close while the update installs, then reopen. Save any unfinished reminder edits first.", PrimaryButtonText = "Install and restart", CloseButtonText = "Later" };
+            var confirmation = new ContentDialog { XamlRoot = Root.XamlRoot, Title = L10n.Get("InstallUpdate"), Content = L10n.Get("UpdateInstallConfirmation"), PrimaryButtonText = L10n.Get("InstallAndRestart"), CloseButtonText = L10n.Get("Later") };
             if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
             UpdateInfoBar.Severity = InfoBarSeverity.Informational;
-            UpdateInfoBar.Title = "Downloading update";
-            UpdateInfoBar.Message = "Preparing download…"; UpdateInfoBar.IsOpen = true;
-            UpdateButton.Content = "Install and restart"; UpdateButton.Visibility = Visibility.Visible;
+            UpdateInfoBar.Title = L10n.Get("DownloadingUpdate");
+            UpdateInfoBar.Message = L10n.Get("PreparingDownload"); UpdateInfoBar.IsOpen = true;
+            UpdateButton.Content = L10n.Get("InstallAndRestart"); UpdateButton.Visibility = Visibility.Visible;
             // Progress<T> does not rely on a WinUI SynchronizationContext.
-            var progress = new Progress<double>(percent => DispatcherQueue.TryEnqueue(() => UpdateInfoBar.Message = $"{percent:F0}% downloaded"));
+            var progress = new Progress<double>(percent => DispatcherQueue.TryEnqueue(() => UpdateInfoBar.Message = L10n.Format("UpdateDownloadProgress", percent)));
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_updateLifetime.Token);
             timeout.CancelAfter(TimeSpan.FromMinutes(15));
             var installer = await _updater.DownloadAsync(_availableUpdate, progress, timeout.Token);
@@ -956,7 +982,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             AppLog.Error("Could not install update", error);
-            UpdateInfoBar.Title = "Could not install update"; UpdateInfoBar.Message = error.Message;
+            UpdateInfoBar.Title = L10n.Get("CouldNotInstallUpdate"); UpdateInfoBar.Message = L10n.Error(error);
             if (_syncDisposedForUpdate)
             {
                 _sync = new SyncClient(); AttachSyncEvents();
@@ -985,26 +1011,28 @@ public sealed partial class MainWindow : Window
             case "auth_changed":
                 if (e.Data.Flag("authenticated")) await BootAsync();
                 else if (e.Data.Flag("needs_2fa")) await ShowCodeEntryAsync(e.Data.Property("two_factor"));
-                else if (e.Data.Flag("restoring")) SetGateState("Signing you back in…");
+                else if (e.Data.Flag("restoring")) SetGateState(L10n.Get("SigningYouBackIn"));
                 else if (AuthGate.Visibility == Visibility.Collapsed)
-                    ShowInfo("Sign in to resume syncing", "Cached reminders and queued edits remain available.", InfoBarSeverity.Warning);
+                    ShowInfo(L10n.Get("SignInToResumeSyncing"), L10n.Get("CachedRemindersAvailable"), InfoBarSeverity.Warning);
                 else ShowLogin();
                 break;
-            case "sync_started": _lastSyncRequest = DateTimeOffset.UtcNow; ShowInfo("Syncing", "Checking iCloud for changes…", InfoBarSeverity.Informational); break;
+            case "sync_started": _lastSyncRequest = DateTimeOffset.UtcNow; ShowInfo(L10n.Get("Syncing"), L10n.Get("CheckingICloudForChanges"), InfoBarSeverity.Informational); break;
             case "sync_progress":
-                ShowInfo("Syncing", e.Data.Text("message", $"Processing {e.Data.Text("stage", "reminders")}..."), InfoBarSeverity.Informational);
+                var progressFallback = e.Data.Text("stage") is { Length: > 0 } stage
+                    ? L10n.Format("SyncProgressFallback", stage) : L10n.Get("SyncProgressFallbackReminders");
+                ShowInfo(L10n.Get("Syncing"), L10n.EventMessage(e.Data, progressFallback), InfoBarSeverity.Informational);
                 break;
             case "sync_downloaded": await RefreshAllAsync(); break;
             case "sync_finished": AppInfoBar.IsOpen = false; await RefreshAllAsync(); break;
             case "sync_warning":
-                ShowInfo("Some changes haven't synced", e.Data.Text("code", "") == "CONFLICT" ? "Review sync conflicts to choose which version to keep." : "iCloud refused a queued change. Your edits are saved on this PC. Review Sync & storage for details.", InfoBarSeverity.Warning);
-                var recovery = new Button { Content = "Review sync settings" };
+                ShowInfo(L10n.Get("SomeChangesHaventSynced"), e.Data.Text("code", "") == "CONFLICT" ? L10n.Get("SyncWarningConflictDescription") : L10n.Get("SyncWarningRejectedChangeDescription"), InfoBarSeverity.Warning);
+                var recovery = new Button { Content = L10n.Get("ReviewSyncSettings") };
                 recovery.Click += async (_, _) => await ShowSettingsAsync(1);
                 AppInfoBar.ActionButton = recovery;
                 break;
-            case "sync_error": ShowInfo("Sync failed", e.Data.Text("message", "Try again in a moment."), InfoBarSeverity.Error); break;
-            case "push_failed": ShowInfo("Upload failed", e.Data.Property("error").Text("message", "Your edit is saved locally and will be retried."), InfoBarSeverity.Error); break;
-            case "conflict": ShowInfo("Sync conflict", "This reminder also changed in iCloud. Open sync conflicts to choose which version to keep.", InfoBarSeverity.Warning); await RefreshStatusAsync(); break;
+            case "sync_error": ShowInfo(L10n.Get("SyncFailed"), L10n.EventMessage(e.Data, L10n.Get("TryAgainShortly")), InfoBarSeverity.Error); break;
+            case "push_failed": ShowInfo(L10n.Get("UploadFailed"), L10n.EventMessage(e.Data.Property("error"), L10n.Get("UploadRetryDescription")), InfoBarSeverity.Error); break;
+            case "conflict": ShowInfo(L10n.Get("SyncConflict"), L10n.Get("SyncConflictDescription"), InfoBarSeverity.Warning); await RefreshStatusAsync(); break;
         }
     });
     private async void MainWindow_Closed(object sender, WindowEventArgs args)

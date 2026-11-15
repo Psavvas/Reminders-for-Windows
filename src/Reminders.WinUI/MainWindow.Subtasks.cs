@@ -18,7 +18,7 @@ public sealed partial class MainWindow
         if (_selected is not { Completed: false, Deleted: false } parent) return;
         if (_detailDirty)
         {
-            ShowInfo("Save your changes first", "Save the open task before adding a subtask.", InfoBarSeverity.Informational); return;
+            ShowInfo(L10n.Get("SaveYourChangesFirst"), L10n.Get("AddSubtaskUnsavedChangesWarning"), InfoBarSeverity.Informational); return;
         }
         await ShowNewReminderAsync(parent);
     }
@@ -49,7 +49,7 @@ public sealed partial class MainWindow
     {
         var children = DemoDescendants(reminder.Id).Where(row => !row.Deleted).ToArray();
         if (completed && (children.Length > 0 && reminder.Recurrence is not null || children.Any(row => !row.Completed && row.Recurrence is not null)))
-            throw new InvalidOperationException("Complete repeating subtasks individually before completing their parent.");
+            throw new InvalidOperationException(L10n.Get("CompleteParentWithRepeatingSubtasks"));
         if (completed) foreach (var child in children) child.Completed = true;
         else
         {

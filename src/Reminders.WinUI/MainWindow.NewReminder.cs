@@ -26,51 +26,52 @@ public sealed partial class MainWindow
         SizeChangedEventHandler? resize = null;
         try
         {
-            var title = new TextBox { PlaceholderText = "What needs doing?",
+            var title = new TextBox { PlaceholderText = L10n.Get("NewReminderTitlePlaceholder"),
                 Style = (Style)Application.Current.Resources["TaskTitleEditorStyle"] };
-            AutomationProperties.SetName(title, "Task title");
-            var notes = new TextBox { Style = (Style)Application.Current.Resources["TaskNotesEditorStyle"] };
-            var list = new ComboBox { Header = "List", ItemsSource = OrderedLists(), DisplayMemberPath = "Title",
+            AutomationProperties.SetName(title, L10n.Get("TaskTitle"));
+            var notes = new TextBox { Header = L10n.Get("DetailNotes/Header"), PlaceholderText = L10n.Get("DetailNotes/PlaceholderText"),
+                Style = (Style)Application.Current.Resources["TaskNotesEditorStyle"] };
+            var list = new ComboBox { Header = L10n.Get("List"), ItemsSource = OrderedLists(), DisplayMemberPath = "Title",
                 SelectedValuePath = "Id", HorizontalAlignment = HorizontalAlignment.Stretch };
             list.SelectedValue = _view.Kind == NavKind.List ? _view.Key : _settings.Text("default_list_id", "");
             if (parent is not null) { list.SelectedValue = parent.ListId; list.IsEnabled = false; }
             if (list.SelectedIndex < 0) list.SelectedIndex = 0;
 
-            var date = new CalendarDatePicker { Header = "Due date", HorizontalAlignment = HorizontalAlignment.Stretch };
+            var date = new CalendarDatePicker { Header = L10n.Get("DueDate"), HorizontalAlignment = HorizontalAlignment.Stretch };
             if (_view.Kind == NavKind.Smart && _view.Key == "today") date.Date = DateTimeOffset.Now;
             var scheduled = new ToggleSwitch { IsOn = date.Date is not null, OnContent = "", OffContent = "", MinWidth = 0 };
-            AutomationProperties.SetName(scheduled, "Set due date");
-            ToolTipService.SetToolTip(scheduled, "Set a due date");
+            AutomationProperties.SetName(scheduled, L10n.Get("SetDueDate"));
+            ToolTipService.SetToolTip(scheduled, L10n.Get("SetADueDate"));
             var allDay = new ToggleSwitch { IsOn = true, OnContent = "", OffContent = "", MinWidth = 0 };
-            AutomationProperties.SetName(allDay, "All day");
-            var time = new TimePicker { Header = "Time", Time = new TimeSpan(9, 0, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+            AutomationProperties.SetName(allDay, L10n.Get("AllDay"));
+            var time = new TimePicker { Header = L10n.Get("Time"), Time = new TimeSpan(9, 0, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
             var dateTimePair = EditorPair(date, time);
             var allDayRow = new Grid();
             allDayRow.ColumnDefinitions.Add(new()); allDayRow.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-            allDayRow.Children.Add(new TextBlock { Text = "All day", VerticalAlignment = VerticalAlignment.Center });
+            allDayRow.Children.Add(new TextBlock { Text = L10n.Get("AllDay"), VerticalAlignment = VerticalAlignment.Center });
             Grid.SetColumn(allDay, 1); allDayRow.Children.Add(allDay);
 
-            var repeat = new ComboBox { Header = "Repeat", ItemsSource = new[] { "Never", "Daily", "Weekly", "Monthly", "Yearly" },
+            var repeat = new ComboBox { Header = L10n.Get("Repeat"), ItemsSource = new[] { L10n.Get("Never"), L10n.Get("Daily"), L10n.Get("Weekly"), L10n.Get("Monthly"), L10n.Get("Yearly") },
                 SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var interval = new NumberBox { Header = "Every", Minimum = 1, Maximum = 999, Value = 1,
+            var interval = new NumberBox { Header = L10n.Get("Every"), Minimum = 1, Maximum = 999, Value = 1,
                 SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
             var repeatPair = EditorPair(repeat, interval);
             var scheduleHeader = new Grid { ColumnSpacing = 12 };
             scheduleHeader.ColumnDefinitions.Add(new()); scheduleHeader.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-            scheduleHeader.Children.Add(new TextBlock { Text = "Schedule", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            scheduleHeader.Children.Add(new TextBlock { Text = L10n.Get("Schedule"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center });
             Grid.SetColumn(scheduled, 1); scheduleHeader.Children.Add(scheduled);
             var schedule = new StackPanel { Spacing = 10 };
             schedule.Children.Add(scheduleHeader); schedule.Children.Add(dateTimePair);
             schedule.Children.Add(allDayRow); schedule.Children.Add(repeatPair);
 
-            var priority = new ComboBox { Header = "Priority", ItemsSource = new[] { "None", "Low", "Medium", "High" },
+            var priority = new ComboBox { Header = L10n.Get("Priority"), ItemsSource = new[] { L10n.Get("None"), L10n.Get("Low"), L10n.Get("Medium"), L10n.Get("High") },
                 SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-            var flagged = new ToggleSwitch { Header = "Flagged" };
-            var more = new Expander { Header = "More options", HorizontalAlignment = HorizontalAlignment.Stretch,
+            var flagged = new ToggleSwitch { Header = L10n.Get("Flagged") };
+            var more = new Expander { Header = L10n.Get("MoreOptions"), HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = EditorPair(priority, flagged) };
             var panel = new StackPanel { Spacing = 16 };
-            if (parent is not null) panel.Children.Add(new TextBlock { Text = "Subtask of " + parent.DisplayTitle, TextWrapping = TextWrapping.Wrap });
+            if (parent is not null) panel.Children.Add(new TextBlock { Text = L10n.Format("SubtaskOf", parent.DisplayTitle), TextWrapping = TextWrapping.Wrap });
             panel.Children.Add(title); panel.Children.Add(notes); panel.Children.Add(list);
             panel.Children.Add(new Border { Style = (Style)Application.Current.Resources["EditorSectionStyle"], Child = schedule });
             panel.Children.Add(more);
@@ -78,7 +79,7 @@ public sealed partial class MainWindow
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Padding = new Thickness(0, 0, 8, 0) };
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
-                Title = parent is null ? "New reminder" : "New subtask", Content = scroll, PrimaryButtonText = parent is null ? "Add reminder" : "Add subtask", CloseButtonText = "Cancel",
+                Title = parent is null ? L10n.Get("NewReminder") : L10n.Get("NewSubtask"), Content = scroll, PrimaryButtonText = parent is null ? L10n.Get("AddReminder") : L10n.Get("AddSubtask"), CloseButtonText = L10n.Get("Cancel"),
                 DefaultButton = ContentDialogButton.Primary, IsPrimaryButtonEnabled = false };
             dialog.Resources["ContentDialogMinWidth"] = 0d;
             dialog.Resources["ContentDialogMaxWidth"] = 680d;
@@ -98,7 +99,7 @@ public sealed partial class MainWindow
                 allDayRow.Visibility = scheduled.IsOn ? Visibility.Visible : Visibility.Collapsed;
                 time.Visibility = scheduled.IsOn && date.Date is not null && !allDay.IsOn ? Visibility.Visible : Visibility.Collapsed;
                 interval.Visibility = repeat.SelectedIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
-                interval.Header = repeat.SelectedIndex switch { 1 => "Every (days)", 2 => "Every (weeks)", 3 => "Every (months)", 4 => "Every (years)", _ => "Every" };
+                interval.Header = repeat.SelectedIndex switch { 1 => L10n.Get("EveryDays"), 2 => L10n.Get("EveryWeeks"), 3 => L10n.Get("EveryMonths"), 4 => L10n.Get("EveryYears"), _ => L10n.Get("Every") };
                 ArrangeDetailPair(dateTimePair, time); ArrangeDetailPair(repeatPair, interval);
                 Validate();
             }
@@ -124,7 +125,7 @@ public sealed partial class MainWindow
             var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
             if (_demo)
             {
-                if (parent is not null && (parent.Completed || parent.Deleted || parent.ListId != listId)) throw new InvalidOperationException("The parent task changed. Reopen it before adding a subtask.");
+                if (parent is not null && (parent.Completed || parent.Deleted || parent.ListId != listId)) throw new InvalidOperationException(L10n.Get("AddSubtaskParentChanged"));
                 _demoRows.Add(new() { Id = Guid.NewGuid().ToString(), ListId = listId, ParentId = parent?.Id, Title = title.Text.Trim(), Description = notes.Text,
                 DueDate = due, AllDay = allDay.IsOn, Priority = priorityValue, Flagged = flagged.IsOn, Recurrence = recurrence });
             }
@@ -133,7 +134,7 @@ public sealed partial class MainWindow
             if (parent is not null) _collapsedSubtasks.Remove(parent.Id);
             await RefreshAllAsync();
         }
-        catch (Exception error) { ShowInfo("Couldn't add reminder", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntAddReminder"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { if (resize is not null) Root.SizeChanged -= resize; _dialogOpen = false; }
     }
 }

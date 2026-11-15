@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/Reminders.WinUI/Services/AppUpdater.cs" Link="AppUpdater.cs" />
+    <Compile Include="../../src/Reminders.Core/PresentationMessage.cs" Link="PresentationMessage.cs" />
   </ItemGroup>
 </Project>

@@ -1,3 +1,4 @@
+using Reminders.Core;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
@@ -51,7 +52,7 @@ internal sealed class AppUpdater
         if (release.GetProperty("draft").GetBoolean() || release.GetProperty("prerelease").GetBoolean()) return null;
         var tag = release.GetProperty("tag_name").GetString() ?? "";
         if (!Version.TryParse(tag.TrimStart('v'), out var version) || Normalize(version) <= Normalize(current)) return null;
-        var arch = architecture switch { Architecture.X64 => "x64", Architecture.Arm64 => "arm64", _ => throw new NotSupportedException("Unsupported update architecture.") };
+        var arch = architecture switch { Architecture.X64 => "x64", Architecture.Arm64 => "arm64", _ => throw new NotSupportedException("Unsupported update architecture.").WithPresentation("ErrorUnsupportedUpdateArchitecture") };
         var name = $"Reminders-for-Windows-{arch}-Setup.exe";
         foreach (var asset in release.GetProperty("assets").EnumerateArray())
         {
@@ -59,15 +60,15 @@ internal sealed class AppUpdater
             var uri = new Uri(asset.GetProperty("browser_download_url").GetString()!);
             var expectedPath = $"/{Repository}/releases/download/{Uri.EscapeDataString(tag)}/{name}";
             if (uri.Scheme != "https" || uri.Host != "github.com" || uri.AbsolutePath != expectedPath || uri.Query.Length != 0 || uri.Fragment.Length != 0)
-                throw new InvalidDataException("The update download is not a release asset from this repository.");
+                throw new InvalidDataException("The update download is not a release asset from this repository.").WithPresentation("ErrorUpdateAssetSource");
             var digest = asset.TryGetProperty("digest", out var value) ? value.GetString() : null;
             if (digest is null || !digest.StartsWith("sha256:", StringComparison.Ordinal) || digest.Length != 71 || !digest[7..].All(Uri.IsHexDigit))
-                throw new InvalidDataException("This release has no valid SHA-256 checksum. Download it manually from GitHub.");
+                throw new InvalidDataException("This release has no valid SHA-256 checksum. Download it manually from GitHub.").WithPresentation("ErrorUpdateChecksumMissing");
             var size = asset.GetProperty("size").GetInt64();
-            if (size <= 0 || size > MaximumInstallerSize) throw new InvalidDataException("The update installer size is invalid.");
+            if (size <= 0 || size > MaximumInstallerSize) throw new InvalidDataException("The update installer size is invalid.").WithPresentation("ErrorUpdateInstallerSize");
             return new AppUpdate(version, uri, digest[7..], size);
         }
-        throw new InvalidDataException($"This release does not include the {arch} installer yet.");
+        throw new InvalidDataException($"This release does not include the {arch} installer yet.").WithPresentation("ErrorUpdateInstallerMissing", arch);
     }
 
     private static Version Normalize(Version version) => new(version.Major, version.Minor, Math.Max(version.Build, 0), Math.Max(version.Revision, 0));
@@ -92,14 +93,14 @@ internal sealed class AppUpdater
                 while ((count = await source.ReadAsync(buffer, cancellationToken)) > 0)
                 {
                     total += count;
-                    if (total > update.Size) throw new InvalidDataException("The downloaded update exceeds its expected size.");
+                    if (total > update.Size) throw new InvalidDataException("The downloaded update exceeds its expected size.").WithPresentation("ErrorUpdateSizeExceeded");
                     hash.AppendData(buffer, 0, count);
                     await target.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
                     var percent = (int)(100.0 * total / update.Size);
                     if (percent != lastPercent) { progress.Report(percent); lastPercent = percent; }
                 }
                 if (total != update.Size || !CryptographicOperations.FixedTimeEquals(hash.GetHashAndReset(), Convert.FromHexString(update.Sha256)))
-                    throw new InvalidDataException("Update verification failed. The installer was not run.");
+                    throw new InvalidDataException("Update verification failed. The installer was not run.").WithPresentation("ErrorUpdateVerificationFailed");
             }
             return path;
         }
@@ -112,10 +113,10 @@ internal sealed class AppUpdater
 
     public static void LaunchInstaller(string path)
     {
-        if (!CanInstall) throw new InvalidOperationException("Automatic installation is available for installer builds only.");
+        if (!CanInstall) throw new InvalidOperationException("Automatic installation is available for installer builds only.").WithPresentation("ErrorUpdateInstallationUnavailable");
         var start = new ProcessStartInfo(path) { UseShellExecute = true };
         // Keep installer error dialogs visible if an upgrade cannot complete.
         start.Arguments = $"/SILENT /NORESTART /NORESTARTAPPLICATIONS /UPDATE /DIR=\"{AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)}\"";
-        _ = Process.Start(start) ?? throw new InvalidOperationException("Windows could not start the update installer.");
+        _ = Process.Start(start) ?? throw new InvalidOperationException("Windows could not start the update installer.").WithPresentation("ErrorUpdateInstallerLaunch");
     }
 }
