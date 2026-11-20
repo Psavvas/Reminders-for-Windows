@@ -84,6 +84,21 @@
   <data name="AppleAccountSettingsDescription" xml:space="preserve">
     <value>Manage the Apple Account used for your reminders.</value>
   </data>
+  <data name="AppleClearDue.Content" xml:space="preserve">
+    <value>Clear due date</value>
+  </data>
+  <data name="AppleCompletionButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Mark reminder complete</value>
+  </data>
+  <data name="AppleConflicts.Content" xml:space="preserve">
+    <value>Sync conflicts</value>
+  </data>
+  <data name="AppleDeleteButton.Content" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="AppleDeleteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Delete reminder</value>
+  </data>
   <data name="AppleDeviceSignIn.Content" xml:space="preserve">
     <value>Sign in with an Apple device</value>
   </data>
@@ -92,6 +107,45 @@
   </data>
   <data name="AppleIdBox.PlaceholderText" xml:space="preserve">
     <value>you@icloud.com</value>
+  </data>
+  <data name="AppleInterfaceStyle" xml:space="preserve">
+    <value>Apple-style</value>
+  </data>
+  <data name="ApplePaneButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Toggle sidebar</value>
+  </data>
+  <data name="ApplePaneButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Toggle sidebar</value>
+  </data>
+  <data name="AppleSearchButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Search reminders</value>
+  </data>
+  <data name="AppleSearchButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Search reminders (Ctrl+F)</value>
+  </data>
+  <data name="AppleShowCompleted.Content" xml:space="preserve">
+    <value>Show completed</value>
+  </data>
+  <data name="AppleSidebarLists.Text" xml:space="preserve">
+    <value>LISTS</value>
+  </data>
+  <data name="AppleSidebarSettings.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="AppleSidebarSettings.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Settings (Ctrl+,)</value>
+  </data>
+  <data name="AppleSidebarSync.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="AppleSidebarSync.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Sync now</value>
+  </data>
+  <data name="AppleSidebarTags.Text" xml:space="preserve">
+    <value>TAGS</value>
+  </data>
+  <data name="AppleSidebarTitle.Text" xml:space="preserve">
+    <value>Reminders</value>
   </data>
   <data name="AppleSignInConnecting" xml:space="preserve">
     <value>Connecting your Apple session to the app…</value>
@@ -137,6 +191,15 @@
   </data>
   <data name="AppTitle" xml:space="preserve">
     <value>Reminders for Windows</value>
+  </data>
+  <data name="AppleSortButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Sort reminders</value>
+  </data>
+  <data name="AppleSortButton.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Sort reminders</value>
+  </data>
+  <data name="AppleSyncStatus.Text" xml:space="preserve">
+    <value>Ready to sync</value>
   </data>
   <data name="Automatic" xml:space="preserve">
     <value>Automatic</value>
@@ -892,9 +955,6 @@ Any subtasks will also be deleted.</value>
   <data name="ExpandSubtasksOf" xml:space="preserve">
     <value>Expand subtasks of {0}</value>
   </data>
-  <data name="ExploreTheUIWithSampleDataButton.Content" xml:space="preserve">
-    <value>Explore the UI with sample data</value>
-  </data>
   <data name="FilteredByTag" xml:space="preserve">
     <value>Filtered by tag</value>
   </data>
@@ -923,9 +983,6 @@ Any subtasks will also be deleted.</value>
     <value>Heart</value>
   </data>
   <data name="High" xml:space="preserve">
-    <value>High</value>
-  </data>
-  <data name="HighComboBoxItem.Content" xml:space="preserve">
     <value>High</value>
   </data>
   <data name="HighPriority" xml:space="preserve">
@@ -960,6 +1017,9 @@ Any subtasks will also be deleted.</value>
   </data>
   <data name="InstallUpdate" xml:space="preserve">
     <value>Install update?</value>
+  </data>
+  <data name="InterfaceStyle" xml:space="preserve">
+    <value>Interface style</value>
   </data>
   <data name="ItsDetailsWillAppearHereTextBlock.Text" xml:space="preserve">
     <value>Its details will appear here.</value>
@@ -1027,9 +1087,6 @@ Any subtasks will also be deleted.</value>
   <data name="Low" xml:space="preserve">
     <value>Low</value>
   </data>
-  <data name="LowComboBoxItem.Content" xml:space="preserve">
-    <value>Low</value>
-  </data>
   <data name="LowPriority" xml:space="preserve">
     <value>Low priority</value>
   </data>
@@ -1052,9 +1109,6 @@ Any subtasks will also be deleted.</value>
     <value>Match Windows</value>
   </data>
   <data name="Medium" xml:space="preserve">
-    <value>Medium</value>
-  </data>
-  <data name="MediumComboBoxItem.Content" xml:space="preserve">
     <value>Medium</value>
   </data>
   <data name="MediumPriority" xml:space="preserve">
@@ -1117,10 +1171,10 @@ Any subtasks will also be deleted.</value>
   <data name="NoMatchingReminders" xml:space="preserve">
     <value>No matching reminders</value>
   </data>
-  <data name="None" xml:space="preserve">
-    <value>None</value>
+  <data name="NoPriority" xml:space="preserve">
+    <value>No priority</value>
   </data>
-  <data name="NoneComboBoxItem.Content" xml:space="preserve">
+  <data name="None" xml:space="preserve">
     <value>None</value>
   </data>
   <data name="NoRemindersHere" xml:space="preserve">
@@ -1193,6 +1247,9 @@ Any subtasks will also be deleted.</value>
   <data name="PendingChangesOrConflictOne" xml:space="preserve">
     <value>{0} unsynced change or conflict</value>
   </data>
+  <data name="PendingICloudSync" xml:space="preserve">
+    <value>Pending sync to iCloud.</value>
+  </data>
   <data name="Pink" xml:space="preserve">
     <value>Pink</value>
   </data>
@@ -1255,6 +1312,9 @@ Any subtasks will also be deleted.</value>
   </data>
   <data name="ReminderMetadataSeparator" xml:space="preserve">
     <value>  ·  </value>
+  </data>
+  <data name="ReminderTitle" xml:space="preserve">
+    <value>Title</value>
   </data>
   <data name="Reminders" xml:space="preserve">
     <value>Reminders</value>
@@ -1595,6 +1655,27 @@ Accept any updated terms, then check that your lists appear.</value>
   <data name="ShowCompleted.OnContent" xml:space="preserve">
     <value>Completed</value>
   </data>
+  <data name="SidebarLastSynced" xml:space="preserve">
+    <value>Synced {0:t}</value>
+  </data>
+  <data name="SidebarListAccessibleName" xml:space="preserve">
+    <value>{0}, {1}</value>
+  </data>
+  <data name="SidebarLocalAccount" xml:space="preserve">
+    <value>Local account · iCloud sync is off</value>
+  </data>
+  <data name="SidebarNeverSynced" xml:space="preserve">
+    <value>Not synced yet</value>
+  </data>
+  <data name="SidebarPendingSync" xml:space="preserve">
+    <value>{0} · {1} pending</value>
+  </data>
+  <data name="SidebarReadyToSync" xml:space="preserve">
+    <value>Ready to sync</value>
+  </data>
+  <data name="SidebarSampleData" xml:space="preserve">
+    <value>Sample data · no iCloud connection</value>
+  </data>
   <data name="SignedIn" xml:space="preserve">
     <value>Signed in</value>
   </data>
@@ -1925,6 +2006,9 @@ Accept any updated terms, then check that your lists appear.</value>
   </data>
   <data name="WeeklyComboBoxItem.Content" xml:space="preserve">
     <value>Weekly</value>
+  </data>
+  <data name="WindowsInterfaceStyle" xml:space="preserve">
+    <value>Windows (original)</value>
   </data>
   <data name="Work" xml:space="preserve">
     <value>Work</value>

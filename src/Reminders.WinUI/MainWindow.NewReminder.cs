@@ -65,15 +65,24 @@ public sealed partial class MainWindow
             schedule.Children.Add(scheduleHeader); schedule.Children.Add(dateTimePair);
             schedule.Children.Add(allDayRow); schedule.Children.Add(repeatPair);
 
-            var priority = new ComboBox { Header = L10n.Get("Priority"), ItemsSource = new[] { L10n.Get("None"), L10n.Get("Low"), L10n.Get("Medium"), L10n.Get("High") },
-                SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var priority = new ComboBox { Header = L10n.Get("Priority"), HorizontalAlignment = HorizontalAlignment.Stretch };
+            PopulatePriorityChoices(priority);
             var flagged = new ToggleSwitch { Header = L10n.Get("Flagged") };
             var more = new Expander { Header = L10n.Get("MoreOptions"), HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = EditorPair(priority, flagged) };
+                HorizontalContentAlignment = HorizontalAlignment.Stretch, Content = IsAppleStyle ? flagged : EditorPair(priority, flagged) };
             var panel = new StackPanel { Spacing = 16 };
             if (parent is not null) panel.Children.Add(new TextBlock { Text = L10n.Format("SubtaskOf", parent.DisplayTitle), TextWrapping = TextWrapping.Wrap });
             panel.Children.Add(title); panel.Children.Add(notes); panel.Children.Add(list);
-            panel.Children.Add(new Border { Style = (Style)Application.Current.Resources["EditorSectionStyle"], Child = schedule });
+            if (IsAppleStyle)
+            {
+                panel.Children.Add(priority);
+                panel.Children.Add(schedule);
+                title.Header = L10n.Get("ReminderTitle");
+                var headerTemplate = (DataTemplate)Root.Resources["AppleFieldHeaderTemplate"];
+                title.HeaderTemplate = notes.HeaderTemplate = list.HeaderTemplate = priority.HeaderTemplate = headerTemplate;
+                StyleAppleFields(AppleBrush("AppleSidebarBrush"), title, notes, list, priority, date, time, repeat, interval);
+            }
+            else panel.Children.Add(new Border { Style = (Style)Application.Current.Resources["EditorSectionStyle"], Child = schedule });
             panel.Children.Add(more);
             var scroll = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalContentAlignment = HorizontalAlignment.Stretch,
@@ -81,11 +90,16 @@ public sealed partial class MainWindow
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme,
                 Title = parent is null ? L10n.Get("NewReminder") : L10n.Get("NewSubtask"), Content = scroll, PrimaryButtonText = parent is null ? L10n.Get("AddReminder") : L10n.Get("AddSubtask"), CloseButtonText = L10n.Get("Cancel"),
                 DefaultButton = ContentDialogButton.Primary, IsPrimaryButtonEnabled = false };
+            if (IsAppleStyle)
+            {
+                dialog.CornerRadius = new CornerRadius(18);
+                dialog.Background = AppleBrush("AppleCanvasBrush");
+            }
             dialog.Resources["ContentDialogMinWidth"] = 0d;
             dialog.Resources["ContentDialogMaxWidth"] = 680d;
             void Resize()
             {
-                scroll.Width = Math.Clamp(Root.ActualWidth - 100, 240, 600);
+                scroll.Width = Math.Clamp(Root.ActualWidth - 100, 240, IsAppleStyle ? 460 : 600);
                 scroll.MaxHeight = Math.Clamp(Root.ActualHeight - 240, 100, 600);
             }
             resize = (_, _) => Resize(); Root.SizeChanged += resize; Resize();
@@ -121,7 +135,7 @@ public sealed partial class MainWindow
             UpdateSchedule();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary || list.SelectedValue is not string listId) return;
             var due = FormatDueDate(scheduled.IsOn ? date.Date : null, allDay.IsOn, time.Time);
-            var priorityValue = priority.SelectedIndex switch { 1 => 9, 2 => 5, 3 => 1, _ => 0 };
+            var priorityValue = (priority.SelectedItem as ComboBoxItem)?.Tag is long value ? value : 0;
             var recurrence = repeat.SelectedIndex == 0 ? null : new RepeatSchedule { Frequency = repeat.SelectedIndex, Interval = (long)interval.Value };
             if (_demo)
             {

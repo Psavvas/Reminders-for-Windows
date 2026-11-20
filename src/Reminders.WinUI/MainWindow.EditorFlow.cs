@@ -52,7 +52,7 @@ public sealed partial class MainWindow
         var due = FormatDueDate(DetailDate.Date, DetailAllDay.IsOn, DetailTime.Time);
         var listId = DetailList.SelectedValue as string ?? selected.ListId;
         var allDay = DetailAllDay.IsOn; var flagged = DetailFlagged.IsOn;
-        var priority = long.Parse(((ComboBoxItem?)DetailPriority.SelectedItem)?.Tag?.ToString() ?? "0");
+        var priority = (DetailPriority.SelectedItem as ComboBoxItem)?.Tag is long value ? value : selected.Priority;
         var recurrence = DetailRepeatChoice.SelectedIndex <= 0 ? null : new RepeatSchedule { Frequency = DetailRepeatChoice.SelectedIndex, Interval = (long)DetailRepeatInterval.Value };
         var values = new Dictionary<string, object?> { ["title"] = title, ["description"] = notes, ["list_id"] = listId,
             ["due_date"] = due, ["all_day"] = allDay, ["flagged"] = flagged, ["priority"] = priority };
