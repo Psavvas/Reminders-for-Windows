@@ -50,7 +50,7 @@ public sealed partial class MainWindow
         UpdateCompletedControls();
         ReminderFooter.Padding = apple ? new Thickness(28, 8, 24, 10) : new Thickness(24, 12, 24, 16);
         ApplyDetailStyle(apple);
-        SaveButton.Content = apple ? "Save" : "Save changes";
+        SaveButton.Content = L10n.Get(apple ? "Save" : "SaveChanges");
         SaveButton.HorizontalAlignment = apple ? HorizontalAlignment.Stretch : HorizontalAlignment.Right;
         SaveButton.MinWidth = apple ? 0 : 140;
         AddButton.Height = apple ? 40 : 36;
@@ -60,7 +60,7 @@ public sealed partial class MainWindow
             AddButton.CornerRadius = new CornerRadius(20);
             AddButton.Padding = new Thickness(0);
             DetailNotes.MinHeight = 108;
-            DetailTitle.Header = "TITLE";
+            DetailTitle.Header = L10n.Get("ReminderTitle");
             SaveButton.CornerRadius = new CornerRadius(10);
         }
         else
@@ -71,11 +71,6 @@ public sealed partial class MainWindow
             SaveButton.ClearValue(Control.CornerRadiusProperty);
             DetailTitle.ClearValue(TextBox.HeaderProperty);
         }
-        DetailNotes.Header = apple ? "NOTES" : "Notes";
-        DetailPriority.Header = apple ? "PRIORITY" : "Priority";
-        DetailList.Header = apple ? "LIST" : "List";
-        DetailDate.Header = apple ? "DUE DATE" : "Due date";
-        DetailTime.Header = apple ? "TIME" : "Time";
         var headerTemplate = apple ? (DataTemplate)Root.Resources["AppleFieldHeaderTemplate"] : null;
         DetailTitle.HeaderTemplate = headerTemplate;
         DetailNotes.HeaderTemplate = headerTemplate;
@@ -92,7 +87,6 @@ public sealed partial class MainWindow
         {
             ReminderHost.ClearValue(Panel.BackgroundProperty);
             DetailsHost.ClearValue(Panel.BackgroundProperty);
-            ReminderLayout.ClearValue(Panel.BackgroundProperty);
             DetailFooter.ClearValue(Border.BackgroundProperty);
             foreach (var button in new[] { AddButton, SaveButton })
             {
@@ -152,8 +146,8 @@ public sealed partial class MainWindow
     {
         foreach (var value in new long[] { 0, 9, 5, 1 })
         {
-            var (marks, label) = ReminderItem.FormatPriority(value);
-            var item = new ComboBoxItem { Content = value == 0 ? "None" : marks, Tag = value };
+            var label = ReminderItem.DescribePriority(value);
+            var item = new ComboBoxItem { Content = value == 0 ? L10n.Get("None") : ReminderItem.FormatPriority(value), Tag = value };
             AutomationProperties.SetName(item, label);
             ToolTipService.SetToolTip(item, label);
             combo.Items.Add(item);
@@ -166,7 +160,6 @@ public sealed partial class MainWindow
         ReminderHost.Background = AppleBrush("AppleCanvasBrush");
         DetailsHost.Background = AppleBrush("AppleSidebarBrush");
         DetailFooter.Background = AppleBrush("AppleSidebarBrush");
-        ReminderLayout.Background = AppleBrush("AppleDividerBrush");
         StyleAppleFields(AppleBrush("AppleFieldBrush"), DetailTitle, DetailNotes, DetailPriority, DetailList, DetailDate,
             DetailTime, DetailRepeatChoice, DetailRepeatInterval);
         AddButton.Background = AppleBrush("AppleBlueBrush"); AddButton.Foreground = new SolidColorBrush(Microsoft.UI.Colors.White);
@@ -207,7 +200,7 @@ public sealed partial class MainWindow
     {
         var visible = IsAppleStyle && _appleSidebarOpen;
         AppleSidebar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        AppleSidebarColumn.Width = new GridLength(visible ? Root.ActualWidth is > 0 and < 900 ? 220 : 270 : 0);
+        AppleSidebarColumn.Width = new GridLength(visible ? Root.ActualWidth is > 0 and < 900 ? 212 : 248 : 0);
     }
 
     private void RebuildAppleNavigation()
@@ -218,12 +211,17 @@ public sealed partial class MainWindow
         {
             AppleSmartLists.Items.Clear(); AppleLists.Items.Clear(); AppleTags.Items.Clear();
             AppleTagsSection.Visibility = _tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            foreach (var (label, scope, glyph, color) in new[]
+            foreach (var (scope, color) in new[]
             {
-                ("Today", "today", "\uE823", "#3478F6"), ("Upcoming", "upcoming", "\uE787", "#FF3B30"),
-                ("All", "all", "\uE8FD", "#8E8E93"), ("Completed", "completed", "\uE73E", "#34C759"), ("Deleted", "deleted", "\uE74D", "#8E8E93")
+                ("today", "#3478F6"), ("upcoming", "#FF3B30"), ("all", "#8E8E93"),
+                ("completed", "#34C759"), ("deleted", "#8E8E93")
             })
-                AppleSmartLists.Items.Add(AppleNavigationRow(new(label, glyph, NavKind.Smart, scope, _appleSmartCounts.GetValueOrDefault(scope), color)));
+            {
+                var item = Navigation.MenuItems.OfType<NavigationViewItem>().First(item => Equals(item.Tag, $"smart:{scope}"));
+                var glyph = ((FontIcon)item.Icon).Glyph;
+                AppleSmartLists.Items.Add(AppleNavigationRow(new(item.Content.ToString()!, glyph, NavKind.Smart, scope,
+                    _appleSmartCounts.GetValueOrDefault(scope), color)));
+            }
             foreach (var list in OrderedLists())
             {
                 _uiPreferences.Lists.TryGetValue(list.Id, out var appearance);
@@ -249,17 +247,37 @@ public sealed partial class MainWindow
 
     private ListViewItem AppleNavigationRow(NavEntry entry)
     {
-        var grid = new Grid { Padding = new Thickness(8, 5, 8, 5), ColumnSpacing = 10 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        var grid = new Grid { MinHeight = 36, Padding = new Thickness(8, 0, 10, 0), ColumnSpacing = 9 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var icon = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = ColorBrush(entry.Color), Child = new FontIcon { Glyph = entry.Glyph, FontSize = 14, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) } };
-        var title = new TextBlock { Text = entry.Label, FontSize = 14, Foreground = AppleBrush("AppleTextBrush"), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
-        var count = new TextBlock { Text = entry.Count.ToString(), FontSize = 13, Foreground = AppleBrush("AppleSecondaryBrush"), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(title, 1); Grid.SetColumn(count, 2);
-        grid.Children.Add(icon); grid.Children.Add(title); grid.Children.Add(count);
+
+        var iconSize = entry.Kind == NavKind.Smart ? 24 : 22;
+        var icon = new Border
+        {
+            Width = iconSize, Height = iconSize, CornerRadius = new CornerRadius(iconSize / 2d),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Background = ColorBrush(entry.Color),
+            Child = new FontIcon { Glyph = entry.Glyph, FontSize = 12, Foreground = new SolidColorBrush(Microsoft.UI.Colors.White) }
+        };
+        var title = new TextBlock
+        {
+            Text = entry.Label, FontSize = 14, Foreground = AppleBrush("AppleTextBrush"),
+            TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center
+        };
+        var count = new TextBlock
+        {
+            Text = entry.Count > 0 ? entry.Count.ToString("N0") : "", FontSize = 12,
+            Foreground = AppleBrush("AppleSecondaryBrush"), VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(title, 1);
+        Grid.SetColumn(count, 2);
+        grid.Children.Add(icon);
+        grid.Children.Add(title);
+        grid.Children.Add(count);
         var row = new ListViewItem { Content = grid, Tag = entry, Style = (Style)Root.Resources["AppleRowStyle"] };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(row, $"{entry.Label}, {entry.Count} reminders");
+        var countLabel = L10n.Format(entry.Count == 1 ? "ReminderCountOne" : "ReminderCountMany", entry.Count);
+        AutomationProperties.SetName(row, L10n.Format("SidebarListAccessibleName", entry.Label, countLabel));
         return row;
     }
 
@@ -286,7 +304,7 @@ public sealed partial class MainWindow
         _appleSmartCounts["all"] = active.Count;
         _appleSmartCounts["completed"] = _demoRows.Count(row => row.Completed && !row.Deleted);
         _appleSmartCounts["deleted"] = _demoRows.Count(row => row.Deleted);
-        AppleSyncStatus.Text = "Sample data · no iCloud connection";
+        AppleSyncStatus.Text = L10n.Get("SidebarSampleData");
         foreach (var list in _lists) list.Count = active.Count(row => row.ListId == list.Id);
         RebuildAppleNavigation();
     }
@@ -330,7 +348,8 @@ public sealed partial class MainWindow
     private async void AppleSettings_Click(object sender, RoutedEventArgs e) => await ShowSettingsAsync();
     private async void AppleSync_Click(object sender, RoutedEventArgs e)
     {
-        if (_demo || _sync.IsLocalDemo) ShowInfo("Local reminders", "These reminders are stored on this PC.", InfoBarSeverity.Informational);
+        if (_demo || _sync.IsLocalDemo)
+            ShowInfo(L10n.Get("LocalStorage"), L10n.Get(_demo ? "DemoModeDescription" : "LocalAccountSyncDisabled"), InfoBarSeverity.Informational);
         else await RequestAutoSyncAsync();
     }
 

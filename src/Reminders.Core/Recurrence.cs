@@ -9,8 +9,8 @@ internal static class Recurrence
         if (value is null) return null;
         var interval = value.Property("interval") is null ? 1 : value.Number("interval", -1);
         if (value is not JsonObject || value.Number("frequency") is < 1 or > 4 || interval is < 1 or > 999)
-            throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat with an interval from 1 to 999.");
-        if (due is null) throw CoreException.Bad("A repeating reminder needs a due date.");
+            throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat with an interval from 1 to 999.").WithPresentation("ErrorInvalidRepeatInterval");
+        if (due is null) throw CoreException.Bad("A repeating reminder needs a due date.").WithPresentation("ErrorRepeatNeedsDueDate");
         return new JsonObject { ["frequency"] = value.Number("frequency"), ["interval"] = interval };
     }
 
@@ -45,9 +45,9 @@ internal static class Recurrence
         var description = Describe(rule);
         var frequency = description.Number("frequency");
         if (!description.Flag("supported") || frequency is < 1 or > 4)
-            throw CoreException.Bad("This reminder has a custom repeat rule. Complete it on an Apple device to preserve its schedule.");
+            throw CoreException.Bad("This reminder has a custom repeat rule. Complete it on an Apple device to preserve its schedule.").WithPresentation("ErrorCustomRepeatCompletion");
         var interval = description.Number("interval");
-        if (interval is < 1 or > 999) throw CoreException.Bad("This reminder's repeat interval is not supported.");
+        if (interval is < 1 or > 999) throw CoreException.Bad("This reminder's repeat interval is not supported.").WithPresentation("ErrorUnsupportedRepeatInterval");
         var zone = TimeUtil.Zone(zoneName);
         var start = TimeZoneInfo.ConvertTime(TimeUtil.Parse(due), zone).DateTime;
         var count = CloudKit.Int(rule, "OccurrenceCount");
@@ -67,7 +67,7 @@ internal static class Recurrence
             if (CloudKit.Field(rule, "EndDate") is JsonValue end && end.TryGetValue<long>(out var endMs) && next > TimeUtil.FromFloating(endMs, zoneName)) return null;
             if (next > completedAt) return TimeUtil.Iso(next);
         }
-        throw CoreException.Bad("The next repeat is outside the supported date range.");
+        throw CoreException.Bad("The next repeat is outside the supported date range.").WithPresentation("ErrorRepeatOutsideDateRange");
     }
 
     public static JsonObject Fields(string reminder, JsonNode recurrence) => new()
@@ -76,7 +76,7 @@ internal static class Recurrence
         ["Frequency"] = CloudKit.Number(recurrence.Number("frequency") switch
         {
             1 => 0, 2 => 1, 3 => 2, 4 => 3,
-            _ => throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat.")
+            _ => throw CoreException.Bad("Choose a daily, weekly, monthly or yearly repeat.").WithPresentation("ErrorUnsupportedRepeatFrequency")
         }),
         ["Interval"] = CloudKit.Number(recurrence.Number("interval", 1)), ["OccurrenceCount"] = CloudKit.Number(0),
         ["FirstDayOfTheWeek"] = CloudKit.Number(0), ["Imported"] = CloudKit.Number(0), ["Deleted"] = CloudKit.Number(0)

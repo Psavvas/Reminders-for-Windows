@@ -1,3 +1,4 @@
+using Reminders.Windows.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -36,10 +37,10 @@ public sealed partial class MainWindow
         public bool CanDiscard { get; set; } = true;
         public Grid View { get; } = new() { RowSpacing = 12 };
         public InfoBar Notice { get; } = new() { IsClosable = false, IsOpen = false };
-        public Button Refresh { get; } = SettingsAction("Refresh list");
+        public Button Refresh { get; } = SettingsAction(L10n.Get("RefreshList"));
         private readonly ListView tasks;
-        private readonly Button selectAll = SettingsAction("Select all");
-        private readonly Button clear = SettingsAction("Clear selection");
+        private readonly Button selectAll = SettingsAction(L10n.Get("SelectAll"));
+        private readonly Button clear = SettingsAction(L10n.Get("ClearSelection"));
         public IReadOnlyList<UnsyncedReminder> Selected => tasks.SelectedItems.OfType<UnsyncedReminder>().ToArray();
 
         public SyncRecoveryReview(List<UnsyncedReminder> rows, Action selectionChanged, bool unsavedEditor)
@@ -47,8 +48,8 @@ public sealed partial class MainWindow
             View.RowDefinitions.Add(new() { Height = GridLength.Auto });
             View.RowDefinitions.Add(new()); View.RowDefinitions.Add(new() { Height = GridLength.Auto });
             var header = new StackPanel { Spacing = 10 };
-            header.Children.Add(SettingsDescription("Choose the local changes to discard. New tasks that exist only on this PC will be removed. Tasks already in iCloud will return to their latest iCloud version. This does not delete tasks from iCloud."));
-            if (unsavedEditor) header.Children.Add(SettingsDescription("If you select the open reminder, its unsaved editor changes will also be discarded."));
+            header.Children.Add(SettingsDescription(L10n.Get("DiscardChangesReviewInstructions")));
+            if (unsavedEditor) header.Children.Add(SettingsDescription(L10n.Get("DiscardChangesOpenEditorWarning")));
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             buttons.Children.Add(selectAll); buttons.Children.Add(clear); header.Children.Add(buttons);
             tasks = new ListView { ItemsSource = rows, SelectionMode = ListViewSelectionMode.Multiple,
@@ -56,7 +57,7 @@ public sealed partial class MainWindow
             var rowStyle = new Style { TargetType = typeof(ListViewItem) };
             rowStyle.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
             tasks.ItemContainerStyle = rowStyle;
-            AutomationProperties.SetName(tasks, "Unsynced reminders to discard");
+            AutomationProperties.SetName(tasks, L10n.Get("UnsyncedRemindersToDiscard"));
             ScrollViewer.SetHorizontalScrollBarVisibility(tasks, ScrollBarVisibility.Disabled);
             tasks.ItemTemplate = (DataTemplate)XamlReader.Load("""
                 <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
@@ -78,7 +79,7 @@ public sealed partial class MainWindow
         public void SetBusy(bool busy)
         {
             tasks.IsEnabled = !busy; selectAll.IsEnabled = !busy; clear.IsEnabled = !busy; Refresh.IsEnabled = !busy;
-            if (busy) { Notice.Severity = InfoBarSeverity.Informational; Notice.Title = "Restoring selected reminders"; Notice.Message = "Checking the latest iCloud copies…"; Notice.IsOpen = true; }
+            if (busy) { Notice.Severity = InfoBarSeverity.Informational; Notice.Title = L10n.Get("RestoringSelectedReminders"); Notice.Message = L10n.Get("DiscardChangesCheckingICloud"); Notice.IsOpen = true; }
         }
     }
 }

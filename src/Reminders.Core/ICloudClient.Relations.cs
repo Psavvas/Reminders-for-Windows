@@ -6,7 +6,7 @@ internal sealed partial class ICloudClient
 {
     private static JsonObject Snapshot(JsonNode record)
     {
-        var reminder = ToReminder(record) ?? throw new CoreException("ERROR", "iCloud returned an invalid reminder.");
+        var reminder = ToReminder(record) ?? throw new CoreException("ERROR", "iCloud returned an invalid reminder.").WithPresentation("ErrorInvalidICloudReminder");
         reminder["cloud_record"] = record.DeepClone(); return reminder;
     }
     private static void AddTokens(JsonObject fields, params string[] names)
@@ -24,7 +24,7 @@ internal sealed partial class ICloudClient
     {
         var copy = original.DeepClone();
         var returned = result.FirstOrDefault(r => r.Text("recordName") == original.Text("recordName"))
-            ?? throw new CoreException("NETWORK", "iCloud did not return the changed reminder.");
+            ?? throw new CoreException("NETWORK", "iCloud did not return the changed reminder.").WithPresentation("ErrorUpdatedReminderMissing");
         copy["fields"] ??= new JsonObject();
         if (returned["fields"] is JsonObject changed)
             foreach (var pair in changed) copy["fields"]![pair.Key] = pair.Value?.DeepClone();
@@ -39,18 +39,18 @@ internal sealed partial class ICloudClient
     {
         var id = original.Required("recordName");
         if (CloudKit.Int(original, "Completed") != 0) return Snapshot(original);
-        var historyId = patch.Text("completion_id") ?? throw CoreException.Bad("Refresh this reminder before completing its repeat.");
+        var historyId = patch.Text("completion_id") ?? throw CoreException.Bad("Refresh this reminder before completing its repeat.").WithPresentation("ErrorRepeatCompletionRefreshRequired");
         // Resolve an ambiguous network failure before comparing revisions. A
         // committed atomic request must never advance the schedule twice.
         var history = (await Cloud.LookupMany([historyId], token, true)).FirstOrDefault();
         if (history is not null) { var recovered = Snapshot(original); recovered["completed_occurrence"] = Snapshot(history); return recovered; }
         if (baseTag is not null && baseTag != original.Text("recordChangeTag"))
-            throw new CoreException("CONFLICT", "This repeating reminder changed on another device.", ToReminder(original)!.ToJsonString());
+            throw new CoreException("CONFLICT", "This repeating reminder changed on another device.", ToReminder(original)!.ToJsonString()).WithPresentation("ErrorRepeatCompletionConflict");
         var ids = (JsonArray)CloudKit.Field(original, "RecurrenceRuleIDs")!;
-        if (ids.Count != 1) throw CoreException.Bad("Complete reminders with multiple repeat rules on an Apple device to preserve their schedule.");
+        if (ids.Count != 1) throw CoreException.Bad("Complete reminders with multiple repeat rules on an Apple device to preserve their schedule.").WithPresentation("ErrorRepeatCompletionMultipleRules");
         var ruleId = ids[0]!.ToString(); if (!ruleId.StartsWith("RecurrenceRule/")) ruleId = "RecurrenceRule/" + ruleId;
-        var rule = (await Cloud.Lookup(ruleId, token)).FirstOrDefault() ?? throw CoreException.Bad("iCloud did not return this reminder's repeat rule.");
-        var due = ToReminder(original)!.Text("due_date") ?? throw CoreException.Bad("Set a due date before completing this repeating reminder.");
+        var rule = (await Cloud.Lookup(ruleId, token)).FirstOrDefault() ?? throw CoreException.Bad("iCloud did not return this reminder's repeat rule.").WithPresentation("ErrorRepeatRuleMissing");
+        var due = ToReminder(original)!.Text("due_date") ?? throw CoreException.Bad("Set a due date before completing this repeating reminder.").WithPresentation("ErrorRepeatCompletionNeedsDueDate");
         var now = DateTimeOffset.UtcNow;
         var next = Recurrence.Next(rule, due, CloudKit.Text(original, "TimeZone"), now, out var consumed);
         if (next is null)
@@ -75,10 +75,10 @@ internal sealed partial class ICloudClient
         foreach (var pair in patch) historyPatch[pair.Key] = pair.Value?.DeepClone();
         foreach (var name in new[] { "TitleDocument", "NotesDocument" })
             if (CloudKit.Field(original, name) is null && CloudKit.Field(original, name + "Asset") is not null)
-                throw CoreException.Bad("Complete this reminder with a large text document on an Apple device.");
+                throw CoreException.Bad("Complete this reminder with a large text document on an Apple device.").WithPresentation("ErrorRepeatCompletionLargeDocument");
         var context = new JsonObject { ["fields"] = new JsonObject { ["TimeZone"] = original["fields"]?["TimeZone"]?.DeepClone() } };
         var past = UpdateFields(context, historyPatch);
-        past["List"] = CloudKit.Reference(CloudKit.Field(original, "List").Text("recordName") ?? throw CoreException.Bad("Refresh this reminder before completing its repeat."));
+        past["List"] = CloudKit.Reference(CloudKit.Field(original, "List").Text("recordName") ?? throw CoreException.Bad("Refresh this reminder before completing its repeat.").WithPresentation("ErrorRepeatCompletionRefreshRequired"));
         past["Deleted"] = CloudKit.Number(0);
         if (CloudKit.Text(original, "TimeZone") is { } zone) past["TimeZone"] = CloudKit.String(zone);
         if (CloudKit.Field(original, "StartDate") is JsonValue pastStart && pastStart.TryGetValue<long>(out var pastStartMs))

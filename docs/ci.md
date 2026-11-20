@@ -23,13 +23,14 @@ merged commit. CI rejects a tag/version mismatch or a tag outside `main`.
 After the tag workflow finishes, review all six release assets, replace generated
 notes with the checked-in [release notes](releases/v1.0.0.md), and publish the draft
 as a stable release. Publishing on GitHub makes the update visible to the app's
-updater; it does not submit or publish a Microsoft Store update.
+updater and triggers [Microsoft Store publishing](microsoft-store.md#automatic-publishing).
 
 NuGet restores use committed lockfiles. Cache access is read-only for PR/manual
 builds, writable only on main pushes, and disabled for tags. Keys include architecture,
 app/backend projects and lockfiles. Actions are pinned to full commit hashes.
-Checkout does not persist credentials. Release jobs consume only their own run's
-artifacts and cannot check out/build code with write permissions.
+Checkout does not persist credentials. The GitHub draft job consumes only its own
+run's artifacts. The Store job reads the published release assets and runs the
+submission script from `main` with read-only GitHub permissions.
 
 `scripts/test_ci_policy.py` includes mutation tests for these boundaries. Python is
 a CI utility; application builds use .NET and Windows packaging tools. Review

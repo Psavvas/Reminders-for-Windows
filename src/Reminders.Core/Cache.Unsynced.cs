@@ -33,20 +33,20 @@ internal sealed partial class Cache
 
     internal JsonArray ValidateDiscard(JsonArray targets)
     {
-        if (targets.Count is 0 or > 1000) throw CoreException.Bad("Select between 1 and 1,000 reminders to discard.");
+        if (targets.Count is 0 or > 1000) throw CoreException.Bad("Select between 1 and 1,000 reminders to discard.").WithPresentation("ErrorDiscardSelectionSize");
         var current = UnsyncedReminders().ToDictionary(r => r!.Required("id"), r => r!);
         var seen = new HashSet<string>(); var selected = new JsonArray();
         foreach (var target in targets)
         {
-            if (target is not JsonObject item || !seen.Add(item.Required("id"))) throw CoreException.Bad("Select each reminder only once.");
+            if (target is not JsonObject item || !seen.Add(item.Required("id"))) throw CoreException.Bad("Select each reminder only once.").WithPresentation("ErrorDiscardDuplicateSelection");
             var id = item.Required("id");
             if (!current.TryGetValue(id, out var row) || item.Required("version") != row.Required("version"))
-                throw new CoreException("STALE_SELECTION", "These reminders changed while you were reviewing them. Refresh the list and choose again.");
+                throw new CoreException("STALE_SELECTION", "These reminders changed while you were reviewing them. Refresh the list and choose again.").WithPresentation("ErrorDiscardSelectionChanged");
             selected.Add(row.DeepClone());
         }
         foreach (var row in selected.Where(row => row.Flag("is_new")))
             if (Descendants(row!.Required("id")).Any(child => !seen.Contains(child.Required("id"))))
-                throw CoreException.Bad("Also select the subtasks before discarding a new parent task.");
+                throw CoreException.Bad("Also select the subtasks before discarding a new parent task.").WithPresentation("ErrorDiscardSubtasksRequired");
         return selected;
     }
 
@@ -59,7 +59,7 @@ internal sealed partial class Cache
             token.ThrowIfCancellationRequested();
             var id = row!.Required("id");
             var cloudId = row.Text("cloud_id");
-            if (cloudId is not null && !snapshots.ContainsKey(cloudId)) throw CoreException.Bad("Refresh iCloud before discarding these changes.");
+            if (cloudId is not null && !snapshots.ContainsKey(cloudId)) throw CoreException.Bad("Refresh iCloud before discarding these changes.").WithPresentation("ErrorDiscardRefreshRequired");
             var remote = cloudId is null ? null : snapshots[cloudId];
             Execute("DELETE FROM outbox WHERE reminder_id=@p0", id);
             Execute("UPDATE conflicts SET resolved=1 WHERE reminder_id=@p0 AND resolved=0", id);

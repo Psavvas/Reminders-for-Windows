@@ -13,11 +13,11 @@ namespace Reminders.Windows;
 public sealed partial class MainWindow
 {
     private static readonly (string Name, string Glyph)[] ListIcons =
-    [ ("List", "\uE8FD"), ("Inbox", "\uE715"), ("Work", "\uE821"), ("Home", "\uE80F"),
-      ("School", "\uE7BE"), ("Shopping", "\uE7BF"), ("Travel", "\uE709"), ("Heart", "\uEB51"), ("Star", "\uE734") ];
+    [ (L10n.Get("List"), "\uE8FD"), (L10n.Get("Inbox"), "\uE715"), (L10n.Get("Work"), "\uE821"), (L10n.Get("Home"), "\uE80F"),
+      (L10n.Get("School"), "\uE7BE"), (L10n.Get("Shopping"), "\uE7BF"), (L10n.Get("Travel"), "\uE709"), (L10n.Get("Heart"), "\uEB51"), (L10n.Get("Star"), "\uE734") ];
     private static readonly (string Name, string Hex)[] ListColors =
-    [ ("Blue", "#0078D4"), ("Red", "#D13438"), ("Orange", "#CA5010"), ("Green", "#107C10"),
-      ("Purple", "#8764B8"), ("Pink", "#C239B3"), ("Gray", "#767676") ];
+    [ (L10n.Get("Blue"), "#0078D4"), (L10n.Get("Red"), "#D13438"), (L10n.Get("Orange"), "#CA5010"), (L10n.Get("Green"), "#107C10"),
+      (L10n.Get("Purple"), "#8764B8"), (L10n.Get("Pink"), "#C239B3"), (L10n.Get("Gray"), "#767676") ];
 
     private void RestoreNavigationSelection()
     {
@@ -37,7 +37,7 @@ public sealed partial class MainWindow
             else if (args.InvokedItemContainer?.Tag?.ToString() == "sync")
             {
                 RestoreNavigationSelection();
-                if (_demo) ShowInfo("Demo mode", "Sample reminders do not sync with iCloud.", InfoBarSeverity.Informational);
+                if (_demo) ShowInfo(L10n.Get("DemoMode"), L10n.Get("DemoSyncUnavailable"), InfoBarSeverity.Informational);
                 else await RequestAutoSyncAsync();
             }
             else if (args.InvokedItemContainer?.Tag?.ToString() == "conflicts")
@@ -46,7 +46,7 @@ public sealed partial class MainWindow
                 if (await ConfirmLeaveDetailAsync()) await ResolveConflictsAsync();
             }
         }
-        catch (Exception error) { ShowInfo("Couldn't complete action", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntCompleteAction"), L10n.Error(error), InfoBarSeverity.Error); }
     }
 
     private List<ReminderList> OrderedLists()
@@ -75,19 +75,19 @@ public sealed partial class MainWindow
             var item = CreateNavigationItem(list.Title, appearance?.Glyph ?? "\uE8FD", $"list:{list.Id}");
             item.Icon.Foreground = ColorBrush(appearance?.Color ?? list.ColorHex);
             var menu = new MenuFlyout();
-            var customize = new MenuFlyoutItem { Text = "Change icon and color" };
+            var customize = new MenuFlyoutItem { Text = L10n.Get("ChangeIconAndColor") };
             customize.Click += async (_, _) => await CustomizeListAsync(list);
             menu.Items.Add(customize);
-            var up = new MenuFlyoutItem { Text = "Move up", IsEnabled = ordered.IndexOf(list) > 0 };
+            var up = new MenuFlyoutItem { Text = L10n.Get("MoveUp"), IsEnabled = ordered.IndexOf(list) > 0 };
             up.Click += async (_, _) => await MoveListAsync(list.Id, -1);
-            var down = new MenuFlyoutItem { Text = "Move down", IsEnabled = ordered.IndexOf(list) < ordered.Count - 1 };
+            var down = new MenuFlyoutItem { Text = L10n.Get("MoveDown"), IsEnabled = ordered.IndexOf(list) < ordered.Count - 1 };
             down.Click += async (_, _) => await MoveListAsync(list.Id, 1);
             menu.Items.Add(up); menu.Items.Add(down); item.ContextFlyout = menu;
             Navigation.MenuItems.Add(item);
         }
         if (_tags.Count > 0)
         {
-            Navigation.MenuItems.Add(new NavigationViewItemHeader { Content = "Tags" });
+            Navigation.MenuItems.Add(new NavigationViewItemHeader { Content = L10n.Get("Tags") });
             foreach (var tag in _tags) Navigation.MenuItems.Add(CreateNavigationItem("#" + tag, "\uE8EC", $"tag:{tag}"));
         }
         _restoringNavigation = false;
@@ -114,7 +114,7 @@ public sealed partial class MainWindow
             if (!_demo) _settings = await _sync.CallAsync("set_settings", new { list_order = order });
             _uiPreferences.ListOrder = order; SaveUiPreferences(); RebuildListNavigation();
         }
-        catch (Exception error) { ShowInfo("Couldn't save list order", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntSaveListOrder"), L10n.Error(error), InfoBarSeverity.Error); }
     }
 
     private async Task CustomizeListAsync(ReminderList list)
@@ -124,7 +124,7 @@ public sealed partial class MainWindow
         try
         {
             _uiPreferences.Lists.TryGetValue(list.Id, out var appearance);
-            var icons = new ComboBox { Header = "Icon", HorizontalAlignment = HorizontalAlignment.Stretch };
+            var icons = new ComboBox { Header = L10n.Get("Icon"), HorizontalAlignment = HorizontalAlignment.Stretch };
             foreach (var icon in ListIcons)
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
@@ -132,8 +132,8 @@ public sealed partial class MainWindow
                 icons.Items.Add(new ComboBoxItem { Content = row, Tag = icon.Glyph });
             }
             icons.SelectedIndex = Math.Max(0, Array.FindIndex(ListIcons, icon => icon.Glyph == appearance?.Glyph));
-            var colors = new ComboBox { Header = "Color", HorizontalAlignment = HorizontalAlignment.Stretch };
-            colors.Items.Add(new ComboBoxItem { Content = "Use iCloud list color", Tag = "" });
+            var colors = new ComboBox { Header = L10n.Get("Color"), HorizontalAlignment = HorizontalAlignment.Stretch };
+            colors.Items.Add(new ComboBoxItem { Content = L10n.Get("UseICloudListColor"), Tag = "" });
             foreach (var color in ListColors)
             {
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
@@ -143,14 +143,14 @@ public sealed partial class MainWindow
             colors.SelectedIndex = Array.FindIndex(ListColors, color => color.Hex == appearance?.Color) + 1;
             var panel = new StackPanel { Spacing = 16, MinWidth = 320 };
             panel.Children.Add(icons); panel.Children.Add(colors);
-            panel.Children.Add(new TextBlock { Text = "Icon, color, and list order are saved on this PC.", TextWrapping = TextWrapping.Wrap });
-            var dialog = MakeDialog(list.Title, panel, "Save");
+            panel.Children.Add(new TextBlock { Text = L10n.Get("ListAppearanceStorageDescription"), TextWrapping = TextWrapping.Wrap });
+            var dialog = MakeDialog(list.Title, panel, L10n.Get("Save"));
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
             _uiPreferences.Lists[list.Id] = new() { Glyph = ((ComboBoxItem)icons.SelectedItem).Tag.ToString()!, Color = ((ComboBoxItem)colors.SelectedItem).Tag.ToString() };
             if (_uiPreferences.Lists[list.Id].Color == "") _uiPreferences.Lists[list.Id].Color = null;
             SaveUiPreferences(); RebuildListNavigation();
         }
-        catch (Exception error) { ShowInfo("Couldn't customize list", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntCustomizeList"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { _dialogOpen = false; }
     }
 
@@ -158,7 +158,7 @@ public sealed partial class MainWindow
     {
         XamlRoot = Root.XamlRoot, RequestedTheme = Root.RequestedTheme, Title = title,
         Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 480 },
-        PrimaryButtonText = action, CloseButtonText = "Cancel", DefaultButton = ContentDialogButton.Primary
+        PrimaryButtonText = action, CloseButtonText = L10n.Get("Cancel"), DefaultButton = ContentDialogButton.Primary
     };
 
     private static string? FormatDueDate(DateTimeOffset? date, bool allDay, TimeSpan time) => date is not DateTimeOffset value ? null

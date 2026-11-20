@@ -2,6 +2,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Reminders.Core;
 using Reminders.Windows.Services;
 
 var payload = new byte[] { 1, 2, 3, 4 };
@@ -39,6 +40,12 @@ Assert(AppUpdater.ParseRelease(Release(draft: true), current, Architecture.X64) 
 Assert(AppUpdater.ParseRelease(Release(prerelease: true), current, Architecture.X64) is null, "ignore prereleases");
 Assert(AppUpdater.ParseRelease(Release(tag: "v0.4.0-beta"), current, Architecture.X64) is null, "ignore nonstable tags");
 Reject(Release(arch: "arm64"), "reject missing architecture");
+try { AppUpdater.ParseRelease(Release(arch: "arm64"), current, Architecture.X64); }
+catch (InvalidDataException error)
+{
+    Assert(error.GetPresentation() is { Key: "ErrorUpdateInstallerMissing", Arguments: ["x64"] },
+        "missing installer exposes a resource key and architecture separately");
+}
 Reject(Release(host: "example.com"), "reject foreign download host");
 Reject(Release(checksum: ""), "reject missing checksum");
 Reject(Release(checksum: "sha256:" + new string('z', 64)), "reject invalid checksum");

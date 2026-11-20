@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -76,8 +77,34 @@ try
         await Error(() => Call("unknown", new { }), "NO_METHOD", "unknown method"); await Error(() => Call("create_reminder", new { title = "no list" }), "BAD_REQUEST", "required list");
         await Error(() => Call("create_reminder", new { list_id = "l", title = new string('x', 4097) }), "BAD_REQUEST", "title cap");
         await Call("create_reminder", new { list_id = "list", title = "Due", due_date = "2026-01-01T00:00:00Z" });
-        Equal(1, (await Call("due_notifications", new { now = "2026-01-01T00:30:00Z" })).GetProperty("toasts").GetArrayLength(), "due notification");
+        var originalCulture = CultureInfo.CurrentCulture;
+        JsonElement individual;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            individual = (await Call("due_notifications", new { now = "2026-01-01T00:30:00Z" })).GetProperty("toasts");
+            Equal(1, individual.GetArrayLength(), "due notification");
+            var dueAt = individual[0].GetProperty("due_at").GetDateTimeOffset();
+            Equal($"{dueAt:ddd dd MMM}, {dueAt:t}", individual[0].GetProperty("body").GetString(), "notification fallback uses short time");
+        }
+        finally { CultureInfo.CurrentCulture = originalCulture; }
+        Equal("Due", individual[0].GetProperty("raw_title").GetString(), "notification keeps the reminder title separate");
+        Equal(TimeUtil.Parse("2026-01-01T00:00:00Z"), individual[0].GetProperty("due_at").GetDateTimeOffset(), "notification preserves due instant");
         Equal(0, (await Call("due_notifications", new { now = "2026-01-01T00:30:00Z" })).GetProperty("toasts").GetArrayLength(), "notification deduplication");
+        await Call("create_reminder", new { list_id = "list", title = "Missed", due_date = "2026-01-01T00:00:00Z" });
+        var singleMissed = (await Call("due_notifications", new { now = "2026-01-01T02:00:00Z" })).GetProperty("toasts");
+        Equal(1, singleMissed.GetArrayLength(), "one overdue reminder yields one summary");
+        Equal("1 reminder was due while you were away", singleMissed[0].GetProperty("title").GetString(), "missed summary fallback uses singular wording");
+        for (var index = 0; index < 6; index++)
+            await Call("create_reminder", new { list_id = "list", title = $"Reminder {index}", due_date = index < 4 ? "2026-01-01T00:00:00Z" : "2026-01-02T00:00:00Z" });
+        var summaries = (await Call("due_notifications", new { now = "2026-01-02T00:30:00Z", max_individual = 1 })).GetProperty("toasts");
+        Equal(2, summaries.GetArrayLength(), "missed and current notifications have separate summaries");
+        Equal("missed", summaries[0].GetProperty("summary_kind").GetString(), "missed summary kind");
+        Equal(4, summaries[0].GetProperty("count").GetInt32(), "missed summary includes all reminders");
+        Equal(3, summaries[0].GetProperty("names").GetArrayLength(), "missed summary includes only the first three names");
+        Equal("due", summaries[1].GetProperty("summary_kind").GetString(), "current summary kind");
+        Equal(2, summaries[1].GetProperty("count").GetInt32(), "current summary count");
+        Equal(0, (await Call("due_notifications", new { now = "2026-01-02T00:30:00Z" })).GetProperty("toasts").GetArrayLength(), "summaries also deduplicate notifications");
     }
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, true); }
@@ -260,6 +287,7 @@ await RecurrenceEditingChecks.RunAsync(Check);
 await ReadOnlyTagChecks.RunAsync(Check);
 await DemoAccountChecks.RunAsync(Check);
 SignInTroubleshootingChecks.Run(Check);
+EnglishUiResourceChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);
 PaneSizingChecks.Run(Check);
 Console.WriteLine($"Passed {passed} backend and scheduling checks.");

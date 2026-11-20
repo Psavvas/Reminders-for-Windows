@@ -18,7 +18,7 @@ internal static class ReminderGroupingChecks
             At("Older morning", Local(2026, 10, 4, 9)), At("Older evening", Local(2026, 10, 4, 22)),
             At("Overdue afternoon", Local(2026, 10, 5, 13)), At("Older all day", Local(2026, 10, 4), true)
         }, "today", "title", now);
-        Equal("All day,Morning,Afternoon,Evening", string.Join(',', groups.Select(group => group.Title)), "Today section order");
+        Equal("AllDay,Morning,Afternoon,Evening", string.Join(',', groups.Select(group => group.Section)), "Today section order");
         Equal("Older all day", groups[0].Items[0].Title, "overdue all-day reminder leads All day");
         Equal("Older morning", groups[1].Items[0].Title, "older morning reminder stays in Morning");
         Equal("Overdue afternoon", groups[2].Items[0].Title, "overdue afternoon overrides alphabetical sort");
@@ -30,7 +30,7 @@ internal static class ReminderGroupingChecks
         Equal("12,17", string.Join(',', boundaries[1].Items.Select(row => row.Title)), "noon and 17 are Afternoon");
         Equal("18,23", string.Join(',', boundaries[2].Items.Select(row => row.Title)), "18 and 23 are Evening");
         var noonAllDay = ReminderGrouping.Group(new[] { At("All day", Local(2026, 10, 5, 18), true) }, "today", "due", now);
-        Equal("All day", noonAllDay[0].Title, "all-day flag overrides its timestamp hour");
+        Equal("AllDay", noonAllDay[0].Section.ToString(), "all-day flag overrides its timestamp hour");
 
         var clockRows = new[] { At("Low priority", Local(2026, 10, 5, 14), priority: 9), At("High priority", Local(2026, 10, 5, 15), priority: 1) };
         Equal("High priority", ReminderGrouping.Group(clockRows, "today", "priority", Local(2026, 10, 5, 13))[0].Items[0].Title, "priority applies within nonoverdue rows");
@@ -47,28 +47,28 @@ internal static class ReminderGroupingChecks
             At("Next week", Local(2026, 10, 12)), At("This week", Local(2026, 10, 7)), At("Today", Local(2026, 10, 5, 16)),
             At("Overdue", Local(2026, 10, 4)), At("Missed today", Local(2026, 10, 5, 10))
         }, "upcoming", "title", now);
-        Equal("Overdue,Today,Tomorrow,This week,Next week,This month,Next month,This year,Next year,Later", string.Join(',', upcoming.Select(group => group.Title)), "Upcoming chronological sections");
+        Equal("Overdue,Today,Tomorrow,ThisWeek,NextWeek,ThisMonth,NextMonth,ThisYear,NextYear,Later", string.Join(',', upcoming.Select(group => group.Section)), "Upcoming chronological sections");
         Equal("Missed today", upcoming[1].Items[0].Title, "today's overdue task leads Today in Upcoming");
         check(upcoming.Sum(group => group.Items.Count) == 11, "Upcoming groups are exclusive");
 
         void Section(DateTimeOffset reference, DateTimeOffset due, string expected, string label)
-            => Equal(expected, ReminderGrouping.Group(new[] { At("Task", due) }, "upcoming", "due", reference)[0].Title, label);
+            => Equal(expected, ReminderGrouping.Group(new[] { At("Task", due) }, "upcoming", "due", reference)[0].Section.ToString(), label);
         Section(Local(2026, 10, 10), Local(2026, 10, 11), "Tomorrow", "tomorrow takes precedence over this week");
-        Section(Local(2026, 10, 10), Local(2026, 10, 12), "Next week", "Monday starts next week");
+        Section(Local(2026, 10, 10), Local(2026, 10, 12), "NextWeek", "Monday starts next week");
         Section(Local(2026, 10, 11), Local(2026, 10, 12), "Tomorrow", "Sunday's tomorrow takes precedence over next week");
-        Section(Local(2026, 10, 11), Local(2026, 10, 13), "Next week", "Sunday uses Monday-based weeks");
+        Section(Local(2026, 10, 11), Local(2026, 10, 13), "NextWeek", "Sunday uses Monday-based weeks");
         Section(Local(2026, 10, 31), Local(2026, 11, 1), "Tomorrow", "tomorrow crosses a month boundary");
-        Section(Local(2026, 10, 31), Local(2026, 11, 2), "Next week", "next week crosses a month boundary");
-        Section(Local(2026, 10, 31), Local(2026, 11, 10), "Next month", "next month follows next week");
+        Section(Local(2026, 10, 31), Local(2026, 11, 2), "NextWeek", "next week crosses a month boundary");
+        Section(Local(2026, 10, 31), Local(2026, 11, 10), "NextMonth", "next month follows next week");
         Section(Local(2026, 12, 31), Local(2027, 1, 1), "Tomorrow", "tomorrow crosses a year boundary");
-        Section(Local(2026, 12, 31), Local(2027, 1, 2), "This week", "this week crosses a year boundary");
-        Section(Local(2026, 12, 31), Local(2027, 1, 4), "Next week", "next week crosses a year boundary");
-        Section(Local(2026, 12, 31), Local(2027, 1, 15), "Next month", "January is next month in December");
-        Section(Local(2026, 12, 31), Local(2027, 2, 15), "Next year", "later next year");
+        Section(Local(2026, 12, 31), Local(2027, 1, 2), "ThisWeek", "this week crosses a year boundary");
+        Section(Local(2026, 12, 31), Local(2027, 1, 4), "NextWeek", "next week crosses a year boundary");
+        Section(Local(2026, 12, 31), Local(2027, 1, 15), "NextMonth", "January is next month in December");
+        Section(Local(2026, 12, 31), Local(2027, 2, 15), "NextYear", "later next year");
         var offsetRow = new Row("Different offset", Local(2026, 10, 5, 23).ToOffset(TimeSpan.FromHours(12)).ToString("O"));
-        Equal("Today", ReminderGrouping.Group(new[] { offsetRow }, "upcoming", "due", now)[0].Title, "group by local date rather than serialized offset date");
-        Equal("Evening", ReminderGrouping.Group(new[] { offsetRow }, "today", "due", now)[0].Title, "group by local hour rather than serialized offset hour");
+        Equal("Today", ReminderGrouping.Group(new[] { offsetRow }, "upcoming", "due", now)[0].Section.ToString(), "group by local date rather than serialized offset date");
+        Equal("Evening", ReminderGrouping.Group(new[] { offsetRow }, "today", "due", now)[0].Section.ToString(), "group by local hour rather than serialized offset hour");
         check(ReminderGrouping.Group(Array.Empty<Row>(), "today", "due", now).Count == 0, "empty results have no headers");
-        Equal("No date", ReminderGrouping.Group(new[] { new Row("Invalid", "bad-date"), new Row("Undated", null) }, "upcoming", "due", now)[0].Title, "invalid and absent dates do not crash grouping");
+        Equal("NoDate", ReminderGrouping.Group(new[] { new Row("Invalid", "bad-date"), new Row("Undated", null) }, "upcoming", "due", now)[0].Section.ToString(), "invalid and absent dates do not crash grouping");
     }
 }

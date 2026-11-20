@@ -1,5 +1,60 @@
 # Microsoft Store distribution
 
+## Automatic publishing
+
+Publishing a stable GitHub release for a `vMAJOR.MINOR.PATCH` tag on `main`
+triggers **Publish to Microsoft Store**. The workflow checks both release MSIX
+files against the tag and Partner Center app identity, then submits them together
+to [Reminders for Windows (9PH6GW0M6G86)](https://apps.microsoft.com/detail/9PH6GW0M6G86).
+Microsoft signs the packages for Store distribution and publishes the update
+after it passes certification.
+[Microsoft's submission API](https://learn.microsoft.com/en-us/windows/uwp/monetize/manage-app-submissions)
+
+In the GitHub release body, use a `## What's new` section for customer-facing
+changes. The workflow also accepts GitHub's generated **What's Changed** section
+or a standalone changelog in the body. It copies that text into **What's new in
+this version** for the English Store listings and links to the full GitHub notes
+if the text exceeds the Store's 1,500-character limit.
+[Microsoft's listing guidance](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/add-and-edit-store-listing-info#whats-new-in-this-version)
+
+### One-time setup
+
+1. In [Partner Center → Account settings → Tenants](https://partner.microsoft.com/dashboard/v2/account-settings/organization/tenant-management#developer),
+   create or associate a Microsoft Entra tenant with the Windows app
+   developer account. Sign in as the tenant's global admin and open **Account
+   settings → User management → Microsoft Entra applications**. Add a dedicated
+   application with the **Manager** role and create a client secret. Copy the
+   secret **value** when it is displayed.
+   [Microsoft's API authentication setup](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services#step-1-associate-an-azure-ad-application-with-your-partner-center-account)
+2. In [GitHub → Settings → Environments](https://github.com/Psavvas/Reminders-for-Windows/settings/environments),
+   open the `microsoft-store` environment. Its deployment rules allow `main` for
+   manual runs and `v*` tags for release runs. Limit who can create or update
+   those tags to release maintainers. Add the following environment secrets.
+
+   | Secret | Value |
+   | --- | --- |
+   | `STORE_TENANT_ID` | Microsoft Entra directory (tenant) ID |
+   | `STORE_CLIENT_ID` | Microsoft Entra application (client) ID |
+   | `STORE_CLIENT_SECRET` | Client secret value |
+
+3. Merge the workflow into `main` before tagging the next release. Under
+   **Actions → Publish to Microsoft Store → Run workflow**, select `main`, enter
+   a published tag with both MSIX assets (for example `v1.1.0`), and enable
+   **check-only** to verify credentials, notes, and packages without submitting.
+
+### Monitor or retry
+
+The Actions run records the submission ID and checks ingestion. Certification
+and Store publication continue in Partner Center. If an earlier submission is
+still in progress, run the workflow manually on `main` with the newer release
+tag after the earlier one finishes. If a run stops after updating its draft, a
+retry can resume that draft using the same GitHub assets. If it stops immediately
+after creating a draft, check the logged submission ID in Partner Center and
+clear that incomplete draft before retrying. Partner Center also shows the
+certification report if Microsoft rejects a submission.
+
+## Package signing and identity
+
 Microsoft signs MSIX apps distributed through the Store. Users install the
 approved app without importing a developer certificate, and Windows handles updates.
 The unsigned packages produced by this repository are submission inputs, not
@@ -39,13 +94,11 @@ from the manifest and keep submission files separate from sideloading outputs.
 Explicit identity parameters remain available for another reservation. Ordinary
 non-Store command-line builds retain the legacy development identity by default.
 
-GitHub Actions builds the Store submission packages for both architectures using
-`-Store`. After merging, wait for the successful workflow on the merged commit and
-download its x64 and ARM64 artifacts. Extract the artifact ZIPs and upload the two
-`.msix` files from `dist-store` unchanged. No certificate, manual signing, or
-repacking is needed. Release-tag builds attach `Reminders-for-Windows-x64.msix`
-and `Reminders-for-Windows-ARM64.msix` separately, alongside the installers and
-portable ZIPs. Use the latest build rather than an older development-identity MSIX.
+GitHub Actions builds the submission packages for both architectures using
+`-Store`. Release-tag builds attach `Reminders-for-Windows-x64.msix` and
+`Reminders-for-Windows-ARM64.msix` alongside the installers and portable ZIPs.
+For a manual submission, download both MSIX files from the release or extract
+them from the workflow artifacts, then upload the files unchanged.
 
 ## Installing from GitHub versus the Store
 
@@ -56,8 +109,7 @@ will refuse to install it directly, even if its identity matches a published app
 
 For installation, use the Store listing or the matching x64/ARM64 `Setup.exe`
 from GitHub. Portable ZIPs are another option. The separate unsigned MSIX files
-are for the publisher to upload to Partner Center, not direct app installation.
-GitHub release publication does not update the Store listing automatically.
+are submission files for Partner Center.
 
 Direct MSIX distribution outside the Store requires signing with a certificate
 trusted by the target device. A self-signed certificate requires a separate trust

@@ -10,7 +10,7 @@ public sealed partial class ReminderService : IAsyncDisposable
     private readonly Cache cache;
     private readonly ICloudClient? cloudClient;
     private readonly SyncEngine? sync;
-    private ICloudClient client => cloudClient ?? throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.");
+    private ICloudClient client => cloudClient ?? throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.").WithPresentation("ErrorLocalAccountNoICloud");
     public bool IsLocalDemo => cloudClient is null;
     private readonly SemaphoreSlim clientGate = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
@@ -68,7 +68,7 @@ public sealed partial class ReminderService : IAsyncDisposable
                 try { await action(workLifetime.Token); }
                 catch (OperationCanceledException) when (workLifetime.IsCancellationRequested) { }
                 catch (CoreException ex) { Emit("sync_error", ex.Body); Diagnostic?.Invoke($"sync: {ex.Code}: {ex.Message}"); }
-                catch (Exception ex) { Emit("sync_error", new CoreException("ERROR", "The sync operation failed", ex.GetType().Name).Body); Diagnostic?.Invoke($"sync failed: {ex.GetType().Name}"); }
+                catch (Exception ex) { Emit("sync_error", new CoreException("ERROR", "The sync operation failed", ex.GetType().Name).WithPresentation("ErrorSyncOperationFailed").Body); Diagnostic?.Invoke($"sync failed: {ex.GetType().Name}"); }
             });
             background[id] = task;
             queuedWork[id] = task;
@@ -116,7 +116,7 @@ public sealed partial class ReminderService : IAsyncDisposable
     }
     private async Task<T> WithClient<T>(Func<Task<T>> action, CancellationToken token)
     {
-        if (IsLocalDemo) throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.");
+        if (IsLocalDemo) throw new CoreException("AUTH_REQUIRED", "This account only stores reminders on this PC.").WithPresentation("ErrorLocalAccountNoICloud");
         await clientGate.WaitAsync(token);
         try { return await action(); }
         finally { try { Volatile.Write(ref authSnapshot, client.Status); } finally { clientGate.Release(); } }
@@ -149,15 +149,15 @@ public sealed partial class ReminderService : IAsyncDisposable
             case "auth_status":
                 var status = (JsonObject)Volatile.Read(ref authSnapshot).DeepClone(); status["signed_out"] = cache.Meta("signed_out") == "1"; status["has_cache"] = !status.Flag("signed_out") && cache.Lists.Count > 0; status["last_sync"] = cache.Meta("last_sync"); return status;
             case "login":
-                if (IsLocalDemo) throw CoreException.Bad("Leave the local account before signing in again.");
-                var account = (p.Optional("apple_id", 320) ?? cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(); if (account.Length == 0) throw new CoreException("AUTH_REQUIRED", "No Apple ID provided");
-                if (DemoAccount.IsDemoUsername(account)) throw new CoreException("AUTH_REQUIRED", "Use the local sign-in flow for this account.");
+                if (IsLocalDemo) throw CoreException.Bad("Leave the local account before signing in again.").WithPresentation("ErrorLocalAccountStillActive");
+                var account = (p.Optional("apple_id", 320) ?? cache.Meta("apple_id") ?? "").Trim().ToLowerInvariant(); if (account.Length == 0) throw new CoreException("AUTH_REQUIRED", "No Apple ID provided").WithPresentation("ErrorNoAppleIDProvided");
+                if (DemoAccount.IsDemoUsername(account)) throw new CoreException("AUTH_REQUIRED", "Use the local sign-in flow for this account.").WithPresentation("ErrorLocalSignInRequired");
                 var password = p.Optional("password", 4096);
                 var login = await WithClient(async () =>
                 {
                     // Mixing another account's cached reminders with a new session
                     // would upload edits to the wrong CloudKit container.
-                    if (client.Account.Length > 0 && client.Account != account && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out and clear the cache before switching accounts.");
+                    if (client.Account.Length > 0 && client.Account != account && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes or sign out and clear the cache before switching accounts.").WithPresentation("ErrorSwitchAccountNeedsSyncOrCacheClear");
                     if (client.Account.Length > 0 && client.Account != account) cache.Purge();
                     client.SetAccount(account); cache.SetMeta("apple_id", account);
                     return await client.Connect(password, cache.Settings.Flag("remember_password"), p.Flag("accept_terms"), token);
@@ -168,14 +168,14 @@ public sealed partial class ReminderService : IAsyncDisposable
             case "request_2fa": return await WithClient(() => client.RequestCode(p.Text("method") == "sms", token), token);
             case "browser_login":
                 var browserAccount = p.Optional("apple_id", 320)?.Trim().ToLowerInvariant();
-                var browserState = p["state"] as JsonObject ?? throw CoreException.Bad("Missing Apple session.");
+                var browserState = p["state"] as JsonObject ?? throw CoreException.Bad("Missing Apple session.").WithPresentation("ErrorMissingAppleSession");
                 var browserLogin = await WithClient(async () =>
                 {
                     var switching = false;
                     var authenticated = await client.ImportBrowserSession(browserAccount, browserState, token, account =>
                     {
                         switching = client.Account.Length > 0 && client.Account != account;
-                        if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes with this account before switching accounts.");
+                        if (switching && cache.Pending(1).Count > 0) throw CoreException.Bad("Sync queued changes with this account before switching accounts.").WithPresentation("ErrorSwitchAccountNeedsSync");
                     });
                     if (switching) cache.Purge();
                     cache.SetMeta("apple_id", authenticated.Required("apple_id")); cache.SetMeta("signed_out", null); return authenticated;
@@ -193,9 +193,9 @@ public sealed partial class ReminderService : IAsyncDisposable
                 if (p.Flag("purge")) cache.SetMeta("sync_cursor", null); return J.Node(new { signed_out = true });
             case "unsynced_reminders": return cache.UnsyncedReminders();
             case "discard_unsynced":
-                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders have no iCloud copy to restore.");
-                if (!p.Flag("confirmed")) throw CoreException.Bad("Confirm which unsynced changes to discard.");
-                if (p["targets"] is not JsonArray targets) throw CoreException.Bad("Select the reminders to discard.");
+                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders have no iCloud copy to restore.").WithPresentation("ErrorLocalAccountCannotRestore");
+                if (!p.Flag("confirmed")) throw CoreException.Bad("Confirm which unsynced changes to discard.").WithPresentation("ErrorDiscardNeedsConfirmation");
+                if (p["targets"] is not JsonArray targets) throw CoreException.Bad("Select the reminders to discard.").WithPresentation("ErrorDiscardNoSelection");
                 await CancelBackgroundWorkAsync();
                 try
                 {
@@ -208,7 +208,7 @@ public sealed partial class ReminderService : IAsyncDisposable
                 }
                 finally { ResumeBackgroundWork(); }
             case "clear_cache":
-                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders are stored only on this PC and are not a downloadable cache.");
+                if (IsLocalDemo) throw CoreException.Bad("Local-account reminders are stored only on this PC and are not a downloadable cache.").WithPresentation("ErrorLocalAccountCannotClearCache");
                 await CancelBackgroundWorkAsync();
                 try
                 {
@@ -226,7 +226,7 @@ public sealed partial class ReminderService : IAsyncDisposable
             case "reminders": return cache.Reminders(p);
             case "reminder": return cache.Reminder(cache.ResolveId(p.Required("id")));
             case "tags": return cache.Tags;
-            case "create_tag": throw new CoreException("UNSUPPORTED", "Tag editing is unavailable. Manage tags in Apple Reminders.");
+            case "create_tag": throw new CoreException("UNSUPPORTED", "Tag editing is unavailable. Manage tags in Apple Reminders.").WithPresentation("ErrorTagEditingUnavailable");
             case "smart_counts": return cache.Counts;
             case "settings": return cache.Settings;
             case "set_settings": return cache.SetSettings(p);
@@ -242,8 +242,8 @@ public sealed partial class ReminderService : IAsyncDisposable
                     {
                         var parentId = cache.ResolveId(p.Required("parent_id"));
                         var parent = cache.Reminder(parentId);
-                        if (parent is null || parent.Flag("deleted") || parent.Flag("completed")) throw CoreException.Bad("Choose an unfinished parent task.");
-                        if (parent.Text("list_id") != r.Text("list_id")) throw CoreException.Bad("A subtask must use its parent's list.");
+                        if (parent is null || parent.Flag("deleted") || parent.Flag("completed")) throw CoreException.Bad("Choose an unfinished parent task.").WithPresentation("ErrorSubtaskParentMustBeUnfinished");
+                        if (parent.Text("list_id") != r.Text("list_id")) throw CoreException.Bad("A subtask must use its parent's list.").WithPresentation("ErrorSubtaskListMismatch");
                         r["parent_id"] = parentId;
                     }
                     cache.Upsert(r, !IsLocalDemo); if (!IsLocalDemo) cache.Enqueue(r.Required("id"), "create", r, null); return true;
@@ -255,7 +255,7 @@ public sealed partial class ReminderService : IAsyncDisposable
             case "sync_status": return J.Node(new { running = sync?.Running ?? false, local_only = IsLocalDemo, last_sync = cache.Meta("last_sync"), has_cursor = cache.Meta("sync_cursor") is not null, pending_pushes = cache.PendingCount, conflicts = cache.Conflicts.Count, sync_minutes = cache.Settings.Number("sync_minutes", 1) });
             case "conflicts": return cache.Conflicts;
             case "resolve_conflict":
-                var conflictId = p.Number("id", -1); if (conflictId < 0) throw CoreException.Bad("missing conflict id");
+                var conflictId = p.Number("id", -1); if (conflictId < 0) throw CoreException.Bad("missing conflict id").WithPresentation("ErrorMissingConflictId");
                 var conflict = cache.Conflicts.FirstOrDefault(c => c.Number("id") == conflictId);
                 if (p.Text("keep") == "local" && conflict?["local"] is JsonObject local)
                 {
@@ -267,19 +267,19 @@ public sealed partial class ReminderService : IAsyncDisposable
                 cache.Execute("UPDATE conflicts SET resolved=1 WHERE id=@p0", conflictId); return J.Node(new { resolved = conflictId });
             case "due_notifications": return Notifications(p);
             case "shutdown": return J.Node(new { bye = true });
-            default: throw new CoreException("NO_METHOD", $"unknown method '{method}'");
+            default: throw new CoreException("NO_METHOD", $"unknown method '{method}'").WithPresentation("ErrorUnknownMethod", method);
         }
     }
     private static void RejectTagEditing(JsonObject p)
     {
-        if (p.ContainsKey("tags")) throw new CoreException("UNSUPPORTED", "Tag editing is unavailable. Manage tags in Apple Reminders.");
+        if (p.ContainsKey("tags")) throw new CoreException("UNSUPPORTED", "Tag editing is unavailable. Manage tags in Apple Reminders.").WithPresentation("ErrorTagEditingUnavailable");
     }
     private JsonNode LocalChangeOne(JsonObject p, string operation)
     {
         RejectTagEditing(p);
         var id = cache.ResolveId(p.Required("id")); JsonObject? result = null;
         {
-            var current = cache.Reminder(id) ?? throw CoreException.Bad($"No such reminder: {id}"); var fields = new JsonObject();
+            var current = cache.Reminder(id) ?? throw CoreException.Bad($"No such reminder: {id}").WithPresentation("ErrorNoSuchReminder", id); var fields = new JsonObject();
             if (operation is "delete" or "restore") fields["deleted"] = operation == "delete";
             if (operation == "restore" && current.Text("parent_id") is { } restoreParentId)
             {
@@ -294,7 +294,7 @@ public sealed partial class ReminderService : IAsyncDisposable
                     if (listId != current.Text("list_id"))
                     {
                         if (!cache.Lists.Any(list => list.Text("id") == listId && !list.Flag("is_group")))
-                            throw CoreException.Bad("Choose an existing reminder list.");
+                            throw CoreException.Bad("Choose an existing reminder list.").WithPresentation("ErrorReminderListUnavailable");
                         fields["list_id"] = listId;
                         if (current.Text("parent_id") is { } parentId && cache.Reminder(parentId).Text("list_id") != listId)
                             fields["parent_id"] = null;
@@ -304,7 +304,7 @@ public sealed partial class ReminderService : IAsyncDisposable
                 {
                     var requestedParent = p.Optional("parent_id", 2048);
                     if (requestedParent != current.Text("parent_id") && !(requestedParent is null && fields.ContainsKey("parent_id")))
-                        throw CoreException.Bad("Create a subtask from its parent task. Changing a task's parent is not supported.");
+                        throw CoreException.Bad("Create a subtask from its parent task. Changing a task's parent is not supported.").WithPresentation("ErrorSubtaskReparentingUnsupported");
                 }
                 foreach (var (key, max) in new[] { ("title", 4096), ("description", 100000) }) if (p.Optional(key, max) is { } value) fields[key] = value;
                 foreach (var key in new[] { "priority", "completed", "flagged", "all_day" }) if (p.ContainsKey(key)) fields[key] = p[key]?.DeepClone();
@@ -314,9 +314,9 @@ public sealed partial class ReminderService : IAsyncDisposable
                 var due = fields.ContainsKey("due_date") ? fields.Text("due_date") : current.Text("due_date");
                 if (p.ContainsKey("recurrence"))
                 {
-                    if (fields.Flag("completed")) throw CoreException.Bad("Save the repeat change before completing this reminder.");
+                    if (fields.Flag("completed")) throw CoreException.Bad("Save the repeat change before completing this reminder.").WithPresentation("ErrorSaveRepeatChangeBeforeCompletion");
                     if (current["recurrence"] is JsonObject existing && existing.Property("supported") is not null && !existing.Flag("supported"))
-                        throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.");
+                        throw CoreException.Bad("Edit this custom repeat on an Apple device to preserve its schedule.").WithPresentation("EditCustomRepeatOnAppleDevice");
                     fields["recurrence"] = Recurrence.Validate(p["recurrence"], due);
                     fields["recurrence_id"] = Guid.NewGuid().ToString().ToUpperInvariant();
                     if (fields["recurrence"] is null) fields["recurrence_ids"] = new JsonArray();
@@ -324,9 +324,9 @@ public sealed partial class ReminderService : IAsyncDisposable
                 var effectiveRepeat = fields.ContainsKey("recurrence") ? fields["recurrence"] : current["recurrence"];
                 if (effectiveRepeat is not null)
                 {
-                    if (fields.ContainsKey("due_date") && fields["due_date"] is null) throw CoreException.Bad("A repeating reminder needs a due date.");
+                    if (fields.ContainsKey("due_date") && fields["due_date"] is null) throw CoreException.Bad("A repeating reminder needs a due date.").WithPresentation("ErrorRepeatNeedsDueDate");
                     if (fields.Flag("completed") && effectiveRepeat.Property("supported")?.ToString() == "false")
-                        throw CoreException.Bad("Complete this custom repeat on an Apple device to preserve its schedule.");
+                        throw CoreException.Bad("Complete this custom repeat on an Apple device to preserve its schedule.").WithPresentation("ErrorCustomRepeatOnAppleDevice");
                 }
                 if (fields.Flag("completed"))
                 {
@@ -359,10 +359,38 @@ public sealed partial class ReminderService : IAsyncDisposable
         var cutoff = now.AddMinutes(-Math.Clamp(p.Number("stale_after_minutes", settings.Number("stale_after_minutes", 60)), 1, 1440));
         var due = cache.Query("SELECT * FROM reminders WHERE deleted=0 AND completed=0 AND notified=0 AND due_date IS NOT NULL AND due_date<=@p0 ORDER BY due_date", TimeUtil.Iso(now)); var missed = new List<JsonNode>(); var fresh = new List<JsonNode>();
         foreach (var r in due.OfType<JsonObject>()) { var alert = TimeUtil.NotifyAt(r.Required("due_date"), r.Flag("all_day")); if (alert > now) continue; (alert < cutoff ? missed : fresh).Add(r); }
-        string Names(List<JsonNode> reminders) => string.Join(", ", reminders.Take(3).Select(r => r.Text("title")).Where(s => !string.IsNullOrEmpty(s)));
-        if (missed.Count > 0) toasts.Add(J.Node(new { title = $"{missed.Count} reminder{(missed.Count == 1 ? "" : "s")} were due while you were away", body = Names(missed) + (missed.Count > 3 ? $", and {missed.Count - 3} more" : ""), reminder_id = (string?)null, kind = "summary" }));
-        if (fresh.Count > Math.Clamp(p.Number("max_individual", settings.Number("max_individual_toasts", 3)), 1, 10)) toasts.Add(J.Node(new { title = $"{fresh.Count} reminders are due", body = Names(fresh), reminder_id = (string?)null, kind = "summary" }));
-        else foreach (var r in fresh) toasts.Add(J.Node(new { title = r.Text("title") is { Length: > 0 } title ? title : "Reminder", body = TimeZoneInfo.ConvertTime(TimeUtil.Parse(r.Required("due_date")), TimeUtil.Zone()).ToString(r.Flag("all_day") ? "ddd dd MMM" : "ddd dd MMM, HH:mm"), reminder_id = r.Text("id"), kind = "reminder" }));
+        static JsonNode Summary(List<JsonNode> reminders, bool missed)
+        {
+            var names = reminders.Take(3).Select(r => r.Text("title")).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+            var count = reminders.Count;
+            var title = (missed, count) switch
+            {
+                (true, 1) => "1 reminder was due while you were away",
+                (true, _) => $"{count} reminders were due while you were away",
+                _ => $"{count} reminders are due"
+            };
+            return J.Node(new
+            {
+                title,
+                body = string.Join(", ", names) + (missed && count > 3 ? $", and {count - 3} more" : ""),
+                reminder_id = (string?)null, kind = "summary", summary_kind = missed ? "missed" : "due", count, names
+            });
+        }
+        if (missed.Count > 0) toasts.Add(Summary(missed, true));
+        if (fresh.Count > Math.Clamp(p.Number("max_individual", settings.Number("max_individual_toasts", 3)), 1, 10))
+            toasts.Add(Summary(fresh, false));
+        else foreach (var reminder in fresh)
+        {
+            var rawTitle = reminder.Text("title");
+            var dueAt = TimeZoneInfo.ConvertTime(TimeUtil.Parse(reminder.Required("due_date")), TimeUtil.Zone());
+            var allDay = reminder.Flag("all_day");
+            toasts.Add(J.Node(new
+            {
+                title = string.IsNullOrEmpty(rawTitle) ? "Reminder" : rawTitle,
+                body = allDay ? dueAt.ToString("ddd dd MMM") : $"{dueAt:ddd dd MMM}, {dueAt:t}",
+                reminder_id = reminder.Text("id"), kind = "reminder", raw_title = rawTitle, due_at = dueAt, all_day = allDay
+            }));
+        }
         foreach (var r in missed.Concat(fresh)) { ids.Add(r.Text("id")); cache.Execute("UPDATE reminders SET notified=1 WHERE id=@p0", r.Text("id")); }
         return new JsonObject { ["toasts"] = toasts, ["notified_ids"] = ids };
     }

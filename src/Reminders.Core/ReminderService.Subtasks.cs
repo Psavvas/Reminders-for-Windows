@@ -9,10 +9,10 @@ public sealed partial class ReminderService
         var result = cache.Transaction(() =>
         {
             var id = cache.ResolveId(patch.Required("id"));
-            var current = cache.Reminder(id) ?? throw CoreException.Bad("This task is no longer available.");
+            var current = cache.Reminder(id) ?? throw CoreException.Bad("This task is no longer available.").WithPresentation("ErrorReminderUnavailable");
             var descendants = cache.Descendants(id, sameFamilyOnly: true);
             if (patch.Flag("completed") && descendants.Count > 0 && current["recurrence"] is not null)
-                throw CoreException.Bad("Complete a repeating task with subtasks on an Apple device to preserve its schedule.");
+                throw CoreException.Bad("Complete a repeating task with subtasks on an Apple device to preserve its schedule.").WithPresentation("ErrorRepeatWithSubtasksCompletion");
             var saved = LocalChangeOne(patch, operation);
             // A family move, deletion or completion is one durable local edit.
             // Uploads remain ordered per task and retry through the normal outbox.
@@ -25,7 +25,7 @@ public sealed partial class ReminderService
                     if (patch.Text("list_id") is { } listId && listId != current.Text("list_id")) childPatch["list_id"] = listId;
                     if (patch.Flag("completed") && !child.Flag("completed"))
                     {
-                        if (child["recurrence"] is not null) throw CoreException.Bad("Complete repeating subtasks individually before completing their parent.");
+                        if (child["recurrence"] is not null) throw CoreException.Bad("Complete repeating subtasks individually before completing their parent.").WithPresentation("CompleteParentWithRepeatingSubtasks");
                         childPatch["completed"] = true;
                     }
                     if (childPatch.Count > 1) LocalChangeOne(childPatch, "update");

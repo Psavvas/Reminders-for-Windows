@@ -35,6 +35,8 @@ public sealed partial class MainWindow
             ReminderHost.Visibility = !sizes.Compact || _selected is null ? Visibility.Visible : Visibility.Collapsed;
             DetailsHost.Visibility = (sizes.Compact ? _selected is not null : sizes.Details > 0) ? Visibility.Visible : Visibility.Collapsed;
             PaneDivider.Visibility = sizes.Compact ? Visibility.Collapsed : Visibility.Visible;
+            ApplePaneSeparator.Visibility = IsAppleStyle && !sizes.Compact && sizes.Details > 0
+                ? Visibility.Visible : Visibility.Collapsed;
             BackToReminders.Visibility = sizes.Compact ? Visibility.Visible : Visibility.Collapsed;
             AddLabel.Visibility = IsAppleStyle || sizes.List < 400 ? Visibility.Collapsed : Visibility.Visible;
             ArrangeDetailPair(DetailDateTime, DetailTime);

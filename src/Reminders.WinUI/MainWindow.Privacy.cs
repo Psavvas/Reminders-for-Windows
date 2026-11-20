@@ -1,3 +1,4 @@
+using Reminders.Windows.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System.IO;
@@ -11,7 +12,7 @@ public sealed partial class MainWindow
     private static ScrollViewer CreatePrivacyPolicyContent()
     {
         using var stream = typeof(MainWindow).Assembly.GetManifestResourceStream("Reminders.Windows.Privacy.md")
-            ?? throw new InvalidOperationException("The bundled privacy policy is missing.");
+            ?? throw new InvalidOperationException(L10n.Get("PrivacyPolicyMissing"));
         using var reader = new StreamReader(stream);
         var panel = new StackPanel { Spacing = 14 };
         foreach (var block in reader.ReadToEnd().Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
@@ -30,7 +31,7 @@ public sealed partial class MainWindow
         }
         panel.Children.Add(new HyperlinkButton
         {
-            Content = "Contact Paul Savvas",
+            Content = L10n.Get("ContactPaulSavvas"),
             NavigateUri = new Uri("mailto:hello@paulsavvas.com"),
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0)
@@ -48,14 +49,14 @@ public sealed partial class MainWindow
             {
                 XamlRoot = Root.XamlRoot,
                 RequestedTheme = Root.RequestedTheme,
-                Title = "Privacy policy",
+                Title = L10n.Get("PrivacyPolicy"),
                 Content = CreatePrivacyPolicyContent(),
-                CloseButtonText = "Close",
+                CloseButtonText = L10n.Get("Close"),
                 DefaultButton = ContentDialogButton.Close
             };
             await dialog.ShowAsync();
         }
-        catch (Exception error) { ShowInfo("Couldn't open privacy policy", error.Message, InfoBarSeverity.Error); }
+        catch (Exception error) { ShowInfo(L10n.Get("CouldntOpenPrivacyPolicy"), L10n.Error(error), InfoBarSeverity.Error); }
         finally { _dialogOpen = false; }
     }
 }

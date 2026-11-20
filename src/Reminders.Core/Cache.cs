@@ -268,7 +268,7 @@ internal sealed partial class Cache : IDisposable
     public JsonNode SetSettings(JsonObject patch)
     {
         if (patch.ContainsKey("list_order") && (patch["list_order"] is not JsonArray order || order.Count > 10000 || order.Any(v => v is not JsonValue text || !text.TryGetValue<string>(out var id) || id.Length is 0 or > 2048)))
-            throw CoreException.Bad("List order must contain list identifiers.");
+            throw CoreException.Bad("List order must contain list identifiers.").WithPresentation("ErrorInvalidListOrder");
         lock (gate) { var s = Settings; foreach (var p in patch) if (s.ContainsKey(p.Key)) s[p.Key] = p.Value?.DeepClone(); SetMeta("settings", s.ToJsonString()); return s; }
     }
     public void Enqueue(string id, string op, JsonNode payload, string? tag) => Execute("INSERT INTO outbox(reminder_id,op,payload,base_tag,created_at) VALUES(@p0,@p1,@p2,@p3,@p4)", id, op, payload.ToJsonString(), tag, TimeUtil.Now);
@@ -303,7 +303,7 @@ internal sealed partial class Cache : IDisposable
         var pending = Query("SELECT COUNT(*) AS count FROM outbox")[0].Number("count");
         var conflicts = Query("SELECT COUNT(*) AS count FROM conflicts WHERE resolved=0")[0].Number("count");
         if ((pending > 0 || conflicts > 0) && !discardPending)
-            throw new CoreException("PENDING_CHANGES", "Confirm discarding unsynced changes and conflicts before clearing the cache.");
+            throw new CoreException("PENDING_CHANGES", "Confirm discarding unsynced changes and conflicts before clearing the cache.").WithPresentation("ErrorCacheClearNeedsConfirmation");
         PurgeData();
         return J.Node(new { cleared = true, discarded_pending = pending, discarded_conflicts = conflicts });
     });

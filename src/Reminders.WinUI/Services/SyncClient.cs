@@ -61,14 +61,15 @@ public sealed class SyncClient : IAsyncDisposable
             }
             catch { service = null; await engine.DisposeAsync(); throw; }
         }
-        catch (CoreException error) { throw new SyncException(error.Code, error.Message, error.Detail); }
+        catch (CoreException error) { throw new SyncException(error); }
         finally { lifecycle.Release(); }
     }
     public async Task<T> CallAsync<T>(string method, object? parameters = null, CancellationToken cancellationToken = default) =>
-        (await CallAsync(method, parameters, cancellationToken)).Deserialize<T>(Json) ?? throw new InvalidDataException($"The {method} response was empty.");
+        (await CallAsync(method, parameters, cancellationToken)).Deserialize<T>(Json)
+        ?? throw new InvalidDataException($"The {method} response was empty.").WithPresentation("EmptyServiceResponse", method);
     public async Task<JsonElement> CallAsync(string method, object? parameters = null, CancellationToken cancellationToken = default)
     {
-        var engine = service ?? throw new SyncException("SYNC_DOWN", "The sync service is not running.");
+        var engine = service ?? throw new SyncException("SYNC_DOWN", "The sync service is not running.").WithPresentation("SyncServiceNotRunning");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(TimeSpan.FromSeconds(90));
         try
         {
@@ -79,7 +80,7 @@ public sealed class SyncClient : IAsyncDisposable
         {
             // Parameters may contain passwords and verification codes.
             AppLog.Info($"call '{method}' failed: {error.Code}: {error.Message}");
-            throw new SyncException(error.Code, error.Message, error.Detail);
+            throw new SyncException(error);
         }
     }
     public async ValueTask DisposeAsync()

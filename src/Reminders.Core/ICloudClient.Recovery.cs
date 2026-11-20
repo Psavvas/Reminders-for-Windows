@@ -16,7 +16,7 @@ internal sealed partial class ICloudClient
                 if (record is null || record.Flag("deleted") || record.Text("reason") == "deleted" || CloudKit.Int(record, "Deleted") != 0) { result[id] = null; continue; }
                 if (record["fields"] is not JsonObject || string.IsNullOrEmpty(record.Text("recordChangeTag"))
                     || record.Text("recordType") is { } type && type != "Reminder")
-                    throw new CoreException("NETWORK", "iCloud returned an incomplete reminder. No local changes were discarded.");
+                    throw new CoreException("NETWORK", "iCloud returned an incomplete reminder. No local changes were discarded.").WithPresentation("ErrorDiscardReminderIncomplete");
                 var snapshot = Snapshot(record);
                 var links = new[] { ("HashtagIDs", "Hashtag/"), ("RecurrenceRuleIDs", "RecurrenceRule/") }
                     .SelectMany(link => (CloudKit.Field(record, link.Item1) as JsonArray ?? new())

@@ -24,9 +24,9 @@ public partial class App : Application
             _window = new MainWindow();
 #if DEBUG
             if (Environment.GetCommandLineArgs().Contains("--preview-editor", StringComparer.OrdinalIgnoreCase))
-                _window.Title = "Reminders for Windows · Editor preview";
+                _window.Title = Services.L10n.Get("EditorPreviewWindowTitle");
             if (Environment.GetCommandLineArgs().Contains("--test-apple-sign-in", StringComparer.OrdinalIgnoreCase))
-                _window.Title = "Reminders for Windows · Sign-in test";
+                _window.Title = Services.L10n.Get("SignInTestWindowTitle");
 #endif
             _window.Activate();
             Services.AppLog.Info("Main window activated");

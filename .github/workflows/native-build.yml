@@ -76,6 +76,9 @@ jobs:
           python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: --require-hashes -r scripts/ci-policy-requirements.txt
           python scripts/test_ci_policy.py
 
+      - name: Test Microsoft Store submission
+        run: python -B scripts/test_publish_microsoft_store.py
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 20

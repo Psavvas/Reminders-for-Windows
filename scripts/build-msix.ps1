@@ -105,6 +105,13 @@ try {
                 throw "The package resource index is missing $resource."
             }
         }
+        foreach ($key in @('AddLabel/Text', 'AddButton/[using:Microsoft.UI.Xaml.Automation]AutomationProperties/Name', 'SignInToICloud')) {
+            $uri = "ms-resource://$IdentityName/Resources/$key"
+            $value = $primaryMap.SelectSingleNode(".//NamedResource[@uri='$uri']/Candidate[@type='String' and QualifierSet/Qualifier[@name='Language' and @value='EN-US' and @scoreAsDefault='1.0']]/Value")
+            if (-not $value -or [string]::IsNullOrWhiteSpace($value.InnerText)) {
+                throw "The package resource index is missing the default English string for $key."
+            }
+        }
         $shellLogo = $primaryMap.SelectSingleNode("ResourceMapSubtree[@name='Files']/ResourceMapSubtree[@name='Assets']/NamedResource[@name='Square44x44Logo.png']")
         foreach ($size in @(16,20,24,30,32,36,40,48,60,64,72,80,96,256)) {
             foreach ($form in @('UNPLATED', 'LIGHTUNPLATED')) {

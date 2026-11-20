@@ -61,7 +61,7 @@ internal sealed class AppleAuth : IDisposable
     internal string Query => string.Join("&", new Dictionary<string, string?> { ["clientBuildNumber"] = "2534Project66", ["clientMasteringNumber"] = "2534B22", ["ckjsBuildVersion"] = "17DProjectDev77", ["clientId"] = State.Text("client_id"), ["dsid"] = State.Text("dsid") }.Where(p => p.Value is not null).Select(p => Uri.EscapeDataString(p.Key) + "=" + Uri.EscapeDataString(p.Value!)));
     internal HttpRequestMessage Request(HttpMethod method, string url, JsonNode? body, bool auth, string accept = "application/json, text/javascript")
     {
-        var uri = new Uri(url); if (uri.Scheme != "https") throw new CoreException("ERROR", "An insecure iCloud URL was rejected");
+        var uri = new Uri(url); if (uri.Scheme != "https") throw new CoreException("ERROR", "An insecure iCloud URL was rejected").WithPresentation("ErrorInsecureICloudUrl");
         var request = new HttpRequestMessage(method, uri);
         if (body is not null) request.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
         void Add(string name, string? value) { if (value is not null) request.Headers.Add(name, value); }
@@ -85,14 +85,14 @@ internal sealed class AppleAuth : IDisposable
                 var issuedToken = false;
                 foreach (var (header, key) in new[] { ("x-apple-id-session-id", "session_id"), ("x-apple-session-token", "session_token"), ("scnt", "scnt"), ("x-apple-auth-attributes", "auth_attributes"), ("x-apple-id-account-country", "account_country"), ("x-apple-twosv-trust-token", "trust_token") })
                     if (response.Headers.TryGetValues(header, out var values)) { var v = values.FirstOrDefault(); if (v is not null) State[key] = v; if (key == "session_token" && !string.IsNullOrWhiteSpace(v)) issuedToken = true; }
-                if (response.Content.Headers.ContentLength > maxBytes) throw new CoreException("NETWORK", "iCloud returned an unexpectedly large response");
+                if (response.Content.Headers.ContentLength > maxBytes) throw new CoreException("NETWORK", "iCloud returned an unexpectedly large response").WithPresentation("ErrorICloudResponseTooLarge");
                 using var stream = await response.Content.ReadAsStreamAsync(token); using var output = new MemoryStream(); var buffer = new byte[8192];
-                while (true) { var count = await stream.ReadAsync(buffer, token); if (count == 0) break; if (output.Length + count > maxBytes) throw new CoreException("NETWORK", "iCloud returned an unexpectedly large response"); output.Write(buffer, 0, count); }
+                while (true) { var count = await stream.ReadAsync(buffer, token); if (count == 0) break; if (output.Length + count > maxBytes) throw new CoreException("NETWORK", "iCloud returned an unexpectedly large response").WithPresentation("ErrorICloudResponseTooLarge"); output.Write(buffer, 0, count); }
                 Diagnostic?.Invoke($"icloud: {request.Method} {request.RequestUri!.AbsolutePath} HTTP {(int)response.StatusCode} bytes={output.Length} elapsed_ms={started.ElapsedMilliseconds}");
                 return ((int)response.StatusCode, Encoding.UTF8.GetString(output.GetBuffer(), 0, (int)output.Length), issuedToken);
             }
-            catch (HttpRequestException) { throw new CoreException("NETWORK", "Could not reach iCloud", "connection failed"); }
-            catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new CoreException("NETWORK", "Could not reach iCloud", "request timed out"); }
+            catch (HttpRequestException) { throw new CoreException("NETWORK", "Could not reach iCloud", "connection failed").WithPresentation("ErrorCouldNotReachICloud"); }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new CoreException("NETWORK", "Could not reach iCloud", "request timed out").WithPresentation("ErrorCouldNotReachICloud"); }
         }
     }
     private Task<(int Status, string Text, bool Token)> Auth(HttpMethod method, string suffix, JsonNode? body, CancellationToken token, string accept = "application/json, text/javascript") => SendAsync(Request(method, AuthEndpoint + suffix, body, true, accept), 2 * 1024 * 1024, token);
@@ -105,10 +105,10 @@ internal sealed class AppleAuth : IDisposable
     internal static CoreException Classify(int status, string text)
     {
         var value = J.Parse(text); var detail = Detail(value);
-        if (text.Contains("termsUpdateNeeded")) return new("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.", detail);
-        if (status == 409 || value.Text("authType")?.Contains("hsa", StringComparison.OrdinalIgnoreCase) == true || value.Flag("hsaChallengeRequired")) return new("2FA_REQUIRED", "Two-factor authentication required", detail);
-        if (status is 401 or 403 or 421) return new("AUTH_REQUIRED", "iCloud rejected the sign-in", detail);
-        return new("NETWORK", "iCloud sign-in failed", $"HTTP {status}: {detail}");
+        if (text.Contains("termsUpdateNeeded")) return new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.", detail).WithPresentation("ErrorUpdatedICloudTermsRequired");
+        if (status == 409 || value.Text("authType")?.Contains("hsa", StringComparison.OrdinalIgnoreCase) == true || value.Flag("hsaChallengeRequired")) return new CoreException("2FA_REQUIRED", "Two-factor authentication required", detail).WithPresentation("ErrorTwoFactorAuthenticationRequired");
+        if (status is 401 or 403 or 421) return new CoreException("AUTH_REQUIRED", "iCloud rejected the sign-in", detail).WithPresentation("ErrorICloudSignInRejected");
+        return new CoreException("NETWORK", "iCloud sign-in failed", $"HTTP {status}: {detail}").WithPresentation("ErrorICloudSignInFailed");
     }
     public async Task SignIn(string account, string password, bool acceptTerms, CancellationToken token)
     {
@@ -144,7 +144,7 @@ internal sealed class AppleAuth : IDisposable
         catch (CoreException ex) when (ex.Code == "TERMS_REQUIRED" && acceptTerms)
         {
             var accepted = await SendAsync(Request(HttpMethod.Post, SetupEndpoint + "/acceptTermsOfService?" + Query, new JsonObject(), false), 2 * 1024 * 1024, token);
-            if (accepted.Status is < 200 or >= 300) throw new CoreException("TERMS_REQUIRED", "Apple did not accept the updated iCloud terms.");
+            if (accepted.Status is < 200 or >= 300) throw new CoreException("TERMS_REQUIRED", "Apple did not accept the updated iCloud terms.").WithPresentation("ErrorICloudTermsNotAccepted");
             await AccountLogin(token);
         }
     }
@@ -171,7 +171,7 @@ internal sealed class AppleAuth : IDisposable
     }
     private async Task AccountLogin(CancellationToken token)
     {
-        var webToken = State.Text("session_token") ?? throw new CoreException("AUTH_REQUIRED", "Apple did not issue a web authentication token");
+        var webToken = State.Text("session_token") ?? throw new CoreException("AUTH_REQUIRED", "Apple did not issue a web authentication token").WithPresentation("ErrorMissingWebAuthToken");
         var body = new JsonObject { ["accountCountryCode"] = State.Text("account_country") ?? "USA", ["dsWebAuthToken"] = webToken, ["extended_login"] = true };
         if (State.Text("trust_token") is { } trust) body["trustToken"] = trust;
         var response = await SendAsync(Request(HttpMethod.Post, SetupEndpoint + "/accountLogin?" + Query, body, false), 2 * 1024 * 1024, token);
@@ -182,7 +182,7 @@ internal sealed class AppleAuth : IDisposable
     {
         State["apple_id"] = v["dsInfo"].Text("appleId") ?? v["dsInfo"].Text("primaryEmail");
         State["dsid"] = v["dsInfo"]?["dsid"]?.ToString(); State["hsa_version"] = v["dsInfo"].Number("hsaVersion"); State["challenge_required"] = v.Flag("hsaChallengeRequired"); State["trusted_session"] = v.Flag("hsaTrustedBrowser"); State["webservices"] = v["webservices"]?.DeepClone() ?? new JsonObject();
-        if (v.Flag("termsUpdateNeeded") || v["dsInfo"].Flag("termsUpdateNeeded")) throw new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.");
+        if (v.Flag("termsUpdateNeeded") || v["dsInfo"].Flag("termsUpdateNeeded")) throw new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.").WithPresentation("ErrorUpdatedICloudTermsRequired");
     }
     internal void NoteOptions(JsonNode? value)
     {
@@ -221,18 +221,18 @@ internal sealed class AppleAuth : IDisposable
         }
         else
         {
-            if (sms) throw new CoreException("AUTH_REQUIRED", "Apple has no trusted phone number for this account. Add one at appleid.apple.com.");
+            if (sms) throw new CoreException("AUTH_REQUIRED", "Apple has no trusted phone number for this account. Add one at appleid.apple.com.").WithPresentation("ErrorTrustedPhoneMissing");
             route = ("trusted_device", 0, "sms"); result = await Auth(HttpMethod.Get, "/verify/trusteddevice", null, token, "application/json");
         }
         notice = Message(J.Parse(result.Text)); NoteOptions(J.Parse(result.Text));
-        if (result.Status is 401 or 403 or 421) throw new CoreException("AUTH_REQUIRED", "That sign-in attempt has expired. Enter your password again.", Detail(J.Parse(result.Text)));
+        if (result.Status is 401 or 403 or 421) throw new CoreException("AUTH_REQUIRED", "That sign-in attempt has expired. Enter your password again.", Detail(J.Parse(result.Text))).WithPresentation("ErrorSignInAttemptExpired");
         if (!sent.Contains(route)) sent.Add(route);
         return TwoFactorStatus;
     }
     internal static bool CodeAccepted(int status, JsonNode? value, bool issuedToken) => !value.Flag("hasError") && value.Array("service_errors").Count == 0 && value.Array("serviceErrors").Count == 0 && value.Property("securityCode").Property("valid")?.ToString() != "false" && (status is >= 200 and < 300 || status == 409 && (issuedToken || value.Property("securityCode").Flag("valid")));
     public async Task SubmitCode(string code, CancellationToken token)
     {
-        if (code.Length != 6 || code.Any(c => c is < '0' or > '9')) throw CoreException.Bad("The verification code must contain six digits");
+        if (code.Length != 6 || code.Any(c => c is < '0' or > '9')) throw CoreException.Bad("The verification code must contain six digits").WithPresentation("ErrorVerificationCodeLength");
         var routes = new[] { route.Method == "unknown" ? ("trusted_device", 0L, "sms") : route }.Concat(sent).Distinct().ToArray();
         for (var i = 0; i < routes.Length; i++)
         {
@@ -244,16 +244,20 @@ internal sealed class AppleAuth : IDisposable
             Diagnostic?.Invoke($"icloud verification: method={r.Item1} HTTP {response.Status} code_accepted={accepted} token_issued={response.Token}");
             if (accepted) break;
             NoteOptions(value);
-            if (!isSms && response.Status == 409) throw new CoreException("2FA_REQUIRED", "Apple won't verify a device code from this app. Choose Text me a code instead.", Detail(value));
+            if (!isSms && response.Status == 409) throw new CoreException("2FA_REQUIRED", "Apple won't verify a device code from this app. Choose Text me a code instead.", Detail(value)).WithPresentation("ErrorDeviceCodeUnsupported");
             if (i == routes.Length - 1)
             {
                 var error = value.Array("service_errors").FirstOrDefault() ?? value.Array("serviceErrors").FirstOrDefault();
                 var wrong = error?["code"]?.ToString() == "-21669";
-                throw new CoreException("2FA_REQUIRED", wrong ? "Incorrect verification code. Check the six digits, or ask for a new code." : (Message(value) ?? $"Apple refused that code without saying why (HTTP {response.Status}).") + " Use the code from the most recent message.", Detail(value));
+                var reason = Message(value);
+                var failure = new CoreException("2FA_REQUIRED", wrong ? "Incorrect verification code. Check the six digits, or ask for a new code." : (reason ?? $"Apple refused that code without saying why (HTTP {response.Status}).") + " Use the code from the most recent message.", Detail(value));
+                if (wrong) throw failure.WithPresentation("ErrorVerificationWrongCode");
+                if (reason is not null) throw failure.WithPresentation("ErrorVerificationAppleReason", reason);
+                throw failure.WithPresentation("ErrorVerificationNoAppleReason", response.Status);
             }
         }
         var trust = await Auth(HttpMethod.Get, "/2sv/trust", null, token);
-        if (trust.Status is < 200 or >= 300) throw new CoreException("2FA_REQUIRED", "Apple accepted the code but did not establish session trust. Please sign in again.");
+        if (trust.Status is < 200 or >= 300) throw new CoreException("2FA_REQUIRED", "Apple accepted the code but did not establish session trust. Please sign in again.").WithPresentation("ErrorVerificationTrustFailed");
         try { await AccountLogin(token); }
         catch (CoreException error) when (error.Code == "NETWORK")
         {
@@ -261,9 +265,9 @@ internal sealed class AppleAuth : IDisposable
             // a separate stage, and resending codes will not resolve it.
             var status = error.Detail.Split(':', 2)[0];
             var suffix = status.StartsWith("HTTP ", StringComparison.Ordinal) ? $" ({status})" : "";
-            throw new CoreException(error.Code, $"Apple accepted the verification code, but iCloud account sign-in failed{suffix}. Try again, or sign in at iCloud.com to check your account.", error.Detail);
+            throw new CoreException(error.Code, $"Apple accepted the verification code, but iCloud account sign-in failed{suffix}. Try again, or sign in at iCloud.com to check your account.", error.Detail).WithPresentation("ErrorVerificationAccepted", suffix);
         }
-        if (!State.Flag("trusted_session") || RequiresTwoFactor) throw new CoreException("2FA_REQUIRED", "Apple has not finished verifying this session. Please try signing in again.");
+        if (!State.Flag("trusted_session") || RequiresTwoFactor) throw new CoreException("2FA_REQUIRED", "Apple has not finished verifying this session. Please try signing in again.").WithPresentation("ErrorVerificationIncomplete");
         route = ("unknown", 0, "sms"); sent.Clear(); notice = null;
     }
     public void Dispose() => Http.Dispose();

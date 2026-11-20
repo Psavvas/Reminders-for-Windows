@@ -25,15 +25,15 @@ internal static class Srp
     public static (byte[] M1, byte[] M2) Proof(string user, byte[] password, BigInteger a, JsonNode challenge)
     {
         var protocol = challenge.Text("protocol") ?? ""; var iterations = challenge.Number("iteration");
-        if (protocol is not ("s2k" or "s2k_fo") || iterations is < 1 or > 1000000) throw new CoreException("AUTH_REQUIRED", "iCloud returned invalid sign-in parameters");
+        if (protocol is not ("s2k" or "s2k_fo") || iterations is < 1 or > 1000000) throw new CoreException("AUTH_REQUIRED", "iCloud returned invalid sign-in parameters").WithPresentation("ErrorInvalidICloudSignInParameters");
         var bBytes = Convert.FromBase64String(challenge.Text("b") ?? ""); var salt = Convert.FromBase64String(challenge.Text("salt") ?? ""); var b = Integer(bBytes);
-        if (bBytes.Length is 0 or > 256 || b % N == 0 || salt.Length is 0 or > 64) throw new CoreException("AUTH_REQUIRED", "iCloud returned an invalid sign-in challenge");
+        if (bBytes.Length is 0 or > 256 || b % N == 0 || salt.Length is 0 or > 64) throw new CoreException("AUTH_REQUIRED", "iCloud returned an invalid sign-in challenge").WithPresentation("ErrorInvalidICloudSignInChallenge");
         var derived = Derive(password, salt, (int)iterations, protocol); byte[]? key = null, identity = null;
         try
         {
             identity = Hash(Encoding.ASCII.GetBytes(":"), derived); var x = Integer(Hash(salt, identity)); var pub = BigInteger.ModPow(2, a, N);
             var k = Integer(Hash(Pad(N), Pad(2))); var u = Integer(Hash(Pad(pub), Pad(b)));
-            if (u == 0) throw new CoreException("AUTH_REQUIRED", "iCloud returned an invalid sign-in challenge");
+            if (u == 0) throw new CoreException("AUTH_REQUIRED", "iCloud returned an invalid sign-in challenge").WithPresentation("ErrorInvalidICloudSignInChallenge");
             var basis = (b + N - k * BigInteger.ModPow(2, x, N) % N) % N;
             key = Hash(Bytes(BigInteger.ModPow(basis, a + u * x, N)));
             var hn = Hash(Pad(N)); var hg = Hash(Pad(2)); var xor = hn.Zip(hg, (l, r) => (byte)(l ^ r)).ToArray();

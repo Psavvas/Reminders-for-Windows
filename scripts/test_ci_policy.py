@@ -80,6 +80,24 @@ class CiPolicyTests(unittest.TestCase):
     def test_current_policy(self):
         validate(self.dispatcher, self.pipeline)
 
+    def test_store_deployment_is_isolated_from_builds(self):
+        store = load('microsoft-store.yml')
+        assert set(store['on']) == {'release', 'workflow_dispatch'}
+        assert store['on']['release']['types'] == ['published']
+        assert store['permissions'] == {'contents': 'read'}
+        assert store['cache-mode'] == 'none'
+        job = store['jobs']['submit']
+        assert job['environment'] == 'microsoft-store'
+        assert '!github.event.release.prerelease' in job['if']
+        assert "github.ref == 'refs/heads/main'" in job['if']
+        checkout, setup, submit = job['steps']
+        assert checkout['with']['ref'] == 'refs/heads/main'
+        assert checkout['with']['persist-credentials'] == 'false'
+        for step in (checkout, setup):
+            assert re.fullmatch(r'[\w-]+/[\w/-]+@[0-9a-f]{40}', step['uses'])
+            assert 'secrets.' not in str(step)
+        assert submit['run'] == 'python scripts/publish_microsoft_store.py'
+
     def test_rejects_release_cache_restore(self):
         self.dispatcher['jobs']['tag']['with']['use-cache'] = 'true'
         with self.assertRaises(AssertionError):

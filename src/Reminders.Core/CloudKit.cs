@@ -37,31 +37,31 @@ internal sealed class CloudKit(AppleAuth auth)
     {
         var error = items.FirstOrDefault(v => v?["serverErrorCode"] is not null); if (error is null) return;
         var code = error.Text("serverErrorCode");
-        if (code is "CONFLICT" or "SERVER_RECORD_CHANGED") throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", error.ToJsonString());
-        if (code is "AUTHENTICATION_FAILED" or "AUTHENTICATION_REQUIRED") throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.");
+        if (code is "CONFLICT" or "SERVER_RECORD_CHANGED") throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", error.ToJsonString()).WithPresentation("ErrorReminderEditConflict");
+        if (code is "AUTHENTICATION_FAILED" or "AUTHENTICATION_REQUIRED") throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.").WithPresentation("ErrorICloudSessionExpired");
         if (code is "UNKNOWN_ITEM" or "NOT_FOUND" or "INVALID_ARGUMENTS" or "ACCESS_DENIED" or "PERMISSION_FAILURE" or "VALIDATION_FAILED" or "ZONE_NOT_FOUND" or "QUOTA_EXCEEDED")
-            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review unsynced changes under Sync & storage in Settings.", code + ": " + error.Text("reason"));
+            throw new CoreException("OPERATION_REJECTED", "iCloud refused a reminder operation. Review unsynced changes under Sync & storage in Settings.", code + ": " + error.Text("reason")).WithPresentation("ErrorReminderOperationRefused");
         // Keep transient/unknown service failures retryable, including during
         // restoration. They do not establish a rejected local edit.
-        throw new CoreException("NETWORK", "iCloud rejected a reminder operation", code + ": " + error.Text("reason"));
+        throw new CoreException("NETWORK", "iCloud rejected a reminder operation", code + ": " + error.Text("reason")).WithPresentation("ErrorReminderOperationRejected");
     }
     private async Task<JsonNode> Post(string operation, JsonNode body, CancellationToken token)
     {
         static string? ServiceUrl(JsonNode? service) => service is JsonValue value && value.TryGetValue<string>(out var url) ? url : service.Text("url");
-        var services = auth.State["webservices"]; var raw = ServiceUrl(services?["ckdatabasews"]) ?? ServiceUrl(services?["reminders"]) ?? throw new CoreException("ERROR", "This iCloud session did not expose the Reminders service");
-        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !(uri.Host == "icloud.com" || uri.Host.EndsWith(".icloud.com", StringComparison.OrdinalIgnoreCase)) || uri.UserInfo.Length != 0) throw new CoreException("ERROR", "iCloud returned an unsafe service URL");
+        var services = auth.State["webservices"]; var raw = ServiceUrl(services?["ckdatabasews"]) ?? ServiceUrl(services?["reminders"]) ?? throw new CoreException("ERROR", "This iCloud session did not expose the Reminders service").WithPresentation("ErrorRemindersServiceUnavailable");
+        if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !(uri.Host == "icloud.com" || uri.Host.EndsWith(".icloud.com", StringComparison.OrdinalIgnoreCase)) || uri.UserInfo.Length != 0) throw new CoreException("ERROR", "iCloud returned an unsafe service URL").WithPresentation("ErrorUnsafeICloudServiceUrl");
         var url = uri.GetLeftPart(UriPartial.Path).TrimEnd('/') + "/database/1/com.apple.reminders/production/private/" + operation + "?" + auth.Query + "&remapEnums=true&getCurrentSyncToken=true";
         var response = await auth.SendAsync(auth.Request(HttpMethod.Post, url, body, false), 32 * 1024 * 1024, token);
         if (response.Status is < 200 or >= 300)
         {
-            if (response.Text.Contains("termsUpdateNeeded")) throw new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.");
-            if (response.Status is 401 or 403 or 421) throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.");
-            if (response.Status == 409) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", response.Text);
+            if (response.Text.Contains("termsUpdateNeeded")) throw new CoreException("TERMS_REQUIRED", "Apple requires you to accept updated iCloud terms.").WithPresentation("ErrorUpdatedICloudTermsRequired");
+            if (response.Status is 401 or 403 or 421) throw new CoreException("AUTH_REQUIRED", "Your iCloud session expired.").WithPresentation("ErrorICloudSessionExpired");
+            if (response.Status == 409) throw new CoreException("CONFLICT", "This reminder changed on another device while you were editing it.", response.Text).WithPresentation("ErrorReminderEditConflict");
             if (response.Status is >= 400 and < 500 && response.Status != 429)
-                throw new CoreException("ERROR", $"iCloud rejected the sync request (HTTP {response.Status}).", AppleAuth.Detail(J.Parse(response.Text)));
-            throw new CoreException("NETWORK", "Could not reach iCloud", $"HTTP {response.Status}: {AppleAuth.Detail(J.Parse(response.Text))}");
+                throw new CoreException("ERROR", $"iCloud rejected the sync request (HTTP {response.Status}).", AppleAuth.Detail(J.Parse(response.Text))).WithPresentation("ErrorSyncRequestRejected", response.Status);
+            throw new CoreException("NETWORK", "Could not reach iCloud", $"HTTP {response.Status}: {AppleAuth.Detail(J.Parse(response.Text))}").WithPresentation("ErrorCouldNotReachICloud");
         }
-        var result = JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response");
+        var result = JsonNode.Parse(response.Text) ?? throw new CoreException("ERROR", "Invalid CloudKit response").WithPresentation("ErrorInvalidCloudKitResponse");
         // HTTP 200 can still carry a per-record CloudKit failure. Log only the
         // endpoint and bounded error enum, never the record or server reason.
         var statuses = new[] { result }.Concat(result.Array("records"))
@@ -73,7 +73,7 @@ internal sealed class CloudKit(AppleAuth auth)
     }
     private static void Advance(HashSet<string> seen, string? next)
     {
-        if (string.IsNullOrEmpty(next) || seen.Count >= 1000 || !seen.Add(next)) throw new CoreException("ERROR", "iCloud pagination stopped advancing or exceeded 1,000 pages");
+        if (string.IsNullOrEmpty(next) || seen.Count >= 1000 || !seen.Add(next)) throw new CoreException("ERROR", "iCloud pagination stopped advancing or exceeded 1,000 pages").WithPresentation("ErrorICloudPaginationLimit");
     }
     public async Task<JsonArray> Query(string type, JsonArray filters, CancellationToken token)
     {
@@ -122,7 +122,7 @@ internal sealed class CloudKit(AppleAuth auth)
         var response = await Post("records/lookup", new JsonObject { ["records"] = new JsonArray(requested.Select(id => J.Node(new { recordName = id })).ToArray()), ["zoneID"] = Zone }, token);
         var rows = response.Array("records");
         if (requireAcknowledgement && requested.Any(id => !rows.Any(row => row.Text("recordName") == id)))
-            throw new CoreException("NETWORK", "iCloud did not return every requested reminder. No local changes were discarded.");
+            throw new CoreException("NETWORK", "iCloud did not return every requested reminder. No local changes were discarded.").WithPresentation("ErrorDiscardRemindersMissing");
         // Web Services reports NOT_FOUND; some responses use the native error
         // name UNKNOWN_ITEM. Only optional per-record misses are expected here.
         var found = new JsonArray(rows.Where(r => !allowMissing || r.Text("serverErrorCode") is not ("NOT_FOUND" or "UNKNOWN_ITEM")).Select(r => r?.DeepClone()).ToArray());
@@ -133,7 +133,7 @@ internal sealed class CloudKit(AppleAuth auth)
         var operations = operation as JsonArray ?? new JsonArray(operation);
         var response = await Post("records/modify", new JsonObject { ["operations"] = operations, ["zoneID"] = Zone, ["atomic"] = true }, token); var rows = response.Array("records"); Reject(rows);
         if (operations.Any(op => !rows.Any(r => r.Text("recordName") == op?["record"].Text("recordName"))))
-            throw new CoreException("NETWORK", "iCloud did not acknowledge every changed record. The operation will be retried.");
+            throw new CoreException("NETWORK", "iCloud did not acknowledge every changed record. The operation will be retried.").WithPresentation("ErrorICloudAcknowledgmentIncomplete");
         return rows;
     }
 }

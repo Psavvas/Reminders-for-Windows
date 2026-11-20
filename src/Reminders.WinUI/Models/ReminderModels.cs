@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using Reminders.Windows.Services;
 
 namespace Reminders.Windows;
 
@@ -43,7 +44,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
     [JsonIgnore] public global::Windows.UI.Text.FontWeight RowTitleWeight => _depth > 0 ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility SubtaskToggleVisibility => _hasChildren ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     [JsonIgnore] public string SubtaskGlyph => _expanded ? "\uE70D" : "\uE76C";
-    [JsonIgnore] public string SubtaskToggleLabel => (_expanded ? "Collapse subtasks of " : "Expand subtasks of ") + DisplayTitle;
+    [JsonIgnore] public string SubtaskToggleLabel => L10n.Format(_expanded ? "CollapseSubtasksOf" : "ExpandSubtasksOf", DisplayTitle);
     public void ConfigureHierarchy(int depth, bool hasChildren, bool expanded)
     {
         _depth = depth; _hasChildren = hasChildren; _expanded = expanded;
@@ -52,7 +53,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
             PropertyChanged?.Invoke(this, new(name));
     }
 
-    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
+    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? L10n.Get("UntitledReminder") : Title;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility MetadataVisibility => IsOverdue || string.IsNullOrWhiteSpace(Metadata)
         ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility OverdueMetadataVisibility => IsOverdue
@@ -67,21 +68,23 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         {
             if (!DateTimeOffset.TryParse(DueDate, out var value)) return "";
             var due = value.LocalDateTime;
-            if (AllDay) return due.Date == DateTime.Today ? "Today" : due.ToString("ddd, MMM d");
-            if (due.Date == DateTime.Today) return $"Today, {due:t}";
-            if (due.Date == DateTime.Today.AddDays(1)) return $"Tomorrow, {due:t}";
-            return $"{due:ddd, MMM d} · {due:t}";
+            if (AllDay) return due.Date == DateTime.Today ? L10n.Get("Today") : L10n.Format("DueDateAllDay", due);
+            if (due.Date == DateTime.Today) return L10n.Format("DueTodayAt", due);
+            if (due.Date == DateTime.Today.AddDays(1)) return L10n.Format("DueTomorrowAt", due);
+            return L10n.Format("DueDateAndTime", due);
         }
     }
-    [JsonIgnore] public string PriorityMarks => FormatPriority(Priority).Marks;
-    [JsonIgnore] public string PriorityLabel => FormatPriority(Priority).Label;
-    internal static (string Marks, string Label) FormatPriority(long value) => value switch
+    [JsonIgnore] public string PriorityMarks => FormatPriority(Priority);
+    [JsonIgnore] public string PriorityLabel => DescribePriority(Priority);
+
+    internal static string FormatPriority(long value) => value switch { 9 => "!", 5 => "!!", 1 => "!!!", _ => "" };
+    internal static string DescribePriority(long value) => L10n.Get(value switch
     {
-        9 => ("!", "Low priority"),
-        5 => ("!!", "Medium priority"),
-        1 => ("!!!", "High priority"),
-        _ => ("", "No priority")
-    };
+        9 => "LowPriority",
+        5 => "MediumPriority",
+        1 => "HighPriority",
+        _ => "NoPriority"
+    });
 
     [JsonIgnore] public Microsoft.UI.Xaml.Visibility AppleMetadataVisibility =>
         PriorityMarks.Length > 0 || DueDate is not null || Recurrence is not null || Tags.Count > 0 || Dirty != 0
@@ -90,7 +93,7 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         : DueText.Length == 0 ? Recurrence.Label : $"{DueText} · {Recurrence.Label}";
     [JsonIgnore] public string AppleTags => string.Join("  ", Tags.Select(tag => "#" + tag));
     [JsonIgnore] public string ApplePending => Dirty != 0 ? "•" : "";
-    [JsonIgnore] public string AppleSyncDescription => Dirty != 0 ? "Waiting to sync" : "";
+    [JsonIgnore] public string AppleSyncDescription => Dirty != 0 ? L10n.Get("WaitingToSync") : "";
     [JsonIgnore] public Microsoft.UI.Xaml.Media.Brush AppleDueBrush => new Microsoft.UI.Xaml.Media.SolidColorBrush(
         IsOverdue ? Microsoft.UI.ColorHelper.FromArgb(255, 255, 59, 48)
         : !Completed && DateTimeOffset.TryParse(DueDate, out var due) && due.LocalDateTime.Date <= DateTime.Today.AddDays(1)
@@ -101,13 +104,13 @@ public sealed class ReminderItem : INotifyPropertyChanged, Services.IHierarchica
         get
         {
             var parts = new List<string>();
-            if (IsOverdue) parts.Add("Overdue");
+            if (IsOverdue) parts.Add(L10n.Get("Overdue"));
             if (DueText.Length > 0) parts.Add(DueText);
             if (Recurrence is not null) parts.Add(Recurrence.Label);
             if (PriorityMarks.Length > 0) parts.Add(PriorityMarks);
             if (Tags.Count > 0) parts.Add(string.Join("  ", Tags.Select(t => "#" + t)));
-            if (Dirty != 0) parts.Add("Waiting to sync");
-            return string.Join("  ·  ", parts);
+            if (Dirty != 0) parts.Add(L10n.Get("WaitingToSync"));
+            return string.Join(L10n.Get("ReminderMetadataSeparator"), parts);
         }
     }
     public void RefreshTimeMetadata()
@@ -139,9 +142,13 @@ public sealed class RepeatSchedule
     public long Frequency { get; set; }
     public long Interval { get; set; } = 1;
     public bool Supported { get; set; } = true;
-    [JsonIgnore] public string Label => !Supported ? "Custom repeat" : Interval == 1
-        ? Frequency switch { 1 => "Daily", 2 => "Weekly", 3 => "Monthly", 4 => "Yearly", _ => "Repeats" }
-        : $"Every {Interval} " + (Frequency switch { 1 => "days", 2 => "weeks", 3 => "months", 4 => "years", _ => "intervals" });
+    [JsonIgnore] public string Label => !Supported ? L10n.Get("CustomRepeat") : Interval == 1
+        ? Frequency switch { 1 => L10n.Get("Daily"), 2 => L10n.Get("Weekly"), 3 => L10n.Get("Monthly"), 4 => L10n.Get("Yearly"), _ => L10n.Get("Repeats") }
+        : L10n.Format(Frequency switch
+        {
+            1 => "RepeatEveryDays", 2 => "RepeatEveryWeeks", 3 => "RepeatEveryMonths",
+            4 => "RepeatEveryYears", _ => "RepeatEveryIntervals"
+        }, Interval);
 }
 
 public sealed class ConflictItem
@@ -164,12 +171,12 @@ public sealed class UnsyncedReminder
     [JsonPropertyName("pending_changes")] public long PendingChanges { get; set; }
     [JsonPropertyName("conflicts")] public long Conflicts { get; set; }
     [JsonPropertyName("is_new")] public bool IsNew { get; set; }
-    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? "Untitled reminder" : Title;
-    [JsonIgnore] public string Summary => string.Join(" · ", new[]
+    [JsonIgnore] public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? L10n.Get("UntitledReminder") : Title;
+    [JsonIgnore] public string Summary => string.Join(L10n.Get("UnsyncedSummarySeparator"), new[]
     {
-        IsNew ? "New task" : null,
-        PendingChanges > 0 ? $"{PendingChanges} queued change{(PendingChanges == 1 ? "" : "s")}" : null,
-        Conflicts > 0 ? $"{Conflicts} conflict{(Conflicts == 1 ? "" : "s")}" : null
+        IsNew ? L10n.Get("NewTask") : null,
+        PendingChanges > 0 ? L10n.Format(PendingChanges == 1 ? "QueuedChangeCountOne" : "QueuedChangeCountMany", PendingChanges) : null,
+        Conflicts > 0 ? L10n.Format(Conflicts == 1 ? "ConflictCountOne" : "ConflictCountMany", Conflicts) : null
     }.OfType<string>());
 }
 

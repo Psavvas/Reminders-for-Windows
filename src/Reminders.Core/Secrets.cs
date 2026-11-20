@@ -51,7 +51,7 @@ internal sealed class WindowsSecrets : ISecrets
     public void Write(string service, string account, string value)
     {
         var bytes = Encoding.Unicode.GetBytes(value);
-        if (bytes.Length > 2560) throw new CoreException("ERROR", "The credential is too large for Windows Credential Manager");
+        if (bytes.Length > 2560) throw new CoreException("ERROR", "The credential is too large for Windows Credential Manager").WithPresentation("ErrorCredentialTooLarge");
         var pointer = Marshal.AllocHGlobal(bytes.Length);
         try
         {
@@ -86,11 +86,11 @@ internal sealed class SecretStore(ISecrets vault)
     public string? Session(string account)
     {
         var value = vault.Read(SessionService, account); if (Manifest(value) is not { } manifest) return value;
-        return string.Concat(Enumerable.Range(0, manifest.Count).Select(i => vault.Read(Chunk(manifest.Slot, i), account) ?? throw new CoreException("ERROR", "Could not read the saved iCloud session")));
+        return string.Concat(Enumerable.Range(0, manifest.Count).Select(i => vault.Read(Chunk(manifest.Slot, i), account) ?? throw new CoreException("ERROR", "Could not read the saved iCloud session").WithPresentation("ErrorSavedICloudSessionUnreadable")));
     }
     public void Session(string account, string value)
     {
-        var chunks = Chunks(value); if (chunks.Count > 64) throw new CoreException("ERROR", "The iCloud session is unexpectedly large");
+        var chunks = Chunks(value); if (chunks.Count > 64) throw new CoreException("ERROR", "The iCloud session is unexpectedly large").WithPresentation("ErrorICloudSessionTooLarge");
         var previous = Manifest(vault.Read(SessionService, account)); var slot = previous?.Slot == 'a' ? 'b' : 'a';
         for (var i = 0; i < chunks.Count; i++) vault.Write(Chunk(slot, i), account, chunks[i]);
         vault.Write(SessionService, account, $"chunks:v1:{slot}:{chunks.Count}");

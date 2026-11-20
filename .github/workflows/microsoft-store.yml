@@ -1,0 +1,56 @@
+name: Publish to Microsoft Store
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release tag (vMAJOR.MINOR.PATCH)
+        type: string
+        required: true
+      check-only:
+        description: Verify the release and Partner Center access without submitting
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+cache-mode: none
+
+concurrency:
+  group: microsoft-store-production
+  queue: max
+
+jobs:
+  submit:
+    if: >-
+      (github.event_name == 'release' && !github.event.release.prerelease &&
+      !github.event.release.draft && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: microsoft-store
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Submit release packages and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          CHECK_ONLY: ${{ inputs.check-only }}
+          STORE_PRODUCT_ID: '9PH6GW0M6G86'
+          STORE_TENANT_ID: ${{ secrets.STORE_TENANT_ID }}
+          STORE_CLIENT_ID: ${{ secrets.STORE_CLIENT_ID }}
+          STORE_CLIENT_SECRET: ${{ secrets.STORE_CLIENT_SECRET }}
+        run: python scripts/publish_microsoft_store.py

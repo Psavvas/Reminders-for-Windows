@@ -1,14 +1,14 @@
+using Reminders.Core;
 using System.Text.Json.Nodes;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Reminders.Windows.Services;
 
-internal sealed record AppleSignInFailure(string Message, string Diagnostic);
+internal sealed record AppleSignInFailure(PresentationMessage Message, string Diagnostic);
 
 internal static class AppleSignInPolicy
 {
     public const string StartUrl = "https://www.icloud.com/reminders/";
-    public const string Instructions = "Sign in on Apple's page below. Choose Trust when offered to remember this PC. The window will close when connected; if your reminders appear here, choose Continue in app.";
 
     public static bool IsRemindersResponse(Uri uri, int status)
     {
@@ -60,10 +60,9 @@ internal static class AppleSignInPolicy
         // Apple's normal authentication exchange uses 401 and 409 for
         // challenges. Neither means that a device prompt failed to arrive.
         if (stage is null || status is not (>= 500 and <= 599) and not 429) return null;
-        var service = stage == "authentication" ? "sign-in" : "iCloud account";
         var message = status == 429
-            ? "Apple is limiting sign-in requests (HTTP 429). Wait a little, then reload Apple sign-in."
-            : $"Apple's {service} service returned HTTP {status}. Reload Apple sign-in to try again, or cancel and use text verification.";
+            ? new PresentationMessage("AppleSignInRateLimited")
+            : new PresentationMessage(stage == "authentication" ? "AppleSignInServiceUnavailable" : "AppleAccountServiceUnavailable", status);
         return new(message, $"apple sign-in: stage={stage} HTTP {status}");
     }
 
@@ -72,13 +71,13 @@ internal static class AppleSignInPolicy
         var code = exception is SyncException sync && sync.Code is "NETWORK" or "AUTH_REQUIRED" or "2FA_REQUIRED" or "TERMS_REQUIRED" ? sync.Code : "ERROR";
         var message = code switch
         {
-            "NETWORK" => "Apple's page finished verification, but the app could not connect to iCloud to save the session. Reload Apple sign-in and try again, or cancel and use text verification.",
-            "TERMS_REQUIRED" => "Apple requires updated iCloud terms. Finish those on Apple's page, then try again.",
-            "2FA_REQUIRED" => "Apple has not finished verifying this session. Finish signing in on Apple's page, then choose Continue in app.",
-            "AUTH_REQUIRED" => "iCloud did not accept the session returned by Apple's page. Reload Apple sign-in and try again.",
-            _ => "The app could not read or save Apple's sign-in session. Reload Apple sign-in to try again, or cancel and use text verification."
+            "NETWORK" => "AppleSignInImportNetwork",
+            "TERMS_REQUIRED" => "AppleSignInImportTerms",
+            "2FA_REQUIRED" => "AppleSignInImportPending",
+            "AUTH_REQUIRED" => "AppleSignInImportRejected",
+            _ => "AppleSignInImportFailed"
         };
         // No exception messages, URLs, headers, bodies, or account identifiers.
-        return new(message, $"apple sign-in: stage=import code={code} type={exception.GetType().Name} hresult=0x{exception.HResult:X8}");
+        return new(new(message), $"apple sign-in: stage=import code={code} type={exception.GetType().Name} hresult=0x{exception.HResult:X8}");
     }
 }

@@ -22,7 +22,7 @@ internal static class TimeUtil
         var explicitZone = value.EndsWith('Z') || (value.Length > 10 && (value[10..].Contains('+') || value[10..].Contains('-')));
         if (explicitZone && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var instant)) return instant.ToUniversalTime();
         if (DateTime.TryParseExact(value, ["yyyy-MM-dd", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd'T'HH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.None, out var wall)) return Anchor(wall, Zone());
-        throw CoreException.Bad("invalid due date");
+        throw CoreException.Bad("invalid due date").WithPresentation("ErrorInvalidDueDate");
     }
     public static string Iso(DateTimeOffset value) => value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture);
     public static string Now => Iso(DateTimeOffset.UtcNow);
@@ -36,10 +36,10 @@ internal static class TimeUtil
         if (value is JsonValue v && v.TryGetValue<long>(out var ms))
         {
             try { instant = DateTimeOffset.FromUnixTimeMilliseconds(ms); }
-            catch (ArgumentOutOfRangeException) { throw CoreException.Bad("due date is outside the supported range"); }
+            catch (ArgumentOutOfRangeException) { throw CoreException.Bad("due date is outside the supported range").WithPresentation("ErrorDueDateOutsideRange"); }
         }
         else if (value is JsonValue text && text.TryGetValue<string>(out var raw)) instant = Parse(raw);
-        else throw CoreException.Bad("due date must be ISO-8601 or epoch millis");
+        else throw CoreException.Bad("due date must be ISO-8601 or epoch millis").WithPresentation("ErrorInvalidDueDateFormat");
         if (allDay) instant = Anchor(TimeZoneInfo.ConvertTime(instant, Zone()).Date, Zone());
         return Iso(instant);
     }
