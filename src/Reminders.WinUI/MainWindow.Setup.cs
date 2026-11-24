@@ -16,7 +16,7 @@ public sealed partial class MainWindow
 
     private void ShowSetupGuide(bool firstRun = false)
     {
-        if (_verificationBusy || _dialogOpen) return;
+        if (_verificationBusy || _dialogOpen || AppTourActive) return;
         _setupFirstRun = firstRun;
         _setupStep = firstRun ? 0 : _lastSignInFailure?.GuideStep ?? 0;
         _setupReturnFocus = Root.XamlRoot is { } root
@@ -74,6 +74,7 @@ public sealed partial class MainWindow
     {
         UpdateSetupCardHeight();
         UpdateAppleSidebarLayout();
+        UpdateWelcomeLayout();
     }
     private void UpdateSetupCardHeight()
     {
@@ -99,6 +100,7 @@ public sealed partial class MainWindow
             else if (LoginFields.Visibility == Visibility.Visible) AppleIdBox.Focus(FocusState.Programmatic);
         }
         _setupReturnFocus = null;
+        TryShowFirstAppTour();
     }
 
     private void ReviewICloudSetup_Click(object sender, RoutedEventArgs e) => ShowSetupGuide();
@@ -124,7 +126,7 @@ public sealed partial class MainWindow
         await StartAccountAsync();
     }
 
-    private void SetupDemo_Click(object sender, RoutedEventArgs e) { CloseSetupGuide(); LoadDemo(); }
+    private void SetupDemo_Click(object sender, RoutedEventArgs e) { CloseSetupGuide(); LoadDemo(); ShowAppTour(); }
 
     private async void SetupStepLink_Click(object sender, RoutedEventArgs e)
     {

@@ -229,7 +229,7 @@
 
   <ContentControl x:Name="AuthGate" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
    <ScrollViewer Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
-   <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="28" MaxWidth="480" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+   <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Padding="28" MaxWidth="480" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
     <Border.Transitions><TransitionCollection><EntranceThemeTransition FromVerticalOffset="24"/></TransitionCollection></Border.Transitions>
     <StackPanel Spacing="12">
      <Image x:Uid="RemindersForWindowsIconImage" Source="Assets/icon-v2.png" Width="64" Height="64" HorizontalAlignment="Center"/>
@@ -261,6 +261,44 @@
    </Border>
    </ScrollViewer>
   </ContentControl>
+
+  <Grid x:Name="WelcomeScreen" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" TabFocusNavigation="Cycle">
+   <Border x:Name="WelcomeCard" MaxWidth="560" Margin="24" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center"
+           Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16">
+    <Border.Transitions><TransitionCollection><EntranceThemeTransition FromVerticalOffset="16"/></TransitionCollection></Border.Transitions>
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Spacing="12" Margin="0,0,0,24">
+      <Image Source="Assets/icon-v2.png" Width="64" Height="64" HorizontalAlignment="Left" AutomationProperties.AccessibilityView="Raw"/>
+      <TextBlock x:Uid="WelcomeHeading" x:Name="WelcomeHeading" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"/>
+      <TextBlock x:Uid="WelcomeSubtitle" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+     </StackPanel>
+     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch">
+      <StackPanel Spacing="20">
+       <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Border Width="42" Height="42" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Top"><FontIcon Glyph="&#xE753;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/></Border>
+        <StackPanel Grid.Column="1" Spacing="4"><TextBlock x:Uid="WelcomeSyncTitle" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock x:Uid="WelcomeSyncDescription" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/></StackPanel>
+       </Grid>
+       <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Border Width="42" Height="42" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Top"><FontIcon Glyph="&#xE823;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/></Border>
+        <StackPanel Grid.Column="1" Spacing="4"><TextBlock x:Uid="WelcomeFocusTitle" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock x:Uid="WelcomeFocusDescription" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/></StackPanel>
+       </Grid>
+       <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Border Width="42" Height="42" CornerRadius="12" Background="{ThemeResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Top"><FontIcon Glyph="&#xE8FB;" FontSize="22" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/></Border>
+        <StackPanel Grid.Column="1" Spacing="4"><TextBlock x:Uid="WelcomeOfflineTitle" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock x:Uid="WelcomeOfflineDescription" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/></StackPanel>
+       </Grid>
+      </StackPanel>
+     </ScrollViewer>
+     <Border Grid.Row="2" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,20,0,0">
+      <StackPanel Spacing="8">
+       <Button x:Uid="WelcomeContinue" x:Name="WelcomeContinue" Click="WelcomeContinue_Click" HorizontalAlignment="Stretch" MinHeight="40" Style="{ThemeResource AccentButtonStyle}"/>
+       <HyperlinkButton x:Uid="WelcomeDemo" Click="WelcomeDemo_Click" HorizontalAlignment="Center"/>
+       <HyperlinkButton x:Uid="WelcomePrivacy" Click="PrivacyPolicy_Click" HorizontalAlignment="Center" FontSize="12"/>
+      </StackPanel>
+     </Border>
+    </Grid>
+   </Border>
+  </Grid>
 
   <Grid x:Name="SetupGuide" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <Border x:Name="SetupCard" MaxWidth="560" Margin="24" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -316,5 +354,19 @@
      </Grid>
     </Border>
   </Grid>
+  <TeachingTip x:Name="AppTourTip" IsOpen="False" IsLightDismissEnabled="False" ShouldConstrainToRootBounds="True"
+               PreferredPlacement="Bottom" ActionButtonStyle="{ThemeResource AccentButtonStyle}" ActionButtonClick="TourNext_Click" CloseButtonClick="TourSkip_Click" Closed="TourTip_Closed">
+   <TeachingTip.Content>
+    <StackPanel Spacing="14" MaxWidth="300">
+     <TextBlock x:Name="TourDescription" TextWrapping="Wrap" IsTabStop="True"/>
+     <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" Padding="12" CornerRadius="8"><TextBlock x:Name="TourHint" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/></Border>
+     <ProgressBar x:Name="TourProgress" Minimum="0" Maximum="6" Height="3" IsTabStop="False"/>
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="TourStepLabel" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
+      <Button x:Uid="TourBack" x:Name="TourBack" Grid.Column="1" Click="TourBack_Click" Style="{ThemeResource SubtleButtonStyle}"/>
+     </Grid>
+    </StackPanel>
+   </TeachingTip.Content>
+  </TeachingTip>
  </Grid>
 </Window>

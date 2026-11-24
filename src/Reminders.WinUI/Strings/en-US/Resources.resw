@@ -2028,4 +2028,41 @@ Accept any updated terms, then check that your lists appear.</value>
   <data name="YourICloudRemindersAtHomeOnTextBlock.Text" xml:space="preserve">
     <value>Your iCloud reminders, at home on Windows.</value>
   </data>
+  <data name="WelcomeHeading.Text" xml:space="preserve"><value>Welcome to Reminders</value></data>
+  <data name="WelcomeSubtitle.Text" xml:space="preserve"><value>Your iCloud reminders on Windows. First, we'll check your iCloud settings, then you can sign in.</value></data>
+  <data name="WelcomeSyncTitle.Text" xml:space="preserve"><value>Your iCloud lists</value></data>
+  <data name="WelcomeSyncDescription.Text" xml:space="preserve"><value>See and update the reminders from your Apple devices.</value></data>
+  <data name="WelcomeFocusTitle.Text" xml:space="preserve"><value>Today and Upcoming</value></data>
+  <data name="WelcomeFocusDescription.Text" xml:space="preserve"><value>See what's due today or coming up next.</value></data>
+  <data name="WelcomeOfflineTitle.Text" xml:space="preserve"><value>Offline access</value></data>
+  <data name="WelcomeOfflineDescription.Text" xml:space="preserve"><value>Use downloaded reminders offline. Changes sync when you reconnect.</value></data>
+  <data name="WelcomeContinue.Content" xml:space="preserve"><value>Get started</value></data>
+  <data name="WelcomeDemo.Content" xml:space="preserve"><value>Try with sample reminders</value></data>
+  <data name="WelcomePrivacy.Content" xml:space="preserve"><value>Privacy policy</value></data>
+  <data name="ReplayAppTour" xml:space="preserve"><value>Take the app tour</value></data>
+  <data name="ReplayAppTourDescription" xml:space="preserve"><value>A quick guide to the main controls. You can skip it or replay it any time.</value></data>
+  <data name="GettingStarted" xml:space="preserve"><value>Getting started</value></data>
+  <data name="TourStepCount" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="TourBack.Content" xml:space="preserve"><value>Back</value></data>
+  <data name="TourFinish" xml:space="preserve"><value>Done</value></data>
+  <data name="TourSkip" xml:space="preserve"><value>Skip tour</value></data>
+  <data name="TourNavigationTitle" xml:space="preserve"><value>Your lists</value></data>
+  <data name="TourNavigationDescription" xml:space="preserve"><value>Use the sidebar to switch between your iCloud lists, Today, Upcoming, and All.</value></data>
+  <data name="TourNavigationHint" xml:space="preserve"><value>The sidebar button shows or hides your lists.</value></data>
+  <data name="TourSearchTitle" xml:space="preserve"><value>Search reminders</value></data>
+  <data name="TourSearchDescription" xml:space="preserve"><value>Search titles and notes in the current view. Choose All to search across your lists.</value></data>
+  <data name="TourSearchHint" xml:space="preserve"><value>Shortcut: Ctrl+F</value></data>
+  <data name="TourAddTitle" xml:space="preserve"><value>Add a reminder</value></data>
+  <data name="TourAddDescription" xml:space="preserve"><value>Use the plus button to add a reminder. Choose a list and enter a title. Dates and other details are optional.</value></data>
+  <data name="TourAddHint" xml:space="preserve"><value>Shortcut: Ctrl+N</value></data>
+  <data name="TourDetailsTitle" xml:space="preserve"><value>Edit a reminder</value></data>
+  <data name="TourDetailsDescription" xml:space="preserve"><value>Select a reminder to edit its notes, due date, repeat schedule, or subtasks. Save when finished.</value></data>
+  <data name="TourDetailsHint" xml:space="preserve"><value>In a narrow window, use Back to return to the list.</value></data>
+  <data name="TourCompleteTitle" xml:space="preserve"><value>Complete a reminder</value></data>
+  <data name="TourCompleteDescription" xml:space="preserve"><value>Check the circle beside a reminder to mark it done. Use Show completed or the Completed view to find it again.</value></data>
+  <data name="TourCompleteHint" xml:space="preserve"><value>Uncheck the circle to mark it incomplete.</value></data>
+  <data name="TourSyncTitle" xml:space="preserve"><value>Sync and settings</value></data>
+  <data name="TourSyncDescription" xml:space="preserve"><value>Changes sync automatically while online. Open Settings to adjust appearance, notifications, and sync, or replay this tour.</value></data>
+  <data name="TourSyncHint" xml:space="preserve"><value>Shortcut: Ctrl+,</value></data>
+  <data name="TourSyncDemoDescription" xml:space="preserve"><value>Sample reminders stay on this PC and do not sync to iCloud. Open Settings to leave sample data or replay this tour.</value></data>
 </root>

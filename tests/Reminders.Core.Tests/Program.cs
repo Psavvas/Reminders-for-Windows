@@ -290,6 +290,7 @@ SignInTroubleshootingChecks.Run(Check);
 EnglishUiResourceChecks.Run(Check);
 ReminderGroupingChecks.Run(Check);
 PaneSizingChecks.Run(Check);
+OnboardingChecks.Run(Check);
 Console.WriteLine($"Passed {passed} backend and scheduling checks.");
 
 sealed class MemorySecrets : ISecrets

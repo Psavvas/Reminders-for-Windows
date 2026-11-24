@@ -63,7 +63,7 @@ public sealed partial class MainWindow
 
     private async Task ShowSettingsAsync(int initialCategory = 0)
     {
-        if (_dialogOpen || _savingDetail || _accountBusy || _verificationBusy || SetupGuide.Visibility == Visibility.Visible) return;
+        if (_dialogOpen || _savingDetail || _accountBusy || _verificationBusy || AppTourActive || SetupGuide.Visibility == Visibility.Visible || WelcomeScreen.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         SizeChangedEventHandler? resize = null;
         using var updateCancellation = new CancellationTokenSource();
@@ -188,6 +188,9 @@ public sealed partial class MainWindow
             about.Children.Add(SettingsCard(L10n.Get("Links"), privacy, new HyperlinkButton { Content = new TextBlock { Text = L10n.Get("ViewSourceOnGitHub"), TextWrapping = TextWrapping.Wrap }, NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"), Padding = new Thickness(12, 8, 12, 8), HorizontalAlignment = HorizontalAlignment.Left }));
             about.Children.Add(new Expander { Header = L10n.Get("AboutThisApp"), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = SettingsDescription(L10n.Get("AboutAppDisclaimer")) });
+            var appTour = SettingsAction(L10n.Get("ReplayAppTour"));
+            appTour.IsEnabled = AuthGate.Visibility == Visibility.Collapsed;
+            about.Children.Add(SettingsCard(L10n.Get("GettingStarted"), SettingsDescription(L10n.Get("ReplayAppTourDescription")), appTour));
 
             var names = new[] { L10n.Get("General"), L10n.Get("SyncStorage"), L10n.Get("Account"), L10n.Get("About") };
             var pages = new[] { general, syncPage, account, about };
@@ -246,6 +249,7 @@ public sealed partial class MainWindow
             void Request(string value) { action = value; dialog.Hide(); }
             signOut.Click += (_, _) => Request("sign_out"); clearCache.Click += (_, _) => Request("clear_cache");
             setup.Click += (_, _) => Request("setup");
+            appTour.Click += (_, _) => Request("tour");
             installUpdate.Click += async (_, _) =>
             {
                 if (AppUpdater.CanInstall) { Request("install_update"); return; }
@@ -375,6 +379,7 @@ public sealed partial class MainWindow
             if (action == "sign_out") { await SignOutAsync(); return; }
             if (action == "clear_cache") { await ClearCacheAsync(); return; }
             if (action == "setup") { ShowSetupGuide(); return; }
+            if (action == "tour") { ShowAppTour(); return; }
             if (action == "install_update") { await InstallUpdateAsync(); return; }
             if (result != ContentDialogResult.Primary || !double.IsFinite(sync.Value)) return;
             var themeValue = theme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
@@ -396,6 +401,7 @@ public sealed partial class MainWindow
             await recoveryWork;
             if (resize is not null) Root.SizeChanged -= resize;
             _dialogOpen = false;
+            TryShowFirstAppTour();
         }
     }
 }

@@ -127,13 +127,29 @@ public sealed partial class MainWindow : Window
         if (args.WindowActivationState == WindowActivationState.Deactivated) return;
         if (_bootStarted)
         {
-            if (SetupGuide.Visibility == Visibility.Visible) return;
+            if (SetupGuide.Visibility == Visibility.Visible || WelcomeScreen.Visibility == Visibility.Visible) return;
             if (AuthGate.Visibility == Visibility.Collapsed && DateTimeOffset.UtcNow - _lastSyncRequest >= TimeSpan.FromSeconds(30))
                 await RequestAutoSyncAsync();
             return;
         }
         _bootStarted = true;
 #if DEBUG
+        if (Environment.GetCommandLineArgs().Contains("--preview-welcome", StringComparer.OrdinalIgnoreCase))
+        {
+            ApplyTheme(Environment.GetCommandLineArgs().Contains("--preview-light", StringComparer.OrdinalIgnoreCase) ? "light" : "dark");
+            ShowWelcome();
+            return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--preview-tour", StringComparer.OrdinalIgnoreCase))
+        {
+            LoadDemo();
+            _uiPreferences.InterfaceStyle = "apple";
+            ApplyInterfaceStyle();
+            ApplyTheme(Environment.GetCommandLineArgs().Contains("--preview-light", StringComparer.OrdinalIgnoreCase) ? "light" : "dark");
+            AppInfoBar.IsOpen = false;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ShowAppTour);
+            return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--preview-editor", StringComparer.OrdinalIgnoreCase))
         {
             LoadDemo();
@@ -179,6 +195,7 @@ public sealed partial class MainWindow : Window
             LoadDemo();
             return;
         }
+        if (_uiPreferences.ShouldShowWelcome) { ShowWelcome(); return; }
         if (!_uiPreferences.ICloudSetupCompleted) { ShowSetupGuide(firstRun: true); return; }
         await StartAccountAsync();
     }
@@ -193,6 +210,7 @@ public sealed partial class MainWindow : Window
     private async Task BootAsync()
     {
         if (_accountBusy) return;
+        _accountLoads++;
         SetGateState(L10n.Get("SyncServiceStarting"));
         try
         {
@@ -219,6 +237,7 @@ public sealed partial class MainWindow : Window
                 _statusTimer.Start(); _notificationTimer.Start(); _syncTimer.Start();
                 if (status.Flag("authenticated")) await RequestAutoSyncAsync();
                 if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo(L10n.Get("SignInToResumeSyncing"), L10n.Get("CachedRemindersAvailable"), InfoBarSeverity.Warning);
+                OfferFirstAppTour(status.Flag("authenticated"));
                 return;
             }
             if (status.Flag("restoring")) { SetGateState(L10n.Get("SigningYouBackIn")); return; }
@@ -229,16 +248,23 @@ public sealed partial class MainWindow : Window
             SetGateState(L10n.Get("SyncServiceUnavailable"), false);
             GateError.Message = L10n.Error(error); GateError.IsOpen = true;
         }
+        finally
+        {
+            _accountLoads--;
+            TryShowFirstAppTour();
+        }
     }
 
     private void SetGateState(string status, bool progress = true)
     {
+        EndAppTour(remember: false);
         AuthGate.Visibility = Visibility.Visible; GateStatus.Text = status; GateProgress.Visibility = progress ? Visibility.Visible : Visibility.Collapsed;
         LoginFields.Visibility = Visibility.Collapsed; CodeFields.Visibility = Visibility.Collapsed; GateError.IsOpen = false;
         SetupHelpLink.IsEnabled = !progress;
     }
     private void ShowLogin()
     {
+        EndAppTour(remember: false);
         AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = L10n.Get("SignInToICloud"); LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
         if (string.IsNullOrWhiteSpace(AppleIdBox.Text)) AppleDeviceSignIn.Focus(FocusState.Programmatic);
         else AppleIdBox.Focus(FocusState.Programmatic);
@@ -530,7 +556,7 @@ public sealed partial class MainWindow : Window
         var code = new string(CodeBox.Text.Where(char.IsDigit).ToArray());
         try { await _sync.CallAsync("submit_2fa", new { code }); CodeBox.Text = ""; _lastSignInFailure = null; await BootAsync(); }
         catch (Exception error) { CodeBox.Text = ""; ShowSignInError(error, SignInStage.Verification); }
-        finally { _verificationBusy = false; SetVerificationControlsEnabled(true); }
+        finally { _verificationBusy = false; SetVerificationControlsEnabled(true); TryShowFirstAppTour(); }
     }
 
     private async void ResendCode_Click(object sender, RoutedEventArgs e) => await RequestCodeAsync();
@@ -906,7 +932,7 @@ public sealed partial class MainWindow : Window
     }
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
     private async void NewAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowNewReminderAsync(); }
-    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed) RevealSearch(); }
+    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed && WelcomeScreen.Visibility == Visibility.Collapsed && !AppTourActive) RevealSearch(); }
     private async void SettingsAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowSettingsAsync(); }
     private async Task ResolveConflictsAsync()
     {
@@ -1069,6 +1095,7 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _windowClosed = true; _accountEpoch++; _searchTimer.Stop(); _reminderLoads.Invalidate(); _navigationLoads.Invalidate();
+        EndAppTour(remember: false);
         _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop(); _paneHoverOpenTimer.Stop(); _paneHoverCloseTimer.Stop();
         _updateTimer.Stop(); _updateLifetime.Cancel();
         if (_notificationsRegistered) { try { AppNotificationManager.Default.Unregister(); } catch { } }
