@@ -57,9 +57,16 @@ With the .NET 8 SDK or newer installed on Windows:
 Demo mode uses in-memory sample data, without opening the real cache or connecting
 to iCloud. For a normal unpackaged development launch, omit `-Demo`.
 
+Choose **Settings → General → Appearance → Interface style → Apple-style** for an alternate
+three-pane layout with colored sidebar icons, circular completion controls, and
+a rounded details form. **Windows (original)** switches back immediately. The
+choice is saved on this PC, and both styles support **Match Windows**, **Light**,
+and **Dark** under Theme. Demo-mode settings stay in memory.
+
 ## Before signing in
 
-On first launch, a five-screen guide explains this version's account setup:
+On first launch, a welcome screen introduces the app and lets you explore sample
+reminders without an account. **Get started** opens a five-screen guide explaining this version's account setup:
 iCloud Reminders enabled, two-factor authentication using an Apple device or a
 trusted phone number for SMS codes, Advanced Data Protection off, web data access allowed, and account
 setup/updated terms completed on iCloud.com. Turning Advanced Data Protection off
@@ -74,6 +81,10 @@ steps without guessing an unreported cause. Troubleshooting can copy the error
 and open the actual diagnostic-log folder, including in a Store installation.
 Opening or closing the guide does not send another verification code or restart
 the current sign-in session.
+
+After your first successful login, a short, skippable app tour introduces the
+sidebar, search, new reminders, details, completion, and sync. Finishing or skipping
+the tour is remembered on this PC. Replay it from **Settings → About → Take the app tour**.
 
 ## Build and package
 

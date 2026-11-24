@@ -89,7 +89,17 @@ internal sealed class UiPreferenceData
     public Dictionary<string, ListAppearance> Lists { get; set; } = [];
     public double? DetailPaneFraction { get; set; }
     public bool CompletionAnimation { get; set; } = true;
+    public string InterfaceStyle { get; set; } = "windows";
     public bool ICloudSetupCompleted { get; set; }
+    public bool WelcomeCompleted { get; set; }
+    public bool AppTourCompleted { get; set; }
+
+    // Existing installations have already passed setup and should go straight
+    // to their account. New installs see the welcome before the iCloud guide.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ShouldShowWelcome => !WelcomeCompleted && !ICloudSetupCompleted;
+
+    public bool ShouldOfferAppTour(bool authenticated) => authenticated && !AppTourCompleted;
 }
 
 internal sealed class ListAppearance

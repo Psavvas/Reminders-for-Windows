@@ -71,6 +71,9 @@ public sealed partial class MainWindow : Window
         DetailDateTime.SizeChanged += EditorPair_SizeChanged;
         DetailRecurrence.SizeChanged += EditorPair_SizeChanged;
         DetailOptions.SizeChanged += EditorPair_SizeChanged;
+        _windowsReminderTemplate = ReminderList.ItemTemplate;
+        _windowsReminderRowStyle = ReminderList.ItemContainerStyle;
+        Root.ActualThemeChanged += (_, _) => { if (IsAppleStyle) { ApplyAppleColors(); RebuildAppleNavigation(); } };
         var settingsAccelerator = new KeyboardAccelerator { Key = (global::Windows.System.VirtualKey)188, Modifiers = global::Windows.System.VirtualKeyModifiers.Control };
         settingsAccelerator.Invoked += SettingsAccelerator_Invoked;
         Root.KeyboardAccelerators.Add(settingsAccelerator);
@@ -79,7 +82,7 @@ public sealed partial class MainWindow : Window
         Navigation.Loaded += Navigation_Loaded;
         foreach (var item in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).OfType<NavigationViewItem>()) AttachPaneHover(item);
         ReminderList.ItemsSource = _reminders;
-        DetailPriority.SelectedIndex = 0;
+        PopulatePriorityChoices(DetailPriority);
         _searchTimer.Tick += async (_, _) => { _searchTimer.Stop(); await LoadRemindersAsync(); };
         _statusTimer.Tick += async (_, _) =>
         {
@@ -100,6 +103,7 @@ public sealed partial class MainWindow : Window
         SetWindowSize();
         InitializeWindowChrome();
         SetPanePinned(UiPreferences.LoadNavigationPaneOpen(), persist: false);
+        ApplyInterfaceStyle();
         _initializingPane = false;
         Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
@@ -123,13 +127,29 @@ public sealed partial class MainWindow : Window
         if (args.WindowActivationState == WindowActivationState.Deactivated) return;
         if (_bootStarted)
         {
-            if (SetupGuide.Visibility == Visibility.Visible) return;
+            if (SetupGuide.Visibility == Visibility.Visible || WelcomeScreen.Visibility == Visibility.Visible) return;
             if (AuthGate.Visibility == Visibility.Collapsed && DateTimeOffset.UtcNow - _lastSyncRequest >= TimeSpan.FromSeconds(30))
                 await RequestAutoSyncAsync();
             return;
         }
         _bootStarted = true;
 #if DEBUG
+        if (Environment.GetCommandLineArgs().Contains("--preview-welcome", StringComparer.OrdinalIgnoreCase))
+        {
+            ApplyTheme(Environment.GetCommandLineArgs().Contains("--preview-light", StringComparer.OrdinalIgnoreCase) ? "light" : "dark");
+            ShowWelcome();
+            return;
+        }
+        if (Environment.GetCommandLineArgs().Contains("--preview-tour", StringComparer.OrdinalIgnoreCase))
+        {
+            LoadDemo();
+            _uiPreferences.InterfaceStyle = "apple";
+            ApplyInterfaceStyle();
+            ApplyTheme(Environment.GetCommandLineArgs().Contains("--preview-light", StringComparer.OrdinalIgnoreCase) ? "light" : "dark");
+            AppInfoBar.IsOpen = false;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ShowAppTour);
+            return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--preview-editor", StringComparer.OrdinalIgnoreCase))
         {
             LoadDemo();
@@ -175,6 +195,7 @@ public sealed partial class MainWindow : Window
             LoadDemo();
             return;
         }
+        if (_uiPreferences.ShouldShowWelcome) { ShowWelcome(); return; }
         if (!_uiPreferences.ICloudSetupCompleted) { ShowSetupGuide(firstRun: true); return; }
         await StartAccountAsync();
     }
@@ -189,6 +210,7 @@ public sealed partial class MainWindow : Window
     private async Task BootAsync()
     {
         if (_accountBusy) return;
+        _accountLoads++;
         SetGateState(L10n.Get("SyncServiceStarting"));
         try
         {
@@ -215,6 +237,7 @@ public sealed partial class MainWindow : Window
                 _statusTimer.Start(); _notificationTimer.Start(); _syncTimer.Start();
                 if (status.Flag("authenticated")) await RequestAutoSyncAsync();
                 if (!status.Flag("authenticated") && !status.Flag("restoring")) ShowInfo(L10n.Get("SignInToResumeSyncing"), L10n.Get("CachedRemindersAvailable"), InfoBarSeverity.Warning);
+                OfferFirstAppTour(status.Flag("authenticated"));
                 return;
             }
             if (status.Flag("restoring")) { SetGateState(L10n.Get("SigningYouBackIn")); return; }
@@ -225,16 +248,23 @@ public sealed partial class MainWindow : Window
             SetGateState(L10n.Get("SyncServiceUnavailable"), false);
             GateError.Message = L10n.Error(error); GateError.IsOpen = true;
         }
+        finally
+        {
+            _accountLoads--;
+            TryShowFirstAppTour();
+        }
     }
 
     private void SetGateState(string status, bool progress = true)
     {
+        EndAppTour(remember: false);
         AuthGate.Visibility = Visibility.Visible; GateStatus.Text = status; GateProgress.Visibility = progress ? Visibility.Visible : Visibility.Collapsed;
         LoginFields.Visibility = Visibility.Collapsed; CodeFields.Visibility = Visibility.Collapsed; GateError.IsOpen = false;
         SetupHelpLink.IsEnabled = !progress;
     }
     private void ShowLogin()
     {
+        EndAppTour(remember: false);
         AuthGate.Visibility = Visibility.Visible; GateProgress.Visibility = Visibility.Collapsed; GateStatus.Text = L10n.Get("SignInToICloud"); LoginFields.Visibility = Visibility.Visible; CodeFields.Visibility = Visibility.Collapsed;
         if (string.IsNullOrWhiteSpace(AppleIdBox.Text)) AppleDeviceSignIn.Focus(FocusState.Programmatic);
         else AppleIdBox.Focus(FocusState.Programmatic);
@@ -261,7 +291,10 @@ public sealed partial class MainWindow : Window
         }, data =>
         {
             if (_windowClosed || _accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
-            _lists = data.Lists; SetBadge("smart:today", data.Counts.Number("today"));
+            _lists = data.Lists;
+            SetBadge("smart:today", data.Counts.Number("today"));
+            foreach (var scope in new[] { "today", "upcoming", "all", "completed", "deleted" })
+                _appleSmartCounts[scope] = data.Counts.Number(scope);
             _tags = data.Tags.Select(tag => tag.Name).Distinct(StringComparer.CurrentCultureIgnoreCase).Order().ToList();
             RebuildListNavigation();
         });
@@ -286,7 +319,7 @@ public sealed partial class MainWindow : Window
     private void NavigationPaneItem_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         _paneHoverCloseTimer.Stop();
-        if (!_panePinnedOpen && !_hoverExpanded && !Navigation.IsPaneOpen && !_paneHoverOpenTimer.IsEnabled)
+        if (!IsAppleStyle && !_panePinnedOpen && !_hoverExpanded && !Navigation.IsPaneOpen && !_paneHoverOpenTimer.IsEnabled)
             _paneHoverOpenTimer.Start();
     }
 
@@ -303,7 +336,7 @@ public sealed partial class MainWindow : Window
 
     private async Task LoadRemindersAsync()
     {
-        ShowCompleted.Visibility = _view.Kind == NavKind.Smart && _view.Key == "completed" ? Visibility.Collapsed : Visibility.Visible;
+        UpdateCompletedControls();
         if (_demo) { _reminderLoads.Invalidate(); LoadDemoRows(); return; }
         try
         {
@@ -402,6 +435,14 @@ public sealed partial class MainWindow : Window
             var status = await _sync.CallAsync("sync_status", new { });
             if (_windowClosed || accountEpoch != _accountEpoch || _accountBusy || AuthGate.Visibility != Visibility.Collapsed) return;
             var conflicts = status.Number("conflicts"); ConflictItem.Visibility = conflicts > 0 ? Visibility.Visible : Visibility.Collapsed; ConflictItem.Content = conflicts == 1 ? L10n.Get("SyncConflictCountOne") : L10n.Format("SyncConflictCountMany", conflicts);
+            AppleConflicts.Visibility = ConflictItem.Visibility;
+            AppleConflicts.Content = ConflictItem.Content;
+            var lastSync = DateTimeOffset.TryParse(status.Text("last_sync"), out var synced)
+                ? L10n.Format("SidebarLastSynced", synced.LocalDateTime) : L10n.Get("SidebarNeverSynced");
+            var pendingCount = status.Number("pending_pushes");
+            AppleSyncStatus.Text = _sync.IsLocalDemo ? L10n.Get("SidebarLocalAccount")
+                : status.Flag("running") ? L10n.Get("Syncing")
+                : pendingCount > 0 ? L10n.Format("SidebarPendingSync", lastSync, pendingCount) : lastSync;
         }
         catch { }
     }
@@ -468,7 +509,7 @@ public sealed partial class MainWindow : Window
                 await _sync.SignInDemoAsync(PasswordBox.Password);
                 _uiPreferences = UiPreferences.Load(localDemo: true);
                 SetPanePinned(_uiPreferences.NavigationPaneOpen, persist: false);
-                UpdatePaneLayout();
+                ApplyInterfaceStyle();
             }
             else
             {
@@ -515,7 +556,7 @@ public sealed partial class MainWindow : Window
         var code = new string(CodeBox.Text.Where(char.IsDigit).ToArray());
         try { await _sync.CallAsync("submit_2fa", new { code }); CodeBox.Text = ""; _lastSignInFailure = null; await BootAsync(); }
         catch (Exception error) { CodeBox.Text = ""; ShowSignInError(error, SignInStage.Verification); }
-        finally { _verificationBusy = false; SetVerificationControlsEnabled(true); }
+        finally { _verificationBusy = false; SetVerificationControlsEnabled(true); TryShowFirstAppTour(); }
     }
 
     private async void ResendCode_Click(object sender, RoutedEventArgs e) => await RequestCodeAsync();
@@ -601,7 +642,6 @@ public sealed partial class MainWindow : Window
         };
     }
 
-    private void Demo_Click(object sender, RoutedEventArgs e) => LoadDemo();
     private void LoadDemo()
     {
         _accountEpoch++; _navigationLoads.Invalidate(); _reminderLoads.Invalidate();
@@ -624,17 +664,31 @@ public sealed partial class MainWindow : Window
         if (tag is "sync" or "conflicts") { RestoreNavigationSelection(); return; }
         var split = tag.Split(':', 2); if (split.Length != 2) return;
         var target = new NavEntry(args.SelectedItemContainer.Content?.ToString() ?? L10n.Get("Reminders"), "", split[0] switch { "list" => NavKind.List, "tag" => NavKind.Tag, _ => NavKind.Smart }, split[1]);
-        if (_savingDetail || _detailTransition || _dialogOpen) { RestoreNavigationSelection(); return; }
+        await SelectViewAsync(target);
+    }
+
+    private async Task SelectViewAsync(NavEntry target)
+    {
+        if (_savingDetail || _detailTransition || _dialogOpen)
+        {
+            RestoreNavigationSelection();
+            return;
+        }
         if (target.Kind == _view.Kind && target.Key == _view.Key) return;
         if (_detailDirty)
         {
             RestoreNavigationSelection();
             if (!await ConfirmLeaveDetailAsync()) return;
         }
-        _reminderLoads.Invalidate(); _view = target; RestoreNavigationSelection();
-        ViewTitle.Text = _view.Label; ViewSubtitle.Text = _view.Kind == NavKind.Tag ? L10n.Get("FilteredByTag") : "";
+        _reminderLoads.Invalidate();
+        _view = target;
+        RestoreNavigationSelection();
+        ViewTitle.Text = _view.Label;
+        ViewSubtitle.Text = _view.Kind == NavKind.Tag ? L10n.Get("FilteredByTag") : "";
         ViewSubtitle.Visibility = string.IsNullOrEmpty(ViewSubtitle.Text) ? Visibility.Collapsed : Visibility.Visible;
-        ShowDetail(null); await LoadRemindersAsync();
+        UpdateViewAccent();
+        ShowDetail(null);
+        await LoadRemindersAsync();
     }
 
     private void Navigation_PaneOpening(NavigationView sender, object args)
@@ -668,7 +722,7 @@ public sealed partial class MainWindow : Window
         try
         {
             Navigation.PaneDisplayMode = pinned ? NavigationViewPaneDisplayMode.Left : NavigationViewPaneDisplayMode.LeftCompact;
-            Navigation.IsPaneToggleButtonVisible = true;
+            Navigation.IsPaneToggleButtonVisible = !IsAppleStyle;
             Navigation.IsPaneOpen = pinned;
         }
         finally { _initializingPane = wasInitializing; }
@@ -697,7 +751,7 @@ public sealed partial class MainWindow : Window
     private void Navigation_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
         var pointerX = e.GetCurrentPoint(Navigation).Position.X;
-        if (!_panePinnedOpen && !_hoverExpanded && !Navigation.IsPaneOpen && pointerX <= Navigation.CompactPaneLength + 8)
+        if (!IsAppleStyle && !_panePinnedOpen && !_hoverExpanded && !Navigation.IsPaneOpen && pointerX <= Navigation.CompactPaneLength + 8)
         {
             _paneHoverCloseTimer.Stop();
             if (!_paneHoverOpenTimer.IsEnabled) _paneHoverOpenTimer.Start();
@@ -790,16 +844,18 @@ public sealed partial class MainWindow : Window
             DetailList.ItemsSource = OrderedLists();
             DetailList.SelectedValue = reminder.ListId;
             AddSubtaskButton.IsEnabled = !reminder.Completed && !reminder.Deleted;
-            DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>().FirstOrDefault(item => item.Tag?.ToString() == reminder.Priority.ToString());
+            DetailPriority.SelectedItem = DetailPriority.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => item.Tag is long value && value == reminder.Priority);
             if (DateTimeOffset.TryParse(reminder.DueDate, out var due)) { DetailDate.Date = due; DetailTime.Time = due.LocalDateTime.TimeOfDay; } else DetailDate.Date = null;
             DetailAllDay.IsOn = reminder.AllDay; DetailTime.IsEnabled = !reminder.AllDay; DetailFlagged.IsOn = reminder.Flagged;
             var customRepeat = reminder.Recurrence?.Supported == false;
             DetailRepeatChoice.IsEnabled = !customRepeat;
             DetailRepeatChoice.SelectedIndex = customRepeat ? -1 : (int)(reminder.Recurrence?.Frequency ?? 0);
             DetailRepeatInterval.Value = reminder.Recurrence?.Interval ?? 1;
-            UpdateRepeatControls();
             DetailTags.Text = string.Join(", ", reminder.Tags.Select(t => "#" + t));
             DetailTagsSection.Visibility = reminder.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            AppleDetailStatus.Text = !_demo && !_sync.IsLocalDemo && reminder.Dirty != 0 ? L10n.Get("PendingICloudSync") : "";
+            UpdateRepeatControls();
         }
         _detailBaseline = reminder is null ? null : CaptureDetailValues();
         SaveButton.IsEnabled = false; _detailDirty = false; _loadingDetail = false;
@@ -832,6 +888,7 @@ public sealed partial class MainWindow : Window
             : repeats && DetailDate.Date is null ? L10n.Get("RepeatNeedsDueDate") : "";
         DetailRepeatHint.Text = hint;
         DetailRepeatHint.Visibility = hint.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAppleDetailVisibility();
         UpdatePaneLayout();
     }
     private void Detail_Changed(object sender, object e)
@@ -875,7 +932,7 @@ public sealed partial class MainWindow : Window
     }
     private async void Add_Click(object sender, RoutedEventArgs e) => await ShowNewReminderAsync();
     private async void NewAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowNewReminderAsync(); }
-    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed) SearchBox.Focus(FocusState.Programmatic); }
+    private void SearchAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; if (AuthGate.Visibility == Visibility.Collapsed && SetupGuide.Visibility == Visibility.Collapsed && WelcomeScreen.Visibility == Visibility.Collapsed && !AppTourActive) RevealSearch(); }
     private async void SettingsAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) { args.Handled = true; await ShowSettingsAsync(); }
     private async Task ResolveConflictsAsync()
     {
@@ -1038,6 +1095,7 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         _windowClosed = true; _accountEpoch++; _searchTimer.Stop(); _reminderLoads.Invalidate(); _navigationLoads.Invalidate();
+        EndAppTour(remember: false);
         _statusTimer.Stop(); _notificationTimer.Stop(); _syncTimer.Stop(); _paneHoverOpenTimer.Stop(); _paneHoverCloseTimer.Stop();
         _updateTimer.Stop(); _updateLifetime.Cancel();
         if (_notificationsRegistered) { try { AppNotificationManager.Default.Unregister(); } catch { } }

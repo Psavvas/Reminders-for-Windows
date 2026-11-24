@@ -26,6 +26,7 @@ public sealed partial class MainWindow
             .FirstOrDefault(item => item.Tag?.ToString() == $"{_view.Kind.ToString().ToLowerInvariant()}:{_view.Key}"
                 || (_view.Kind == NavKind.Smart && item.Tag?.ToString() == $"smart:{_view.Key}"));
         _restoringNavigation = false;
+        if (IsAppleStyle) RestoreAppleSelection();
     }
 
     private async void Navigation_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
@@ -91,6 +92,8 @@ public sealed partial class MainWindow
         }
         _restoringNavigation = false;
         RestoreNavigationSelection();
+        RebuildAppleNavigation();
+        UpdateViewAccent();
     }
 
     private void SaveUiPreferences()
@@ -203,5 +206,6 @@ public sealed partial class MainWindow
         rows = _sort switch { "title" => rows.OrderBy(row => row.Title), "priority" => rows.OrderBy(row => row.Priority == 0 ? 10 : row.Priority), _ => rows.OrderBy(row => row.DueDate is null).ThenBy(row => row.DueDate) };
         SetReminderRows(IncludeDemoFamily(rows.ToList()));
         SetBadge("smart:today", _demoRows.Count(row => !row.Completed && !row.Deleted && DateTimeOffset.TryParse(row.DueDate, out var due) && due.LocalDateTime.Date <= DateTime.Today));
+        UpdateDemoAppleCounts();
     }
 }

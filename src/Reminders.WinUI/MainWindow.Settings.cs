@@ -63,7 +63,7 @@ public sealed partial class MainWindow
 
     private async Task ShowSettingsAsync(int initialCategory = 0)
     {
-        if (_dialogOpen || _savingDetail || _accountBusy || _verificationBusy || SetupGuide.Visibility == Visibility.Visible) return;
+        if (_dialogOpen || _savingDetail || _accountBusy || _verificationBusy || AppTourActive || SetupGuide.Visibility == Visibility.Visible || WelcomeScreen.Visibility == Visibility.Visible) return;
         _dialogOpen = true;
         SizeChangedEventHandler? resize = null;
         using var updateCancellation = new CancellationTokenSource();
@@ -84,6 +84,7 @@ public sealed partial class MainWindow
             if (IsSyncRecoveryPreview) syncStatus = JsonSerializer.SerializeToElement(new { pending_pushes = 3, conflicts = 1 });
             var choiceStyle = (Style)Application.Current.Resources["SettingsChoiceStyle"];
             var theme = new ComboBox { Style = choiceStyle, ItemsSource = new[] { L10n.Get("MatchWindows"), L10n.Get("Light"), L10n.Get("Dark") }, SelectedIndex = _settings.Text("theme", "system") switch { "light" => 1, "dark" => 2, _ => 0 } };
+            var interfaceStyle = new ComboBox { Style = choiceStyle, ItemsSource = new[] { L10n.Get("WindowsInterfaceStyle"), L10n.Get("AppleInterfaceStyle") }, SelectedIndex = IsAppleStyle ? 1 : 0 };
             var paneSizing = new ComboBox { Style = choiceStyle, ItemsSource = new[] { L10n.Get("Automatic"), L10n.Get("Custom") }, SelectedIndex = _uiPreferences.DetailPaneFraction is null ? 0 : 1 };
             var detailWidth = new Slider { Header = L10n.Get("PreferredDetailsWidth"), Minimum = 0, Maximum = 100, StepFrequency = 1, Value = Math.Clamp(_uiPreferences.DetailPaneFraction ?? .5, 0, 1) * 100 };
             var customLayout = new StackPanel { Spacing = 8, Visibility = paneSizing.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed };
@@ -98,7 +99,7 @@ public sealed partial class MainWindow
             defaultList.SelectedValue = _settings.Text("default_list_id", ""); if (defaultList.SelectedIndex < 0) defaultList.SelectedIndex = 0;
 
             var general = SettingsPage(L10n.Get("General"), L10n.Get("GeneralSettingsDescription"));
-            general.Children.Add(SettingsCard(L10n.Get("Appearance"), SettingsRow(L10n.Get("Theme"), null, theme), SettingsRow(L10n.Get("CompletionAnimation"), L10n.Get("AnimateRemindersWhenCompleted"), animation, 60)));
+            general.Children.Add(SettingsCard(L10n.Get("Appearance"), SettingsRow(L10n.Get("InterfaceStyle"), null, interfaceStyle), SettingsRow(L10n.Get("Theme"), null, theme), SettingsRow(L10n.Get("CompletionAnimation"), L10n.Get("AnimateRemindersWhenCompleted"), animation, 60)));
             general.Children.Add(SettingsCard(L10n.Get("Layout"), SettingsRow(L10n.Get("DetailsPane"), null, paneSizing), customLayout));
             general.Children.Add(SettingsCard(L10n.Get("Reminders"), SettingsRow(L10n.Get("DefaultList"), null, defaultList), SettingsRow(L10n.Get("DueDateNotifications"), null, notifications, 60)));
 
@@ -187,6 +188,9 @@ public sealed partial class MainWindow
             about.Children.Add(SettingsCard(L10n.Get("Links"), privacy, new HyperlinkButton { Content = new TextBlock { Text = L10n.Get("ViewSourceOnGitHub"), TextWrapping = TextWrapping.Wrap }, NavigateUri = new Uri("https://github.com/Psavvas/Reminders-for-Windows"), Padding = new Thickness(12, 8, 12, 8), HorizontalAlignment = HorizontalAlignment.Left }));
             about.Children.Add(new Expander { Header = L10n.Get("AboutThisApp"), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = SettingsDescription(L10n.Get("AboutAppDisclaimer")) });
+            var appTour = SettingsAction(L10n.Get("ReplayAppTour"));
+            appTour.IsEnabled = AuthGate.Visibility == Visibility.Collapsed;
+            about.Children.Add(SettingsCard(L10n.Get("GettingStarted"), SettingsDescription(L10n.Get("ReplayAppTourDescription")), appTour));
 
             var names = new[] { L10n.Get("General"), L10n.Get("SyncStorage"), L10n.Get("Account"), L10n.Get("About") };
             var pages = new[] { general, syncPage, account, about };
@@ -245,6 +249,7 @@ public sealed partial class MainWindow
             void Request(string value) { action = value; dialog.Hide(); }
             signOut.Click += (_, _) => Request("sign_out"); clearCache.Click += (_, _) => Request("clear_cache");
             setup.Click += (_, _) => Request("setup");
+            appTour.Click += (_, _) => Request("tour");
             installUpdate.Click += async (_, _) =>
             {
                 if (AppUpdater.CanInstall) { Request("install_update"); return; }
@@ -374,13 +379,15 @@ public sealed partial class MainWindow
             if (action == "sign_out") { await SignOutAsync(); return; }
             if (action == "clear_cache") { await ClearCacheAsync(); return; }
             if (action == "setup") { ShowSetupGuide(); return; }
+            if (action == "tour") { ShowAppTour(); return; }
             if (action == "install_update") { await InstallUpdateAsync(); return; }
             if (result != ContentDialogResult.Primary || !double.IsFinite(sync.Value)) return;
             var themeValue = theme.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
             var values = new { theme = themeValue, sync_minutes = (int)Math.Clamp(sync.Value, 1, 60), notifications_enabled = notifications.IsOn, default_list_id = defaultList.SelectedValue as string };
             _settings = _demo ? JsonSerializer.SerializeToElement(values) : await _sync.CallAsync("set_settings", values);
             _uiPreferences.CompletionAnimation = animation.IsOn; _uiPreferences.DetailPaneFraction = paneSizing.SelectedIndex == 0 ? null : detailWidth.Value / 100;
-            SaveUiPreferences(); UpdatePaneLayout(); ApplyTheme(themeValue);
+            _uiPreferences.InterfaceStyle = interfaceStyle.SelectedIndex == 1 ? "apple" : "windows";
+            SaveUiPreferences(); ApplyTheme(themeValue); ApplyInterfaceStyle();
         }
         catch (Exception error)
         {
@@ -394,6 +401,7 @@ public sealed partial class MainWindow
             await recoveryWork;
             if (resize is not null) Root.SizeChanged -= resize;
             _dialogOpen = false;
+            TryShowFirstAppTour();
         }
     }
 }
